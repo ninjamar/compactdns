@@ -5,6 +5,8 @@
 # https://github.com/ninjamar/dns-server
 # Version 0.0.1
 
+import argparse
+import logging
 import socket
 import struct
 from dataclasses import dataclass
@@ -105,6 +107,7 @@ class DNSQuestion:
 
     def pack(self, encoded_name) -> bytes:
         return encoded_name + struct.pack("!HH", self.type_, self.class_)
+
 
 @dataclass
 class DNSAnswer:
@@ -233,27 +236,32 @@ def forward_dns_query(query: bytes, resolver: tuple) -> bytes:
     resolver_socket.sendto(query, resolver)
 
     response, _ = resolver_socket.recvfrom(512)
-    resolver_socket.close() # should i use the same socket?
+    resolver_socket.close()  # should i use the same socket?
     return response
 
+
 def handle_dns_query(buf: bytes, resolver: tuple) -> bytes:
+
+    logging.info("Received query")
+
     header, questions = unpack_all(buf)
+    logging.debug(f"Received query: {header}, {questions}")
 
     # process header, questions
-
-    print(header, questions)
     # repack data
     send = pack_all_compressed(header, questions)
     response = forward_dns_query(send, resolver)
-    
-    print(unpack_all(response))
+
     # Update id qcount etc
     return response
 
 
-def server(resolver):
+def server(host, resolver):
+    logging.info("Starting DNS Server")
+
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    udp_socket.bind(("127.0.0.1", 2053))
+    udp_socket.bind(host)
+    logging.info(f"DNS Server running at {host[0]}:{host[1]}")
 
     while True:
         try:
@@ -269,4 +277,29 @@ def server(resolver):
 
 
 if __name__ == "__main__":
-    server(("1.1.1.1", 53))
+    parser = argparse.ArgumentParser(description="A simple forwarding DNS server")
+    parser.add_argument(
+        "--host",
+        required=True,
+        type=str,
+        help="The host address in the form of a.b.c.d:port",
+    )
+    parser.add_argument(
+        "--resolver",
+        required=True,
+        type=str,
+        help="The resolver address in the form of a.b.c.d:port",
+    )
+
+    args = parser.parse_args()
+
+    host = args.host.split(":")
+    resolver = args.resolver.split(":")
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    server((host[0], int(host[1])), (resolver[0], int(resolver[1])))
