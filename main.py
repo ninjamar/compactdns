@@ -12,13 +12,27 @@ import struct
 from dataclasses import dataclass
 
 
-def encode_name_simple(name: str) -> bytes:
+def encode_name_uncompressed(name: str) -> bytes:
+    """Encode a DNS name, without compression
+
+    :param name: DNS name to encode
+    :type name: str
+    :return: encoded DNS name
+    :rtype: bytes
+    """
     labels = name.split(".")
     encoded = [bytes([len(label)]) + label.encode("ascii") for label in labels]
     return b"".join(encoded) + b"\x00"
 
 
-def decode_name_simple(buf: bytes) -> str:
+def decode_name_uncompressed(buf: bytes) -> str:
+    """Decode a DNS name, without compression
+
+    :param buf: DNS name to decode
+    :type buf: bytes
+    :return: decoded DNS name
+    :rtype: str
+    """
     labels = []
     idx = 0
     # extract size, parse section, until null
@@ -33,6 +47,8 @@ def decode_name_simple(buf: bytes) -> str:
 
 @dataclass
 class DNSHeader:
+    """Dataclass to store DNS header
+    """
     id: int = 0  # TODO: BUILTIN
     qr: int = 0
     opcode: int = 0
@@ -48,6 +64,11 @@ class DNSHeader:
     arcount: int = 0
 
     def pack(self) -> bytes:
+        """Pack the DNS header
+
+        :return: packed DNS header
+        :rtype: bytes
+        """
         flags = (
             (self.qr << 15)  # QR: 1 bit at bit 15
             | (self.opcode << 11)  # OPCODE: 4 bits at bits 11-14
@@ -70,7 +91,14 @@ class DNSHeader:
         )
 
     @classmethod
-    def from_buffer(cls, buf):
+    def from_buffer(cls, buf: bytes) -> "DNSHeader":
+        """Create a DNSHeader object from a buffer
+
+        :param buf: buffer containing a DNS header
+        :type buf: bytes
+        :return: DNS header
+        :rtype: DNSHeader
+        """
         unpacked = struct.unpack("!HHHHHH", buf[:12])  # Header is always 12 bytes
         flags = unpacked[1]
         qr = (flags >> 15) & 0x1
@@ -100,17 +128,28 @@ class DNSHeader:
 
 @dataclass
 class DNSQuestion:
+    """Dataclass to store DNS question
+    """
     decoded_name: str = ""
 
     type_: int = 1  # TODO: BUILTIN
     class_: int = 1
 
-    def pack(self, encoded_name) -> bytes:
+    def pack(self, encoded_name: bytes) -> bytes:
+        """Pack the DNS question
+
+        :param encoded_name: encoded name
+        :type encoded_name: bytes
+        :return: packed DNS question
+        :rtype: bytes
+        """
         return encoded_name + struct.pack("!HH", self.type_, self.class_)
 
 
 @dataclass
 class DNSAnswer:
+    """Dataclass to store DNS answer
+    """
     decoded_name: str = ""
     type_: int = 1
     class_: int = 1
@@ -121,7 +160,14 @@ class DNSAnswer:
     def __post_init__(self):
         self.rdata = struct.pack("!4B", *[int(x) for x in self.rdata.split(".")])
 
-    def pack(self, encoded_name):
+    def pack(self, encoded_name: bytes) -> bytes:
+        """Pack the DNS answer
+
+        :param encoded_name: name encoded
+        :type encoded_name: bytes
+        :return: packed DNS answer
+        :rtype: bytes
+        """
         return (
             encoded_name
             + struct.pack(
@@ -138,18 +184,40 @@ class DNSAnswer:
 
 def pack_all_uncompressed(
     header: DNSHeader, questions: list[DNSQuestion], answers: list[DNSAnswer]
-):
+) -> bytes:
+    """Pack DNS headers, questions, and answers, without compression
+
+    :param header: A singular DNS header
+    :type header: DNSHeader
+    :param questions: All the DNS questions
+    :type questions: list[DNSQuestion]
+    :param answers: All the DNS answers
+    :type answers: list[DNSAnswer]
+    :return: uncompressed DNS bytes
+    :rtype: bytes
+    """
     response = header.pack()
     for question in questions:
-        response += question.pack(encode_name_simple(question.decoded_name))
+        response += question.pack(encode_name_uncompressed(question.decoded_name))
     for answer in answers:
-        response += answer.pack(encode_name_simple(answer.decoded_name))
+        response += answer.pack(encode_name_uncompressed(answer.decoded_name))
     return response
 
 
 def pack_all_compressed(
     header: DNSHeader, questions: list[DNSQuestion] = [], answers: list[DNSAnswer] = []
-):
+) -> bytes:
+    """Pack DNS headers, questions, and answers, with compression
+
+    :param header: A singular DNS header
+    :type header: DNSHeader
+    :param questions: All the DNS questions
+    :type questions: list[DNSQuestion]
+    :param answers: All the DNS answers
+    :type answers: list[DNSAnswer]
+    :return: compressed DNS bytes
+    :rtype: bytes
+    """
     response = header.pack()
 
     name_offset_map = {}
@@ -164,7 +232,7 @@ def pack_all_compressed(
 
             encoded_name = struct.pack("!H", pointer)
         else:
-            encoded_name = encode_name_simple(question.decoded_name)
+            encoded_name = encode_name_uncompressed(question.decoded_name)
             name_offset_map[question.decoded_name] = len(response)
 
         response += question.pack(encoded_name)
@@ -176,14 +244,24 @@ def pack_all_compressed(
 
             encoded_name = struct.pack("!H", pointer)
         else:
-            encoded_name = encode_name_simple(answer.decoded_name)
+            encoded_name = encode_name_uncompressed(answer.decoded_name)
             name_offset_map[answer.decoded_name] = len(response)
 
         response += answer.pack(encoded_name)
     return response
 
 
-def decode_domain(buf: bytes, start_idx: int) -> str:
+def decode_name(buf: bytes, start_idx: int) -> str:
+    """Decode a name, that is compressed, from a buffer
+
+    :param buf: buffer containing name
+    :type buf: bytes
+    :param start_idx: start index of name
+    :type start_idx: int
+    :raises Exception: infinite loop
+    :return: decoded name
+    :rtype: str
+    """
     labels = []
     idx = start_idx
     visited = set()  # prevent going into a loop
@@ -199,7 +277,7 @@ def decode_domain(buf: bytes, start_idx: int) -> str:
             break
         elif length & 0xC0 == 0xC0:  # pointer
             pointer = struct.unpack("!H", buf[idx : idx + 2])[0] & 0x3FFF
-            domain, _ = decode_domain(buf, pointer)
+            domain, _ = decode_name(buf, pointer)
             labels.append(domain)
 
             idx += 2
@@ -211,7 +289,14 @@ def decode_domain(buf: bytes, start_idx: int) -> str:
     return ".".join(labels), idx
 
 
-def unpack_all(buf):
+def unpack_all(buf: bytes) -> tuple[DNSHeader, DNSQuestion]:
+    """Unpack a sent buffer into the header and questions
+
+    :param buf: sent buffer
+    :type buf: bytes
+    :return: unpacked header and questions
+    :rtype: tuple[DNSHeader, DNSQuestion]
+    """
     header = DNSHeader.from_buffer(buf[:12])  # First 12 bytes are header
 
     idx = 12  # start after header
@@ -219,7 +304,7 @@ def unpack_all(buf):
     questions = []
 
     for _ in range(header.qdcount):
-        decoded_name, idx = decode_domain(buf, idx)
+        decoded_name, idx = decode_name(buf, idx)
         type_, class_ = struct.unpack("!HH", buf[idx : idx + 4])
         idx += 4
 
@@ -230,18 +315,34 @@ def unpack_all(buf):
     return header, questions
 
 
-# TODO: Unpack all
-def forward_dns_query(query: bytes, resolver: tuple) -> bytes:
+def forward_dns_query(query: bytes, addr: tuple[str, int]) -> bytes:
+    """Forward a DNS query to an address
+
+    :param query: query to forward
+    :type query: bytes
+    :param addr: tuple containing address and port
+    :type addr: tuple[str, int]
+    :return: response from the server
+    :rtype: bytes
+    """
     resolver_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    resolver_socket.sendto(query, resolver)
+    resolver_socket.sendto(query, addr)
 
     response, _ = resolver_socket.recvfrom(512)
     resolver_socket.close()  # should i use the same socket?
     return response
 
 
-def handle_dns_query(buf: bytes, resolver: tuple) -> bytes:
+def handle_dns_query(buf: bytes, resolver: tuple[str, int]) -> bytes:
+    """Handle a DNS query
 
+    :param buf: buffer containing DNS query
+    :type buf: bytes
+    :param resolver: forwarding server address and port
+    :type resolver: tuple[str, int]
+    :return: response from server
+    :rtype: bytes
+    """
     logging.info("Received query")
 
     header, questions = unpack_all(buf)
@@ -256,7 +357,14 @@ def handle_dns_query(buf: bytes, resolver: tuple) -> bytes:
     return response
 
 
-def server(host, resolver):
+def server(host: tuple[str, int], resolver: tuple[str, int]) -> None:
+    """Start the DNS forwarding server
+
+    :param host: host address and port
+    :type host: tuple[str, int]
+    :param resolver: resolver address and port
+    :type resolver: tuple[str, int]
+    """
     logging.info("Starting DNS Server")
 
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
