@@ -50,6 +50,43 @@ def decode_name_uncompressed(buf: bytes) -> str:
     return ".".join(labels)
 
 
+def decode_name(buf: bytes, start_idx: int) -> tuple[str, int]:
+    """Decode a name, that is compressed, from a buffer
+
+    :param buf: buffer containing name
+    :type buf: bytes
+    :param start_idx: start index of name
+    :type start_idx: int
+    :raises Exception: infinite loop
+    :return: decoded name, index
+    :rtype: tuple[str, int]
+    """
+    labels = []
+    idx = start_idx
+    visited = set()  # prevent going into a loop
+
+    while idx < len(buf):
+        if idx in visited:
+            raise Exception("Unable to decode domain: loop detected")
+        visited.add(idx)
+
+        label_len = buf[idx]
+        if label_len == 0:  # null terminator
+            # idx += 1
+            break
+        elif label_len & 0xC0 == 0xC0:  # pointer
+            # pointer = struct.unpack("!H", buf[idx : idx + 2])[0] & 0x3FFF
+            pointer = ((label_len & 0x3F) << 8) + buf[idx + 1]
+            domain, _ = decode_name(buf, pointer)
+            labels.append(domain)
+
+            # idx += 2
+            break
+        labels.append(buf[idx + 1 : idx + 1 + label_len].decode("ascii"))
+        idx += label_len + 1
+
+    return ".".join(labels), idx
+
 @dataclasses.dataclass
 class DNSHeader:
     """Dataclass to store DNS header"""
@@ -256,44 +293,6 @@ def pack_all_compressed(
     return response
 
 
-def decode_name(buf: bytes, start_idx: int) -> str:
-    """Decode a name, that is compressed, from a buffer
-
-    :param buf: buffer containing name
-    :type buf: bytes
-    :param start_idx: start index of name
-    :type start_idx: int
-    :raises Exception: infinite loop
-    :return: decoded name
-    :rtype: str
-    """
-    labels = []
-    idx = start_idx
-    visited = set()  # prevent going into a loop
-
-    while True:
-        if idx in visited:
-            raise Exception("Unable to decode domain: loop detected")
-        visited.add(idx)
-
-        length = buf[idx]
-        if length == 0:  # null terminator
-            idx += 1
-            break
-        elif length & 0xC0 == 0xC0:  # pointer
-            pointer = struct.unpack("!H", buf[idx : idx + 2])[0] & 0x3FFF
-            domain, _ = decode_name(buf, pointer)
-            labels.append(domain)
-
-            idx += 2
-            break
-        else:
-            labels.append(buf[idx + 1 : idx + 1 + length].decode("ascii"))
-            idx += 1 + length
-
-    return ".".join(labels), idx
-
-
 def unpack_all(
     buf: bytes,
 ) -> (
@@ -484,7 +483,7 @@ def server(host: tuple[str, int], resolver: tuple[str, int]) -> None:
             break
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="A simple forwarding DNS server")
     parser.add_argument(
         "--host",
@@ -511,6 +510,8 @@ if __name__ == "__main__":
     )
 
     server((host[0], int(host[1])), (resolver[0], int(resolver[1])))
+if __name__ == "__main__":
+    main()
 
 
 # TODO: Use a class
