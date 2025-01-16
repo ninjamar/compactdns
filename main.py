@@ -17,6 +17,7 @@ DEFAULT_BLOCKING_TTL = 60
 # TODO: Ensure all code is right (via tests)
 # TODO: Document the archictecture (comments)
 
+
 def encode_name_uncompressed(name: str) -> bytes:
     """Encode a DNS name, without compression
 
@@ -48,6 +49,7 @@ def decode_name_uncompressed(buf: bytes) -> str:
         labels.append(label.decode("ascii"))
         idx += size
     return ".".join(labels)
+
 
 def decode_name(buf: bytes, start_idx: int) -> str:
     """Decode a name, that is compressed, from a buffer
@@ -266,7 +268,7 @@ def pack_all_compressed(
     for question in questions:
         if question.decoded_name in name_offset_map:
             # Starting pointer + offset of name
-            pointer = 0xC000 | name_offset_map[answer.decoded_name]
+            pointer = 0xC000 | name_offset_map[question.decoded_name]
 
             encoded_name = struct.pack("!H", pointer)
         else:
@@ -331,7 +333,6 @@ def unpack_all(
 
         rdlength = struct.unpack("!H", buf[idx : idx + 2])[0]
         idx += 2
-
 
         rdata = buf[idx : idx + rdlength]
         idx += rdlength
@@ -401,8 +402,6 @@ def handle_dns_query(
     print("Blocked questions index", questions_index_blocked)
     print("Blocked questions", [questions[i] for i in questions_index_blocked])
 
-
-
     new_header.qdcount = len(new_questions)
 
     print("New header", new_header)
@@ -435,6 +434,7 @@ def handle_dns_query(
             ttl=DEFAULT_BLOCKING_TTL,
             rdlength=4,
             # inet_aton encodes a ip address into bytes
+            # TODO: Should I use a function instead of inet_aton
             rdata=socket.inet_aton("127.0.0.1"),  # TODO: Use class, and cache.
             # rdata="127.0.0.1"
         )
