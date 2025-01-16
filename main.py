@@ -14,6 +14,8 @@ import dataclasses
 
 DEFAULT_BLOCKING_TTL = 60
 
+# TODO: Ensure all code is right (via tests)
+# TODO: Document the archictecture (comments)
 
 def encode_name_uncompressed(name: str) -> bytes:
     """Encode a DNS name, without compression
@@ -386,6 +388,8 @@ def handle_dns_query(
     logging.info("Received query")
 
     header, questions = unpack_all(buf)
+    print("Questions", questions)
+
     logging.debug(f"Received query: {header}, {questions}")
 
     new_header = dataclasses.replace(header)
@@ -399,7 +403,15 @@ def handle_dns_query(
         else:
             new_questions.append(question)
 
+    print("Blocked questions index", questions_index_blocked)
+    print("Blocked questions", [questions[i] for i in questions_index_blocked])
+
+
+
     new_header.qdcount = len(new_questions)
+
+    print("New header", new_header)
+    print("New questions", new_questions)
 
     if new_header.qdcount > 0:
         # process header, questions
@@ -416,6 +428,8 @@ def handle_dns_query(
         recv_header = new_header
         recv_questions = new_questions
         recv_answers = []
+
+    # print("Recieved answers", recv_answers)
 
     for idx in questions_index_blocked:
         info = questions[idx]
