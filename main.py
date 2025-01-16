@@ -199,10 +199,6 @@ class DNSAnswer:
     rdlength: int = 4
     rdata: str = ""  # IPV4
 
-    def __post_init__(self):
-        # self.rdata = struct.pack("!4B", *[int(x) for x in self.rdata.split(".")])
-        pass
-
     def pack(self, encoded_name: bytes) -> bytes:
         """Pack the DNS answer
 
