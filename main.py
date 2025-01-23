@@ -10,10 +10,13 @@ import logging
 import socket
 import struct
 import dataclasses
+import traceback
+import fnmatch
 
 
 DEFAULT_BLOCKING_TTL = 60
-
+# BLOCKLIST = ["google.com"]
+BLOCKLIST = ["*.google.*"]
 # TODO: Ensure all code is right (via tests)
 # TODO: Document the archictecture (comments)
 
@@ -394,7 +397,7 @@ def handle_dns_query(
 
     # remove blocked sites from dns forward
     for idx, question in enumerate(questions):
-        if question.decoded_name in blocklist:
+        if any(fnmatch.fnmatch(question.decoded_name, loc) for loc in blocklist):
             questions_index_blocked.append(idx)
         else:
             new_questions.append(question)
@@ -417,7 +420,11 @@ def handle_dns_query(
         logging.debug("Received query from dns server")
 
         # re add blocked sites to response, using blocked page as ip address
-        recv_header, recv_questions, recv_answers = unpack_all(response)
+        recv = unpack_all(response)
+        recv_header = recv[0]
+        recv_questions = recv[1]
+        recv_answers = recv[2] if len(recv) > 2 else []
+        # recv_header, recv_questions, recv_answers = unpack_all(response)
     else:
         recv_header = new_header
         recv_questions = new_questions
@@ -468,15 +475,14 @@ def server(host: tuple[str, int], resolver: tuple[str, int]) -> None:
     while True:
         try:
             buf, source = udp_socket.recvfrom(512)
-
-            response = handle_dns_query(buf, resolver, ["google.com"])
+            response = handle_dns_query(buf, resolver, BLOCKLIST)
             print(response)
 
             udp_socket.sendto(response, source)
         except Exception as e:
-            raise e
-            print(f"Error receiving data: {e}")
-            break
+            print(traceback.print_exc())
+            #raise e
+            #print(f"Error receiving data: {e}")
 
 
 if __name__ == "__main__":
