@@ -118,21 +118,75 @@ class TestDNSPackingUnpacking(unittest.TestCase):
 
     def test_unpack_all(self):
         # Only going to test compressed, because if it works for compressed, uncompressed works (99.9%)
-        header, questions, answers = unpack_all(b"7\xa0\x01 \x00\x02\x00\x02\x00\x00\x00\x01\x07example\x03com\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00\x01\xc0\x0c\x00\x01\x00\x01\x00\x00\x00<\x00\x04\x7f\x00\x00\x01\xc0\x0c\x00\x01\x00\x01\x00\x00\x00<\x00\x04\x7f\x00\x00\x01")
+        header, questions, answers = unpack_all(
+            b"7\xa0\x01 \x00\x02\x00\x02\x00\x00\x00\x01\x07example\x03com\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00\x01\xc0\x0c\x00\x01\x00\x01\x00\x00\x00<\x00\x04\x7f\x00\x00\x01\xc0\x0c\x00\x01\x00\x01\x00\x00\x00<\x00\x04\x7f\x00\x00\x01"
+        )
         self.assertEqual(header, self.header)
         self.assertEqual(questions, self.questions)
         self.assertEqual(answers, self.answers)
 
 
 class TestDNSQuery(unittest.TestCase):
+    def setUp(self):
+        pass
+
     def test_forward_dns_query(self):
         # No tests here, because it requires the resolver
         pass
 
     def test_handle_dns_query(self):
-        pass
+        # Recieve a DNS query of one question
+        one_question = pack_all_compressed(
+            DNSHeader(
+                id=43919,
+                qr=0,
+                opcode=0,
+                aa=0,
+                tc=0,
+                rd=1,
+                ra=0,
+                z=2,
+                rcode=0,
+                qdcount=1,
+                ancount=0,
+                nscount=0,
+                arcount=1,
+            ),
+            [DNSQuestion(decoded_name="example.com", type_=1, class_=1)],
+        )
+        two_questions = pack_all_compressed(
+            DNSHeader(
+                id=43919,
+                qr=0,
+                opcode=0,
+                aa=0,
+                tc=0,
+                rd=1,
+                ra=0,
+                z=2,
+                rcode=0,
+                qdcount=2,
+                ancount=0,
+                nscount=0,
+                arcount=1,
+            ),
+            [
+                DNSQuestion(decoded_name="example.com", type_=1, class_=1),
+                DNSQuestion(decoded_name="github.com", type_=1, class_=1),
+            ],
+        )
+        self.assertEqual(
+            handle_dns_query(one_question, RESOLVER, BLOCKLIST),
+            b"\xab\x8f\x01 \x00\x01\x00\x00\x00\x00\x00\x01\x07example\x03com\x00\x00\x01\x00\x01",
+        )
+        self.assertEqual(
+            handle_dns_query(two_questions, RESOLVER, BLOCKLIST),
+            b"\xab\x8f\x01 \x00\x02\x00\x00\x00\x00\x00\x01\x07example\x03com\x00\x00\x01\x00\x01\x06github\x03com\x00\x00\x01\x00\x01",
+        )
+        # Recieve a DNS query of two questions
 
     def test_handle_single_blocking_dns_query(self):
+        # Recieve a DNS query
         pass
 
     def test_handle_multiple_blocking_dns_query(self):
