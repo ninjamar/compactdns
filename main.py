@@ -14,9 +14,14 @@ import traceback
 import fnmatch
 
 
+# Default configuration/settings
+
 DEFAULT_BLOCKING_TTL = 60
-# BLOCKLIST = ["google.com"]
+# Use fnmatch synatax to match domains
 BLOCKLIST = ["*.google.*"]
+# Redirect to IP after block
+BLOCK_IP = "127.0.0.1"
+# TODO: Host something on block ip
 # TODO: Ensure all code is right (via tests)
 # TODO: Document the archictecture (comments)
 
@@ -44,7 +49,7 @@ def decode_name_uncompressed(buf: bytes) -> str:
     """
     labels = []
     idx = 0
-    # extract size, parse section, until null
+    # Extract size, parse section, until null
     while buf[idx] != 0x00:
         size = buf[idx]
         idx += 1
@@ -67,25 +72,34 @@ def decode_name(buf: bytes, start_idx: int) -> str:
     """
     labels = []
     idx = start_idx
-    visited = set()  # prevent going into a loop
+
+    # Prevent of going into a loop
+    visited = set()
 
     while True:
         if idx in visited:
             raise Exception("Unable to decode domain: loop detected")
         visited.add(idx)
 
+        # Length of section
         length = buf[idx]
-        if length == 0:  # null terminator
+        # Null terminator
+        if length == 0:
             idx += 1
             break
-        elif length & 0xC0 == 0xC0:  # pointer
+        # Pointer
+        elif length & 0xC0 == 0xC0:
+            # Unpack the pointer
             pointer = struct.unpack("!H", buf[idx : idx + 2])[0] & 0x3FFF
+            # Recursively decode the pointer
             domain, _ = decode_name(buf, pointer)
+            # Add part to domain
             labels.append(domain)
 
             idx += 2
             break
         else:
+            # Add part to domain
             labels.append(buf[idx + 1 : idx + 1 + length].decode("ascii"))
             idx += 1 + length
 
@@ -96,6 +110,8 @@ def decode_name(buf: bytes, start_idx: int) -> str:
 class DNSHeader:
     """Dataclass to store DNS header"""
 
+    # Required fields
+    # https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.1
     id: int = 0  # TODO: BUILTIN
     qr: int = 0
     opcode: int = 0
@@ -177,8 +193,11 @@ class DNSHeader:
 class DNSQuestion:
     """Dataclass to store DNS question"""
 
+    # Keep QNAME decoded, since it encoded in the message
     decoded_name: str = ""
 
+    # Required fields
+    # https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.2
     type_: int = 1  # TODO: BUILTIN
     class_: int = 1
 
@@ -190,6 +209,8 @@ class DNSQuestion:
         :return: packed DNS question
         :rtype: bytes
         """
+
+        # Require an encoded name, since compression is handled elsewhere
         return encoded_name + struct.pack("!HH", self.type_, self.class_)
 
 
@@ -197,7 +218,11 @@ class DNSQuestion:
 class DNSAnswer:
     """Dataclass to store DNS answer"""
 
+    # Keep NAME decoded, since it encoded in the message
     decoded_name: str = ""
+
+    # Required fields
+    # https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.3
     type_: int = 1
     class_: int = 1
     ttl: int = 0
@@ -212,6 +237,7 @@ class DNSAnswer:
         :return: packed DNS answer
         :rtype: bytes
         """
+        # Require an encoded name, since compression is handled elsewhere
         return (
             encoded_name
             + struct.pack(
@@ -239,9 +265,13 @@ def pack_all_uncompressed(
     :return: uncompressed DNS bytes
     :rtype: bytes
     """
+
+    # Pack header
     response = header.pack()
+    # Pack questions
     for question in questions:
         response += question.pack(encode_name_uncompressed(question.decoded_name))
+    # Pack answers
     for answer in answers:
         response += answer.pack(encode_name_uncompressed(answer.decoded_name))
     return response
@@ -261,21 +291,24 @@ def pack_all_compressed(
     :return: compressed DNS bytes
     :rtype: bytes
     """
+    # Pack header
     response = header.pack()
-
+    # Store pointer locations
     name_offset_map = {}
 
     # Compress question + answers
-
-    # Pack answers + store names + compression
+    # Pack + store names + compression
     for question in questions:
+        # If the name is repeated
         if question.decoded_name in name_offset_map:
             # Starting pointer + offset of name
             pointer = 0xC000 | name_offset_map[question.decoded_name]
 
             encoded_name = struct.pack("!H", pointer)
         else:
+            # Otherwise, encode the name without compression
             encoded_name = encode_name_uncompressed(question.decoded_name)
+            # Store the name for future pointers
             name_offset_map[question.decoded_name] = len(response)
 
         response += question.pack(encoded_name)
@@ -291,6 +324,7 @@ def pack_all_compressed(
             name_offset_map[answer.decoded_name] = len(response)
 
         response += answer.pack(encoded_name)
+
     return response
 
 
@@ -308,15 +342,22 @@ def unpack_all(
     :return: unpacked header and questions
     :rtype: tuple[DNSHeader, DNSQuestion]
     """
-    header = DNSHeader.from_buffer(buf[:12])  # First 12 bytes are header
 
-    idx = 12  # start after header
+    # Header isn't compressed
+    # Load the first 12 bytes into the header
+    header = DNSHeader.from_buffer(buf[:12])
+
+    # Start after the header
+    idx = 12
 
     questions = []
 
+    # Use header.qdcount for # of questions
     for _ in range(header.qdcount):
+        # Decode the name
         decoded_name, idx = decode_name(buf, idx)
 
+        # Unpack the other fields
         type_, class_ = struct.unpack("!HH", buf[idx : idx + 4])
         idx += 4
 
@@ -325,18 +366,26 @@ def unpack_all(
         )
 
     answers = []
+    # use header.ancount for # of answers
     for _ in range(header.ancount):
+        # Decode the name
         decoded_name, idx = decode_name(buf, idx)
 
+        # Decode required fields
         type_, class_ = struct.unpack("!HH", buf[idx : idx + 4])
         idx += 4
 
+        # Struct format
+        # https://docs.python.org/3/library/struct.html
+        # Big indian unsigned int, 4 bytess
         ttl = struct.unpack("!I", buf[idx : idx + 4])[0]
         idx += 4
 
+        # Big endian unsigned short, 2 bytes
         rdlength = struct.unpack("!H", buf[idx : idx + 2])[0]
         idx += 2
 
+        # Use rdlength to get rdata
         rdata = buf[idx : idx + rdlength]
         idx += rdlength
 
@@ -351,6 +400,7 @@ def unpack_all(
             )
         )
 
+    # If there aren't any answers, don't return it
     return (header, questions) if header.ancount == 0 else (header, questions, answers)
 
 
@@ -364,6 +414,8 @@ def forward_dns_query(query: bytes, addr: tuple[str, int]) -> bytes:
     :return: response from the server
     :rtype: bytes
     """
+    
+    # TODO: Use a class, and keep the same socket open
     resolver_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     resolver_socket.sendto(query, addr)
 
@@ -386,75 +438,77 @@ def handle_dns_query(
     """
     logging.info("Received query")
 
+    # Recieve header and questions
     header, questions = unpack_all(buf)
-    print("Questions", questions)
 
     logging.debug(f"Received query: {header}, {questions}")
 
+    # Copy header
     new_header = dataclasses.replace(header)
     new_questions = []
     questions_index_blocked = []
 
-    # remove blocked sites from dns forward
+    # Remove blocked sites, so it doesn't get forwarded
     for idx, question in enumerate(questions):
+        # Use file matching syntax to detect block
         if any(fnmatch.fnmatch(question.decoded_name, loc) for loc in blocklist):
             questions_index_blocked.append(idx)
         else:
             new_questions.append(question)
 
-    print("Blocked questions index", questions_index_blocked)
-    print("Blocked questions", [questions[i] for i in questions_index_blocked])
-
+    # print("Blocked questions index", questions_index_blocked)
+    # print("Blocked questions", [questions[i] for i in questions_index_blocked])
+    
+    # Set new qdcount for forwarded header
     new_header.qdcount = len(new_questions)
 
-    print("New header", new_header)
-    print("New questions", new_questions)
+    logging.debug(f"New header {new_header}, new questions {new_questions}")
 
+    # Only forward query if there is something to forward
     if new_header.qdcount > 0:
-        # process header, questions
-        # repack data
+        # Process header, questions
+        # Repack data
         send = pack_all_compressed(new_header, new_questions)
-        print(send)
         response = forward_dns_query(send, resolver)
 
         logging.debug("Received query from dns server")
-
-        # re add blocked sites to response, using blocked page as ip address
+        
+        # Add the blocked sites to the response
         recv = unpack_all(response)
         recv_header = recv[0]
         recv_questions = recv[1]
+        # Sometimes there will be no answers
         recv_answers = recv[2] if len(recv) > 2 else []
-        # recv_header, recv_questions, recv_answers = unpack_all(response)
     else:
         recv_header = new_header
         recv_questions = new_questions
         recv_answers = []
 
-    # print("Recieved answers", recv_answers)
-
+    # Add the blocked questions to the response, keeping the position
     for idx in questions_index_blocked:
-        info = questions[idx]
+        question = questions[idx]
+        # Fake answer
         answer = DNSAnswer(
-            decoded_name=info.decoded_name,
-            type_=info.type_,
-            class_=info.type_,
+            decoded_name=question.decoded_name,
+            type_=question.type_,
+            class_=question.type_,
             ttl=DEFAULT_BLOCKING_TTL,
             rdlength=4,
             # inet_aton encodes a ip address into bytes
-            # TODO: Should I use a function instead of inet_aton
-            rdata=socket.inet_aton("127.0.0.1"),  # TODO: Use class, and cache.
-            # rdata="127.0.0.1"
+            # TODO: Use class, and cache?
+            rdata=socket.inet_aton(BLOCK_IP),
         )
 
-        # Obviously isn't going to work
-        recv_questions.insert(idx, info)
+        # Insert the questions and answer to the correct spot
+        recv_questions.insert(idx, question)
         recv_answers.insert(idx, answer)
 
+    # Update the header's question and answer count
     recv_header.qdcount = len(recv_questions)
     recv_header.ancount = len(recv_answers)
 
     logging.info(f"Sending query back, {recv_header}, {recv_questions}, {recv_answers}")
-    # Update id qcount etc
+    # Pack and compress header, questions, answers 
     return pack_all_compressed(recv_header, recv_questions, recv_answers)
 
 
@@ -468,24 +522,34 @@ def server(host: tuple[str, int], resolver: tuple[str, int]) -> None:
     """
     logging.info("Starting DNS Server")
 
+    # Start server
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_socket.bind(host)
+
     logging.info(f"DNS Server running at {host[0]}:{host[1]}")
 
     while True:
         try:
+            # Recieve packet
             buf, source = udp_socket.recvfrom(512)
+            # Handle query
             response = handle_dns_query(buf, resolver, BLOCKLIST)
-            print(response)
+            # print(response)
 
             udp_socket.sendto(response, source)
         except Exception as e:
+            # Handle errors, but keep the program running
+            # TODO: Add timeout
             print(traceback.print_exc())
-            #raise e
-            #print(f"Error receiving data: {e}")
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
     parser = argparse.ArgumentParser(description="A simple forwarding DNS server")
     parser.add_argument(
         "--host",
@@ -504,12 +568,6 @@ if __name__ == "__main__":
 
     host = args.host.split(":")
     resolver = args.resolver.split(":")
-
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
 
     server((host[0], int(host[1])), (resolver[0], int(resolver[1])))
 
