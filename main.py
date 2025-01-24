@@ -18,7 +18,7 @@ import fnmatch
 
 DEFAULT_BLOCKING_TTL = 60
 # Use fnmatch synatax to match domains
-BLOCKLIST = ["*.google.*"]
+BLOCKLIST = ["google.*", "*.google.*"]
 # Redirect to IP after block
 BLOCK_IP = "127.0.0.1"
 # TODO: Host something on block ip
@@ -451,6 +451,7 @@ def handle_dns_query(
     # Remove blocked sites, so it doesn't get forwarded
     for idx, question in enumerate(questions):
         # Use file matching syntax to detect block
+        print(question.decoded_name)
         if any(fnmatch.fnmatch(question.decoded_name, loc) for loc in blocklist):
             questions_index_blocked.append(idx)
         else:
