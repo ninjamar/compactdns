@@ -414,7 +414,7 @@ def forward_dns_query(query: bytes, addr: tuple[str, int]) -> bytes:
     :return: response from the server
     :rtype: bytes
     """
-    
+
     # TODO: Use a class, and keep the same socket open
     resolver_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     resolver_socket.sendto(query, addr)
@@ -451,15 +451,11 @@ def handle_dns_query(
     # Remove blocked sites, so it doesn't get forwarded
     for idx, question in enumerate(questions):
         # Use file matching syntax to detect block
-        print(question.decoded_name)
         if any(fnmatch.fnmatch(question.decoded_name, loc) for loc in blocklist):
             questions_index_blocked.append(idx)
         else:
             new_questions.append(question)
 
-    # print("Blocked questions index", questions_index_blocked)
-    # print("Blocked questions", [questions[i] for i in questions_index_blocked])
-    
     # Set new qdcount for forwarded header
     new_header.qdcount = len(new_questions)
 
@@ -473,7 +469,7 @@ def handle_dns_query(
         response = forward_dns_query(send, resolver)
 
         logging.debug("Received query from dns server")
-        
+
         # Add the blocked sites to the response
         recv = unpack_all(response)
         recv_header = recv[0]
@@ -509,7 +505,7 @@ def handle_dns_query(
     recv_header.ancount = len(recv_answers)
 
     logging.info(f"Sending query back, {recv_header}, {recv_questions}, {recv_answers}")
-    # Pack and compress header, questions, answers 
+    # Pack and compress header, questions, answers
     return pack_all_compressed(recv_header, recv_questions, recv_answers)
 
 
@@ -533,15 +529,15 @@ def server(host: tuple[str, int], resolver: tuple[str, int]) -> None:
         try:
             # Recieve packet
             buf, source = udp_socket.recvfrom(512)
+
             # Handle query
             response = handle_dns_query(buf, resolver, BLOCKLIST)
-            # print(response)
 
             udp_socket.sendto(response, source)
         except Exception as e:
             # Handle errors, but keep the program running
             # TODO: Add timeout
-            print(traceback.print_exc())
+            logging.error("Error", exc_info=1)
 
 
 if __name__ == "__main__":
@@ -571,9 +567,3 @@ if __name__ == "__main__":
     resolver = args.resolver.split(":")
 
     server((host[0], int(host[1])), (resolver[0], int(resolver[1])))
-
-
-# TODO: Use a class
-# Port: 2053
-# Test with multiple questions
-# Custom block page/server
