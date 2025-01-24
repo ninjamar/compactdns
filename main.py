@@ -10,7 +10,6 @@ import logging
 import socket
 import struct
 import dataclasses
-import traceback
 import fnmatch
 
 
@@ -21,6 +20,7 @@ DEFAULT_BLOCKING_TTL = 60
 BLOCKLIST = ["google.*", "*.google.*"]
 # Redirect to IP after block
 BLOCK_IP = "127.0.0.1"
+# TODO: Use class, and cache?
 # TODO: Host something on block ip
 # TODO: Ensure all code is right (via tests)
 # TODO: Document the archictecture (comments)
@@ -492,7 +492,6 @@ def handle_dns_query(
             ttl=DEFAULT_BLOCKING_TTL,
             rdlength=4,
             # inet_aton encodes a ip address into bytes
-            # TODO: Use class, and cache?
             rdata=socket.inet_aton(BLOCK_IP),
         )
 
