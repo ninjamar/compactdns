@@ -17,7 +17,6 @@ import threading
 
 DEFAULT_BLOCKING_TTL = 60
 # Use fnmatch synatax to match domains
-# BLOCKLIST = ["google.*", "*.google.*"]
 
 # TODO: Use cache
 # TODO: Host something on block ip
@@ -416,6 +415,7 @@ class ServerManager:
         resolver_addr: tuple[str, int],
         blocklist: set[str],
         redirect_ip: str,
+        default_blocking_ttl: int = 60
     ):
         """Create a ServerManager instance
 
@@ -427,6 +427,8 @@ class ServerManager:
         :type blocklist: set[str]
         :param redirect_ip: answer with ip on block
         :type redirect_ip: str
+        :param default_blocking_ttl: default ttl for blocked hosts
+        :type default_blocking_ttl: int
         """
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(host)
@@ -436,6 +438,8 @@ class ServerManager:
 
         self.blocklist = blocklist
         self.redirect_ip = redirect_ip
+
+        self.default_blocking_ttl = default_blocking_ttl
 
     def handle_dns_query(self, buf: bytes) -> bytes:
         """Handle a DNS query
@@ -500,7 +504,7 @@ class ServerManager:
                 decoded_name=question.decoded_name,
                 type_=question.type_,
                 class_=question.type_,
-                ttl=DEFAULT_BLOCKING_TTL,
+                ttl=self.default_blocking_ttl,
                 rdlength=4,
                 # inet_aton encodes a ip address into bytes
                 rdata=socket.inet_aton(self.redirect_ip),
@@ -622,6 +626,12 @@ if __name__ == "__main__":
         type=str,
         help="Mode to run server (default = threaded)"
     )
+    parser.add_argument(
+        "--ttl",
+        default=60,
+        type=int,
+        help="Default TTL for blocked hosts"
+    )
 
     args = parser.parse_args()
 
@@ -642,7 +652,7 @@ if __name__ == "__main__":
     else:
         blocklist = set()
 
-    manager = ServerManager(host=(host[0], int(host[1])), resolver_addr=(resolver[0], int(resolver[1])), blocklist=blocklist, redirect_ip=redirect_ip)
+    manager = ServerManager(host=(host[0], int(host[1])), resolver_addr=(resolver[0], int(resolver[1])), blocklist=blocklist, redirect_ip=redirect_ip, default_blocking_ttl=args.ttl)
 
     if args.mode == "normal":
         manager.start()
