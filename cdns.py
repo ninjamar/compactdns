@@ -3,7 +3,6 @@
 # dns-server
 # A simple forwarding DNS server
 # https://github.com/ninjamar/dns-server
-# Version 0.0.1
 
 import argparse
 import logging
@@ -13,18 +12,13 @@ import dataclasses
 import fnmatch
 import threading
 
-# Default configuration/settings
-
-DEFAULT_BLOCKING_TTL = 60
-# Use fnmatch synatax to match domains
 
 # TODO: Use cache
-# TODO: Host something on block ip
 # TODO: Ensure all code is right (via tests)
 # TODO: Document the archictecture (comments)
 # TODO: Reuse forwarding socket3
 # TODO: Time request
-# TODO: More threads
+# TODO: Cap threads
 # TODO: Add timeout
 # TODO: Load configuration from file
 
@@ -543,14 +537,21 @@ class ServerManager:
         return response
 
     def done(self):
+        """Close sockets"""
         self.sock.close()
         self.resolver_socket.close()
 
     def threaded_handle_dns_query(self, addr, *args, **kwargs):
+        """Run a threaded version of handle_dns_query
+
+        :param addr: address + port of client
+        :type addr: tuple[str, int]
+        """
         self.sock.sendto(self.handle_dns_query(*args, **kwargs), addr)
         logging.info("Sent response")
 
     def start_threaded(self):
+        """Start a threaded server"""
         logging.info(f"Threaded DNS Server running at {host[0]}:{host[1]}")
         while True:
             try:
@@ -569,6 +570,7 @@ class ServerManager:
                 logging.error("Error", exc_info=1)
 
     def start(self):
+        """Start a non-threaded server"""
         logging.info(f"DNS Server running at {host[0]}:{host[1]}")
         while True:
             try:
