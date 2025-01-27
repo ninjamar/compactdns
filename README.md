@@ -13,6 +13,7 @@ Download this repository (or `cdns.py`). This project only depends on the Python
 ```
 usage: cdns.py [-h] --host HOST --resolver RESOLVER --redirect REDIRECT [--blocklist BLOCKLIST]
                [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}] [--mode {normal,threaded}]
+               [--ttl TTL]
 
 A simple forwarding DNS server
 
@@ -29,6 +30,7 @@ options:
                         Provide information about the logging level (default = info)
   --mode {normal,threaded}, -m {normal,threaded}
                         Mode to run server (default = threaded)
+  --ttl TTL             Default TTL for blocked hosts
 ```
 ### Example
 ```
