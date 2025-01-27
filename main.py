@@ -24,6 +24,9 @@ BLOCK_IP = "127.0.0.1"
 # TODO: Host something on block ip
 # TODO: Ensure all code is right (via tests)
 # TODO: Document the archictecture (comments)
+# TODO: Reuse forwarding socket3
+# TODO: Time request
+# TODO: More threads
 
 
 def encode_name_uncompressed(name: str) -> bytes:
@@ -425,7 +428,7 @@ def forward_dns_query(query: bytes, addr: tuple[str, int]) -> bytes:
 
 
 def handle_dns_query(
-    buf: bytes, resolver: tuple[str, int], blocklist: set[str]
+    buf: bytes, resolver: tuple[str, int], blocklist: set[str], redirect_ip: str
 ) -> bytes:
     """Handle a DNS query
 
@@ -433,6 +436,10 @@ def handle_dns_query(
     :type buf: bytes
     :param resolver: forwarding server address and port
     :type resolver: tuple[str, int]
+    :param blocklist: urls to block
+    :type blocklist: set[str]
+    :param redirect_ip: ip address to redirect to
+    :type redirect_ip: str
     :return: response from server
     :rtype: bytes
     """
@@ -492,7 +499,7 @@ def handle_dns_query(
             ttl=DEFAULT_BLOCKING_TTL,
             rdlength=4,
             # inet_aton encodes a ip address into bytes
-            rdata=socket.inet_aton(BLOCK_IP),
+            rdata=socket.inet_aton(redirect_ip),
         )
 
         # Insert the questions and answer to the correct spot
@@ -508,13 +515,17 @@ def handle_dns_query(
     return pack_all_compressed(recv_header, recv_questions, recv_answers)
 
 
-def server(host: tuple[str, int], resolver: tuple[str, int]) -> None:
+def server(host: tuple[str, int], resolver: tuple[str, int], blocklist: set[str], redirect_ip: str) -> None:
     """Start the DNS forwarding server
 
     :param host: host address and port
     :type host: tuple[str, int]
     :param resolver: resolver address and port
     :type resolver: tuple[str, int]
+    :param blocklist: urls to block
+    :type blocklist: set[str]
+    :param redirect_ip: ip address to redirect to
+    :type redirect_ip: str
     """
     logging.info("Starting DNS Server")
 
@@ -530,7 +541,7 @@ def server(host: tuple[str, int], resolver: tuple[str, int]) -> None:
             buf, source = udp_socket.recvfrom(512)
 
             # Handle query
-            response = handle_dns_query(buf, resolver, BLOCKLIST)
+            response = handle_dns_query(buf, resolver, blocklist, redirect_ip)
 
             udp_socket.sendto(response, source)
         except Exception as e:
@@ -559,10 +570,17 @@ if __name__ == "__main__":
         type=str,
         help="The resolver address in the form of a.b.c.d:port",
     )
+    parser.add_argument(
+        "--redirect",
+        required=True,
+        type=str,
+        help="The IP address to redirect to"
+    )
 
     args = parser.parse_args()
 
     host = args.host.split(":")
     resolver = args.resolver.split(":")
+    redirect_ip = args.redirect
 
-    server((host[0], int(host[1])), (resolver[0], int(resolver[1])))
+    server((host[0], int(host[1])), (resolver[0], int(resolver[1])), BLOCKLIST, redirect_ip)
