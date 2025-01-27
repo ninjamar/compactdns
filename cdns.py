@@ -415,7 +415,7 @@ class ServerManager:
         resolver_addr: tuple[str, int],
         blocklist: set[str],
         redirect_ip: str,
-        default_blocking_ttl: int = 60
+        default_blocking_ttl: int = 60,
     ):
         """Create a ServerManager instance
 
@@ -523,7 +523,7 @@ class ServerManager:
         )
         # Pack and compress header, questions, answers
         return pack_all_compressed(recv_header, recv_questions, recv_answers)
-    
+
     def forward_dns_query(self, query: bytes) -> bytes:
         """Forward a DNS query to an address
 
@@ -558,14 +558,16 @@ class ServerManager:
                 buf, addr = self.sock.recvfrom(512)
 
                 # Create thread for response (sends back in self.threaded_handle_dns_query)
-                client_thread = threading.Thread(target=self.threaded_handle_dns_query, args=(addr, buf))
+                client_thread = threading.Thread(
+                    target=self.threaded_handle_dns_query, args=(addr, buf)
+                )
                 # Start thread
                 client_thread.start()
             except Exception as e:
                 # Handle errors, but keep the program running
                 self.done()
                 logging.error("Error", exc_info=1)
-                
+
     def start(self):
         logging.info(f"DNS Server running at {host[0]}:{host[1]}")
         while True:
@@ -577,8 +579,7 @@ class ServerManager:
             except Exception as e:
                 self.done()
                 logging.error("Error", exc_info=1)
-                
-    
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="A simple forwarding DNS server")
@@ -608,7 +609,7 @@ if __name__ == "__main__":
         "-b",
         # required=False
         type=str,
-        help="Path tofile containing blocklist (fnmatch syntax)"
+        help="Path tofile containing blocklist (fnmatch syntax)",
     )
     parser.add_argument(
         "--loglevel",
@@ -624,13 +625,10 @@ if __name__ == "__main__":
         choices=["normal", "threaded"],
         default="threaded",
         type=str,
-        help="Mode to run server (default = threaded)"
+        help="Mode to run server (default = threaded)",
     )
     parser.add_argument(
-        "--ttl",
-        default=60,
-        type=int,
-        help="Default TTL for blocked hosts"
+        "--ttl", default=60, type=int, help="Default TTL for blocked hosts"
     )
 
     args = parser.parse_args()
@@ -652,7 +650,13 @@ if __name__ == "__main__":
     else:
         blocklist = set()
 
-    manager = ServerManager(host=(host[0], int(host[1])), resolver_addr=(resolver[0], int(resolver[1])), blocklist=blocklist, redirect_ip=redirect_ip, default_blocking_ttl=args.ttl)
+    manager = ServerManager(
+        host=(host[0], int(host[1])),
+        resolver_addr=(resolver[0], int(resolver[1])),
+        blocklist=blocklist,
+        redirect_ip=redirect_ip,
+        default_blocking_ttl=args.ttl,
+    )
 
     if args.mode == "normal":
         manager.start()
