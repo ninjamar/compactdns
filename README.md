@@ -1,8 +1,8 @@
 # CompactDNS (CDNS)
 A simple forwarding DNS server with the ability to block certain websites.
 
-![WARNING]
-CDNS probably doesn't conform exactly to the [DNS specification](https://www.rfc-editor.org/rfc/rfc1035)
+> ![WARNING]
+> CDNS probably doesn't conform exactly to the [DNS specification](https://www.rfc-editor.org/rfc/rfc1035)
 
 ## Installation
 
