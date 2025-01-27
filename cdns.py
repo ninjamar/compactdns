@@ -17,10 +17,9 @@ import threading
 
 DEFAULT_BLOCKING_TTL = 60
 # Use fnmatch synatax to match domains
-BLOCKLIST = ["google.*", "*.google.*"]
-# Redirect to IP after block
-BLOCK_IP = "127.0.0.1"
-# TODO: Use class, and cache?
+# BLOCKLIST = ["google.*", "*.google.*"]
+
+# TODO: Use cache
 # TODO: Host something on block ip
 # TODO: Ensure all code is right (via tests)
 # TODO: Document the archictecture (comments)
@@ -601,19 +600,27 @@ if __name__ == "__main__":
         help="The IP address to redirect to in the format of a.b.c.d",
     )
     parser.add_argument(
+        "--blocklist",
+        "-b",
+        # required=False
+        type=str,
+        help="Path tofile containing blocklist (fnmatch syntax)"
+    )
+    parser.add_argument(
         "--loglevel",
         "-l",
         choices=list(logging.getLevelNamesMapping().keys()),
+        default="INFO",
         type=str,
-        default="DEBUG",
-        help="Provide information about the logging level",
+        help="Provide information about the logging level (default = info)",
     )
     parser.add_argument(
         "--mode",
         "-m",
-        choices=["default", "threaded"],
+        choices=["normal", "threaded"],
+        default="threaded",
         type=str,
-        help="Mode to run server"
+        help="Mode to run server (default = threaded)"
     )
 
     args = parser.parse_args()
@@ -628,10 +635,16 @@ if __name__ == "__main__":
     resolver = args.resolver.split(":")
     redirect_ip = args.redirect
 
+    if args.blocklist is not None:
+        with open(args.blocklist) as f:
+            # Set should be faster than a list
+            blocklist = set([line.strip() for line in f.readlines()])
+    else:
+        blocklist = set()
 
-    manager = ServerManager(host=(host[0], int(host[1])), resolver_addr=(resolver[0], int(resolver[1])), blocklist=BLOCKLIST, redirect_ip=redirect_ip)
+    manager = ServerManager(host=(host[0], int(host[1])), resolver_addr=(resolver[0], int(resolver[1])), blocklist=blocklist, redirect_ip=redirect_ip)
 
-    if args.mode == "default":
+    if args.mode == "normal":
         manager.start()
     elif args.mode == "threaded":
         manager.start_threaded()

@@ -1,6 +1,6 @@
 import dataclasses
 import unittest
-from main import *
+from cdns import *
 
 RESOLVER = ("1.1.1.1", 53)
 BLOCKLIST = ["google.com"]
