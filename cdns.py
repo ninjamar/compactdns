@@ -111,7 +111,7 @@ class DNSHeader:
 
     # Required fields
     # https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.1
-    id: int = 0 
+    id: int = 0
     qr: int = 0
     opcode: int = 0
     aa: int = 0
