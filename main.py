@@ -584,25 +584,26 @@ if __name__ == "__main__":
         "-a",
         required=True,
         type=str,
-        help="The host address in the form of a.b.c.d:port",
+        help="The host address in the format of a.b.c.d:port",
     )
     parser.add_argument(
         "--resolver",
         "-r",
         required=True,
         type=str,
-        help="The resolver address in the form of a.b.c.d:port",
+        help="The resolver address in the format of a.b.c.d:port",
     )
     parser.add_argument(
         "--redirect",
         "-R",
         required=True,
         type=str,
-        help="The IP address to redirect to",
+        help="The IP address to redirect to in the format of a.b.c.d",
     )
     parser.add_argument(
         "--loglevel",
         "-l",
+        choices=list(logging.getLevelNamesMapping().keys()),
         type=str,
         default="DEBUG",
         help="Provide information about the logging level",
@@ -612,7 +613,7 @@ if __name__ == "__main__":
         "-m",
         choices=["default", "threaded"],
         type=str,
-        help="Mode to run server in: threaded or not"
+        help="Mode to run server"
     )
 
     args = parser.parse_args()
