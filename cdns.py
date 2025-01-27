@@ -609,7 +609,7 @@ if __name__ == "__main__":
         "-b",
         # required=False
         type=str,
-        help="Path tofile containing blocklist (fnmatch syntax)",
+        help="Path to file containing blocklist (fnmatch syntax)",
     )
     parser.add_argument(
         "--loglevel",

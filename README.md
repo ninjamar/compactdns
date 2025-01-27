@@ -25,7 +25,7 @@ options:
   --redirect REDIRECT, -R REDIRECT
                         The IP address to redirect to in the format of a.b.c.d
   --blocklist BLOCKLIST, -b BLOCKLIST
-                        Path tofile containing blocklist (fnmatch syntax)
+                        Path to file containing blocklist (fnmatch syntax)
   --loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}, -l {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}
                         Provide information about the logging level (default = info)
   --mode {normal,threaded}, -m {normal,threaded}
