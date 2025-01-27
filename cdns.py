@@ -21,6 +21,8 @@ import threading
 # TODO: Cap threads
 # TODO: Add timeout
 # TODO: Load configuration from file
+# TODO: Type annotations
+# TODO: Handle builtins for classe
 
 
 def encode_name_uncompressed(name: str) -> bytes:
@@ -109,7 +111,7 @@ class DNSHeader:
 
     # Required fields
     # https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.1
-    id: int = 0  # TODO: BUILTIN
+    id: int = 0 
     qr: int = 0
     opcode: int = 0
     aa: int = 0
@@ -195,7 +197,7 @@ class DNSQuestion:
 
     # Required fields
     # https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.2
-    type_: int = 1  # TODO: BUILTIN
+    type_: int = 1
     class_: int = 1
 
     def pack(self, encoded_name: bytes) -> bytes:
@@ -331,7 +333,6 @@ def unpack_all(
     tuple[DNSHeader, list[DNSQuestion]]
     | tuple[DNSHeader, list[DNSQuestion], list[DNSAnswer]]
 ):
-    # TODO: Type annotations
     """Unpack a sent buffer into the header and questions
 
     :param buf: sent buffer
@@ -529,11 +530,9 @@ class ServerManager:
         :rtype: bytes
         """
 
-        # TODO: Use a class, and keep the same socket open
         self.resolver_socket.sendto(query, self.resolver_socket_addr)
 
         response, _ = self.resolver_socket.recvfrom(512)
-        # resolver_socket.close()  # should i use the same socket?
         return response
 
     def done(self):
