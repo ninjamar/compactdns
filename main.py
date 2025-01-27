@@ -12,7 +12,6 @@ import struct
 import dataclasses
 import fnmatch
 
-
 # Default configuration/settings
 
 DEFAULT_BLOCKING_TTL = 60
@@ -407,113 +406,123 @@ def unpack_all(
     return (header, questions) if header.ancount == 0 else (header, questions, answers)
 
 
-def forward_dns_query(query: bytes, addr: tuple[str, int]) -> bytes:
-    """Forward a DNS query to an address
+class ServerManager:
+    def __init__(self, resolver_socket: socket.socket, resolver_socket_addr: tuple[str, int], blocklist: set[str], redirect_ip: str):
+        """Create a ServerManager instance
 
-    :param query: query to forward
-    :type query: bytes
-    :param addr: tuple containing address and port
-    :type addr: tuple[str, int]
-    :return: response from the server
-    :rtype: bytes
-    """
+        :param resolver_socket: socket to use to send by resolver_socket_addr
+        :type resolver_socket: socket.socket
+        :param resolver_socket_addr: socket addr and port
+        :type resolver_socket_addr: tuple[str, int]
+        :param blocklist: block these websites
+        :type blocklist: set[str]
+        :param redirect_ip: answer with ip on block
+        :type redirect_ip: str
+        """
+        self.resolver_socket = resolver_socket
+        self.resolver_socket_addr = resolver_socket_addr
+        self.blocklist = blocklist
+        self.redirect_ip = redirect_ip
 
-    # TODO: Use a class, and keep the same socket open
-    resolver_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    resolver_socket.sendto(query, addr)
+    def handle_dns_query(self, buf: bytes) -> bytes:
+        """Handle a DNS query
 
-    response, _ = resolver_socket.recvfrom(512)
-    resolver_socket.close()  # should i use the same socket?
-    return response
+        :param buf: buffer containing DNS query
+        :type buf: bytes
+        :return: response from server
+        :rtype: bytes
+        """
+        logging.info("Received query")
 
+        # Recieve header and questions
+        header, questions = unpack_all(buf)
 
-def handle_dns_query(
-    buf: bytes, resolver: tuple[str, int], blocklist: set[str], redirect_ip: str
-) -> bytes:
-    """Handle a DNS query
+        logging.debug(f"Received query: {header}, {questions}")
 
-    :param buf: buffer containing DNS query
-    :type buf: bytes
-    :param resolver: forwarding server address and port
-    :type resolver: tuple[str, int]
-    :param blocklist: urls to block
-    :type blocklist: set[str]
-    :param redirect_ip: ip address to redirect to
-    :type redirect_ip: str
-    :return: response from server
-    :rtype: bytes
-    """
-    logging.info("Received query")
+        # Copy header
+        new_header = dataclasses.replace(header)
+        new_questions = []
+        questions_index_blocked = []
 
-    # Recieve header and questions
-    header, questions = unpack_all(buf)
+        # Remove blocked sites, so it doesn't get forwarded
+        for idx, question in enumerate(questions):
+            # Use file matching syntax to detect block
+            if any(fnmatch.fnmatch(question.decoded_name, loc) for loc in self.blocklist):
+                questions_index_blocked.append(idx)
+            else:
+                new_questions.append(question)
 
-    logging.debug(f"Received query: {header}, {questions}")
+        # Set new qdcount for forwarded header
+        new_header.qdcount = len(new_questions)
 
-    # Copy header
-    new_header = dataclasses.replace(header)
-    new_questions = []
-    questions_index_blocked = []
+        logging.debug(f"New header {new_header}, new questions {new_questions}")
 
-    # Remove blocked sites, so it doesn't get forwarded
-    for idx, question in enumerate(questions):
-        # Use file matching syntax to detect block
-        if any(fnmatch.fnmatch(question.decoded_name, loc) for loc in blocklist):
-            questions_index_blocked.append(idx)
+        # Only forward query if there is something to forward
+        if new_header.qdcount > 0:
+            # Process header, questions
+            # Repack data
+            send = pack_all_compressed(new_header, new_questions)
+            response = self.forward_dns_query(send)
+
+            logging.debug("Received query from dns server")
+
+            # Add the blocked sites to the response
+            recv = unpack_all(response)
+            recv_header = recv[0]
+            recv_questions = recv[1]
+            # Sometimes there will be no answers
+            recv_answers = recv[2] if len(recv) > 2 else []
         else:
-            new_questions.append(question)
+            recv_header = new_header
+            recv_questions = new_questions
+            recv_answers = []
 
-    # Set new qdcount for forwarded header
-    new_header.qdcount = len(new_questions)
+        # Add the blocked questions to the response, keeping the position
+        for idx in questions_index_blocked:
+            question = questions[idx]
+            # Fake answer
+            answer = DNSAnswer(
+                decoded_name=question.decoded_name,
+                type_=question.type_,
+                class_=question.type_,
+                ttl=DEFAULT_BLOCKING_TTL,
+                rdlength=4,
+                # inet_aton encodes a ip address into bytes
+                rdata=socket.inet_aton(self.redirect_ip),
+            )
 
-    logging.debug(f"New header {new_header}, new questions {new_questions}")
+            # Insert the questions and answer to the correct spot
+            recv_questions.insert(idx, question)
+            recv_answers.insert(idx, answer)
 
-    # Only forward query if there is something to forward
-    if new_header.qdcount > 0:
-        # Process header, questions
-        # Repack data
-        send = pack_all_compressed(new_header, new_questions)
-        response = forward_dns_query(send, resolver)
+        # Update the header's question and answer count
+        recv_header.qdcount = len(recv_questions)
+        recv_header.ancount = len(recv_answers)
 
-        logging.debug("Received query from dns server")
+        logging.debug(f"Sending query back, {recv_header}, {recv_questions}, {recv_answers}")
+        # Pack and compress header, questions, answers
+        return pack_all_compressed(recv_header, recv_questions, recv_answers)
 
-        # Add the blocked sites to the response
-        recv = unpack_all(response)
-        recv_header = recv[0]
-        recv_questions = recv[1]
-        # Sometimes there will be no answers
-        recv_answers = recv[2] if len(recv) > 2 else []
-    else:
-        recv_header = new_header
-        recv_questions = new_questions
-        recv_answers = []
+    def forward_dns_query(self, query: bytes) -> bytes:
+        """Forward a DNS query to an address
 
-    # Add the blocked questions to the response, keeping the position
-    for idx in questions_index_blocked:
-        question = questions[idx]
-        # Fake answer
-        answer = DNSAnswer(
-            decoded_name=question.decoded_name,
-            type_=question.type_,
-            class_=question.type_,
-            ttl=DEFAULT_BLOCKING_TTL,
-            rdlength=4,
-            # inet_aton encodes a ip address into bytes
-            rdata=socket.inet_aton(redirect_ip),
-        )
+        :param query: query to forward
+        :type query: bytes
+        :param addr: tuple containing address and port
+        :type addr: tuple[str, int]
+        :return: response from the server
+        :rtype: bytes
+        """
 
-        # Insert the questions and answer to the correct spot
-        recv_questions.insert(idx, question)
-        recv_answers.insert(idx, answer)
+        # TODO: Use a class, and keep the same socket open
+        self.resolver_socket.sendto(query, self.resolver_socket_addr)
 
-    # Update the header's question and answer count
-    recv_header.qdcount = len(recv_questions)
-    recv_header.ancount = len(recv_answers)
-
-    logging.info(f"Sending query back, {recv_header}, {recv_questions}, {recv_answers}")
-    # Pack and compress header, questions, answers
-    return pack_all_compressed(recv_header, recv_questions, recv_answers)
-
+        response, _ = self.resolver_socket.recvfrom(512)
+        # resolver_socket.close()  # should i use the same socket?
+        return response
+    
+    def done(self):
+        self.resolver_socket.close()
 
 def server(host: tuple[str, int], resolver: tuple[str, int], blocklist: set[str], redirect_ip: str) -> None:
     """Start the DNS forwarding server
@@ -533,6 +542,8 @@ def server(host: tuple[str, int], resolver: tuple[str, int], blocklist: set[str]
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_socket.bind(host)
 
+    manager = ServerManager(resolver_socket=socket.socket(socket.AF_INET, socket.SOCK_DGRAM), resolver_socket_addr=resolver, blocklist=blocklist, redirect_ip=redirect_ip)
+
     logging.info(f"DNS Server running at {host[0]}:{host[1]}")
 
     while True:
@@ -541,9 +552,11 @@ def server(host: tuple[str, int], resolver: tuple[str, int], blocklist: set[str]
             buf, source = udp_socket.recvfrom(512)
 
             # Handle query
-            response = handle_dns_query(buf, resolver, blocklist, redirect_ip)
+            response = manager.handle_dns_query(buf)
+            # response = handle_dns_query(buf, resolver, blocklist, redirect_ip)
 
             udp_socket.sendto(response, source)
+
         except Exception as e:
             # Handle errors, but keep the program running
             # TODO: Add timeout
@@ -551,33 +564,43 @@ def server(host: tuple[str, int], resolver: tuple[str, int], blocklist: set[str]
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
     parser = argparse.ArgumentParser(description="A simple forwarding DNS server")
     parser.add_argument(
         "--host",
+        "-a",
         required=True,
         type=str,
         help="The host address in the form of a.b.c.d:port",
     )
     parser.add_argument(
         "--resolver",
+        "-r",
         required=True,
         type=str,
         help="The resolver address in the form of a.b.c.d:port",
     )
     parser.add_argument(
         "--redirect",
+        "-R",
         required=True,
         type=str,
         help="The IP address to redirect to"
     )
+    parser.add_argument(
+        "--loglevel",
+        "-l",
+        default="DEBUG",
+        help="Provide information about the logging level"
+    )
+
 
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=args.loglevel.upper(),
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
     host = args.host.split(":")
     resolver = args.resolver.split(":")
