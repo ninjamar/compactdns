@@ -11,6 +11,7 @@ import socket
 import struct
 import dataclasses
 import fnmatch
+import threading
 
 # Default configuration/settings
 
@@ -26,6 +27,8 @@ BLOCK_IP = "127.0.0.1"
 # TODO: Reuse forwarding socket3
 # TODO: Time request
 # TODO: More threads
+# TODO: Add timeout
+# TODO: Load configuration from file
 
 
 def encode_name_uncompressed(name: str) -> bytes:
@@ -407,7 +410,14 @@ def unpack_all(
 
 
 class ServerManager:
-    def __init__(self, resolver_socket: socket.socket, resolver_socket_addr: tuple[str, int], blocklist: set[str], redirect_ip: str):
+    def __init__(
+        self,
+        # resolver_socket: socket.socket,
+        host,
+        resolver_addr: tuple[str, int],
+        blocklist: set[str],
+        redirect_ip: str,
+    ):
         """Create a ServerManager instance
 
         :param resolver_socket: socket to use to send by resolver_socket_addr
@@ -419,8 +429,12 @@ class ServerManager:
         :param redirect_ip: answer with ip on block
         :type redirect_ip: str
         """
-        self.resolver_socket = resolver_socket
-        self.resolver_socket_addr = resolver_socket_addr
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind(host)
+
+        self.resolver_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.resolver_socket_addr = resolver_addr
+
         self.blocklist = blocklist
         self.redirect_ip = redirect_ip
 
@@ -447,7 +461,9 @@ class ServerManager:
         # Remove blocked sites, so it doesn't get forwarded
         for idx, question in enumerate(questions):
             # Use file matching syntax to detect block
-            if any(fnmatch.fnmatch(question.decoded_name, loc) for loc in self.blocklist):
+            if any(
+                fnmatch.fnmatch(question.decoded_name, loc) for loc in self.blocklist
+            ):
                 questions_index_blocked.append(idx)
             else:
                 new_questions.append(question)
@@ -499,10 +515,12 @@ class ServerManager:
         recv_header.qdcount = len(recv_questions)
         recv_header.ancount = len(recv_answers)
 
-        logging.debug(f"Sending query back, {recv_header}, {recv_questions}, {recv_answers}")
+        logging.debug(
+            f"Sending query back, {recv_header}, {recv_questions}, {recv_answers}"
+        )
         # Pack and compress header, questions, answers
         return pack_all_compressed(recv_header, recv_questions, recv_answers)
-
+    
     def forward_dns_query(self, query: bytes) -> bytes:
         """Forward a DNS query to an address
 
@@ -520,48 +538,44 @@ class ServerManager:
         response, _ = self.resolver_socket.recvfrom(512)
         # resolver_socket.close()  # should i use the same socket?
         return response
-    
+
     def done(self):
+        self.sock.close()
         self.resolver_socket.close()
 
-def server(host: tuple[str, int], resolver: tuple[str, int], blocklist: set[str], redirect_ip: str) -> None:
-    """Start the DNS forwarding server
+    def threaded_handle_dns_query(self, addr, *args, **kwargs):
+        self.sock.sendto(self.handle_dns_query(*args, **kwargs), addr)
+        logging.info("Sent response")
 
-    :param host: host address and port
-    :type host: tuple[str, int]
-    :param resolver: resolver address and port
-    :type resolver: tuple[str, int]
-    :param blocklist: urls to block
-    :type blocklist: set[str]
-    :param redirect_ip: ip address to redirect to
-    :type redirect_ip: str
-    """
-    logging.info("Starting DNS Server")
+    def start_threaded(self):
+        logging.info(f"Threaded DNS Server running at {host[0]}:{host[1]}")
+        while True:
+            try:
+                # Recieve packet
+                buf, addr = self.sock.recvfrom(512)
 
-    # Start server
-    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    udp_socket.bind(host)
-
-    manager = ServerManager(resolver_socket=socket.socket(socket.AF_INET, socket.SOCK_DGRAM), resolver_socket_addr=resolver, blocklist=blocklist, redirect_ip=redirect_ip)
-
-    logging.info(f"DNS Server running at {host[0]}:{host[1]}")
-
-    while True:
-        try:
-            # Recieve packet
-            buf, source = udp_socket.recvfrom(512)
-
-            # Handle query
-            response = manager.handle_dns_query(buf)
-            # response = handle_dns_query(buf, resolver, blocklist, redirect_ip)
-
-            udp_socket.sendto(response, source)
-
-        except Exception as e:
-            # Handle errors, but keep the program running
-            # TODO: Add timeout
-            logging.error("Error", exc_info=1)
-
+                # Create thread for response (sends back in self.threaded_handle_dns_query)
+                client_thread = threading.Thread(target=self.threaded_handle_dns_query, args=(addr, buf))
+                # Start thread
+                client_thread.start()
+            except Exception as e:
+                # Handle errors, but keep the program running
+                self.done()
+                logging.error("Error", exc_info=1)
+                
+    def start(self):
+        logging.info(f"DNS Server running at {host[0]}:{host[1]}")
+        while True:
+            try:
+                buf, addr = self.sock.recvfrom(512)
+                response = self.handle_dns_query(buf)
+                self.sock.sendto(response, addr)
+                logging.info("Sent response")
+            except Exception as e:
+                self.done()
+                logging.error("Error", exc_info=1)
+                
+    
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="A simple forwarding DNS server")
@@ -584,21 +598,28 @@ if __name__ == "__main__":
         "-R",
         required=True,
         type=str,
-        help="The IP address to redirect to"
+        help="The IP address to redirect to",
     )
     parser.add_argument(
         "--loglevel",
         "-l",
+        type=str,
         default="DEBUG",
-        help="Provide information about the logging level"
+        help="Provide information about the logging level",
     )
-
+    parser.add_argument(
+        "--mode",
+        "-m",
+        choices=["default", "threaded"],
+        type=str,
+        help="Mode to run server in: threaded or not"
+    )
 
     args = parser.parse_args()
 
     logging.basicConfig(
         level=args.loglevel.upper(),
-        format="%(asctime)s [%(levelname)s] %(message)s",
+        format="%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
@@ -606,4 +627,10 @@ if __name__ == "__main__":
     resolver = args.resolver.split(":")
     redirect_ip = args.redirect
 
-    server((host[0], int(host[1])), (resolver[0], int(resolver[1])), BLOCKLIST, redirect_ip)
+
+    manager = ServerManager(host=(host[0], int(host[1])), resolver_addr=(resolver[0], int(resolver[1])), blocklist=BLOCKLIST, redirect_ip=redirect_ip)
+
+    if args.mode == "default":
+        manager.start()
+    elif args.mode == "threaded":
+        manager.start_threaded()
