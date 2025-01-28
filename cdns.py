@@ -5,12 +5,14 @@
 # https://github.com/ninjamar/dns-server
 
 import argparse
+import concurrent.futures
 import logging
 import socket
 import struct
 import dataclasses
 import fnmatch
 import threading
+import concurrent
 
 
 # TODO: Use cache
@@ -552,21 +554,24 @@ class ServerManager:
     def start_threaded(self):
         """Start a threaded server"""
         logging.info(f"Threaded DNS Server running at {host[0]}:{host[1]}")
-        while True:
-            try:
-                # Recieve packet
-                buf, addr = self.sock.recvfrom(512)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            while True:
+                try:
+                    # Recieve packet
+                    buf, addr = self.sock.recvfrom(512)
 
-                # Create thread for response (sends back in self.threaded_handle_dns_query)
-                client_thread = threading.Thread(
-                    target=self.threaded_handle_dns_query, args=(addr, buf)
-                )
-                # Start thread
-                client_thread.start()
-            except Exception as e:
-                # Handle errors, but keep the program running
-                self.done()
-                logging.error("Error", exc_info=1)
+                    # TODO: I originally used threading here, but hopefully ThreadPoolExecutor is faster
+                    # Create thread for response (sends back in self.threaded_handle_dns_query)
+                    # client_thread = threading.Thread(
+                    #    target=self.threaded_handle_dns_query, args=(addr, buf)
+                    #
+                    # Start thread
+                    # client_thread.start()
+                    executor.submit(self.threaded_handle_dns_query, addr, buf)
+                except Exception as e:
+                    # Handle errors, but keep the program running
+                    self.done()
+                    logging.error("Error", exc_info=1)
 
     def start(self):
         """Start a non-threaded server"""
