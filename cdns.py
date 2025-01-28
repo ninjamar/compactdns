@@ -5,7 +5,6 @@
 # https://github.com/ninjamar/compactdns
 
 import argparse
-import concurrent.futures
 import logging
 import socket
 import struct
@@ -13,7 +12,7 @@ import dataclasses
 import fnmatch
 import threading
 import concurrent
-
+import time
 
 # TODO: Use cache
 # TODO: Ensure all code is right (via tests)
@@ -23,6 +22,53 @@ import concurrent
 # TODO: Type annotations
 # TODO: Handle builtins for classes
 
+class TimedCache:
+    """Basically a dictionary but except the keys expire after some time
+    """
+    def __init__(self):
+        """Create a TimedCache instance
+        """
+        self.data = {}
+    
+    def set(self, key, value, ttl):
+        """Set a key
+
+        :param key: the key to set
+        :type key: Hashable
+        :param value: the value to set
+        :type value: Any
+        :param ttl: duration of key
+        :type ttl: int
+        """
+        self.data[key] = (value, time.time() + ttl)
+
+    def get(self, key):
+        """Get a timed, key, deleting it if it expires
+
+        :param key: the key to get
+        :type key: Hashable
+        :return: value for key
+        :rtype: _Any
+        """
+        if key not in self.data:
+            return None
+        
+        value, expiry = self.data[key]
+        if expiry < time.time():
+            # Remove the item
+            del self.data[key]
+            return None
+        return value
+
+    def __contains__(self, key) -> bool:
+        """Check if cache contains key
+
+        :param key: key to check
+        :type key: Hashable
+        :return: is the key inside the cache?
+        :rtype: bool
+        """
+        return self.get(key) != None
 
 def encode_name_uncompressed(name: str) -> bytes:
     """Encode a DNS name, without compression
@@ -104,7 +150,7 @@ def decode_name(buf: bytes, start_idx: int) -> str:
     return ".".join(labels), idx
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(unsafe_hash=True)
 class DNSHeader:
     """Dataclass to store DNS header"""
 
@@ -187,7 +233,7 @@ class DNSHeader:
         )
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(unsafe_hash=True)
 class DNSQuestion:
     """Dataclass to store DNS question"""
 
@@ -212,7 +258,7 @@ class DNSQuestion:
         return encoded_name + struct.pack("!HH", self.type_, self.class_)
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(unsafe_hash=True)
 class DNSAnswer:
     """Dataclass to store DNS answer"""
 
@@ -402,6 +448,8 @@ def unpack_all(
 
 
 class ServerManager:
+    """A server session
+    """
     def __init__(
         self,
         # resolver_socket: socket.socket,
@@ -435,6 +483,9 @@ class ServerManager:
 
         self.default_blocking_ttl = default_blocking_ttl
 
+        self.cache = TimedCache()
+        # hostname : answer
+
     def handle_dns_query(self, buf: bytes) -> bytes:
         """Handle a DNS query
 
@@ -450,21 +501,28 @@ class ServerManager:
 
         logging.debug(f"Received query: {header}, {questions}")
 
+        # check cache for all
+
         # Copy header
         new_header = dataclasses.replace(header)
         new_questions = []
         questions_index_blocked = []
+        question_index_cached = []
 
         # Remove blocked sites, so it doesn't get forwarded
+        # Remove cached sites, so it doesn't get forwarded
         for idx, question in enumerate(questions):
+            if question in self.cache:
+                question_index_cached.append(idx)
             # Use file matching syntax to detect block
-            if any(
+            elif any(
                 fnmatch.fnmatch(question.decoded_name, loc) for loc in self.blocklist
             ):
                 questions_index_blocked.append(idx)
             else:
                 new_questions.append(question)
 
+        # print(question_index_cached)
         # Set new qdcount for forwarded header
         new_header.qdcount = len(new_questions)
 
@@ -487,8 +545,17 @@ class ServerManager:
             recv_answers = recv[2] if len(recv) > 2 else []
         else:
             recv_header = new_header
+            # QR = 0 for queries, QR = 1 for responses
+            recv_header.qr = 1
             recv_questions = new_questions
             recv_answers = []
+
+        # Add the cached questions to the response, keeping the position
+        for idx in question_index_cached:
+            question = questions[idx]
+            recv_questions.insert(idx, question)
+            recv_answers.insert(idx, self.cache.get(question))
+            # Update question answer for header
 
         # Add the blocked questions to the response, keeping the position
         for idx in questions_index_blocked:
@@ -515,6 +582,16 @@ class ServerManager:
         logging.debug(
             f"Sending query back, {recv_header}, {recv_questions}, {recv_answers}"
         )
+
+        # TODO: Make cache expire
+        # TODO: Only update catch if not cached before (question_index_cached)
+        # Since we have a new response, cache it, using the original question and new answer
+        for cache_question, cache_answer in zip(questions, recv_answers):
+            # if cache_questio
+            # self.cache[cache_question]
+            if cache_question not in self.cache:
+                self.cache.set(cache_question, cache_answer, cache_answer.ttl)
+        
         # Pack and compress header, questions, answers
         return pack_all_compressed(recv_header, recv_questions, recv_answers)
 
@@ -555,6 +632,7 @@ class ServerManager:
         """Start a threaded server"""
         logging.info(f"Threaded DNS Server running at {host[0]}:{host[1]}")
 
+        # Lock sockets send back
         lock = threading.Lock()
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -563,13 +641,6 @@ class ServerManager:
                     # Recieve packet
                     buf, addr = self.sock.recvfrom(512)
 
-                    # TODO: I originally used threading here, but hopefully ThreadPoolExecutor is faster
-                    # Create thread for response (sends back in self.threaded_handle_dns_query)
-                    # client_thread = threading.Thread(
-                    #    target=self.threaded_handle_dns_query, args=(addr, buf)
-                    #
-                    # Start thread
-                    # client_thread.start()
                     executor.submit(self.threaded_handle_dns_query, addr, lock, buf)
                 except Exception as e:
                     # Handle errors, but keep the program running
@@ -671,3 +742,24 @@ if __name__ == "__main__":
         manager.start()
     elif args.mode == "threaded":
         manager.start_threaded()
+
+
+"""
+No Cache
+Received: 
+    DNSHeader(id=6353, qr=0, opcode=0, aa=0, tc=0, rd=1, ra=0, z=2, rcode=0, qdcount=1, ancount=0, nscount=0, arcount=1)
+    [DNSQuestion(decoded_name='github.com', type_=1, class_=1)]
+Sent Back:
+    DNSHeader(id=6353, qr=1, opcode=0, aa=0, tc=0, rd=1, ra=1, z=0, rcode=0, qdcount=1, ancount=1, nscount=0, arcount=0)
+    [DNSQuestion(decoded_name='github.com', type_=1, class_=1)]
+     [DNSAnswer(decoded_name='github.com', type_=1, class_=1, ttl=8, rdlength=4, rdata=b'\x14\xcd\xf3\xa6')]
+
+Cache:
+Received:
+    DNSHeader(id=50149, qr=0, opcode=0, aa=0, tc=0, rd=1, ra=0, z=2, rcode=0, qdcount=1, ancount=0, nscount=0, arcount=1)
+    [DNSQuestion(decoded_name='github.com', type_=1, class_=1)]
+Sent Back:
+    DNSHeader(id=50149, qr=0, opcode=0, aa=0, tc=0, rd=1, ra=0, z=2, rcode=0, qdcount=1, ancount=1, nscount=0, arcount=1)
+    [DNSQuestion(decoded_name='github.com', type_=1, class_=1)]
+    [DNSAnswer(decoded_name='github.com', type_=1, class_=1, ttl=56, rdlength=4, rdata=b'\x14\xcd\xf3\xa6')]
+"""
