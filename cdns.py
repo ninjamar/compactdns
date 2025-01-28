@@ -18,9 +18,6 @@ import concurrent
 # TODO: Use cache
 # TODO: Ensure all code is right (via tests)
 # TODO: Document the archictecture (comments)
-# TODO: Reuse forwarding socket3
-# TODO: Time request
-# TODO: Cap threads
 # TODO: Add timeout
 # TODO: Load configuration from file
 # TODO: Type annotations
@@ -542,18 +539,24 @@ class ServerManager:
         self.sock.close()
         self.resolver_socket.close()
 
-    def threaded_handle_dns_query(self, addr, *args, **kwargs):
+    def threaded_handle_dns_query(self, addr, lock, *args, **kwargs):
         """Run a threaded version of handle_dns_query
 
         :param addr: address + port of client
         :type addr: tuple[str, int]
         """
-        self.sock.sendto(self.handle_dns_query(*args, **kwargs), addr)
+        response = self.handle_dns_query(*args, **kwargs)
+        with lock:
+            self.sock.sendto(response, addr)
+        # self.sock.sendto(self.handle_dns_query(*args, **kwargs), addr)
         logging.info("Sent response")
 
     def start_threaded(self):
         """Start a threaded server"""
         logging.info(f"Threaded DNS Server running at {host[0]}:{host[1]}")
+
+        lock = threading.Lock()
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             while True:
                 try:
@@ -567,7 +570,7 @@ class ServerManager:
                     #
                     # Start thread
                     # client_thread.start()
-                    executor.submit(self.threaded_handle_dns_query, addr, buf)
+                    executor.submit(self.threaded_handle_dns_query, addr, lock, buf)
                 except Exception as e:
                     # Handle errors, but keep the program running
                     self.done()
