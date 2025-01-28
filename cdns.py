@@ -2,7 +2,7 @@
 
 # dns-server
 # A simple forwarding DNS server
-# https://github.com/ninjamar/dns-server
+# https://github.com/ninjamar/compactdns
 
 import argparse
 import concurrent.futures
@@ -21,7 +21,7 @@ import concurrent
 # TODO: Add timeout
 # TODO: Load configuration from file
 # TODO: Type annotations
-# TODO: Handle builtins for classe
+# TODO: Handle builtins for classes
 
 
 def encode_name_uncompressed(name: str) -> bytes:
