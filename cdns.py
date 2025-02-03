@@ -11,7 +11,7 @@ import struct
 import dataclasses
 import fnmatch
 import threading
-import concurrent
+import concurrent.futures
 import time
 
 # TODO: Use cache
