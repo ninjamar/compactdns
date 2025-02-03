@@ -22,14 +22,14 @@ import time
 # TODO: Type annotations
 # TODO: Handle builtins for classes
 
+
 class TimedCache:
-    """Basically a dictionary but except the keys expire after some time
-    """
+    """Basically a dictionary but except the keys expire after some time"""
+
     def __init__(self):
-        """Create a TimedCache instance
-        """
+        """Create a TimedCache instance"""
         self.data = {}
-    
+
     def set(self, key, value, ttl):
         """Set a key
 
@@ -52,7 +52,7 @@ class TimedCache:
         """
         if key not in self.data:
             return None
-        
+
         value, expiry = self.data[key]
         if expiry < time.time():
             # Remove the item
@@ -69,6 +69,7 @@ class TimedCache:
         :rtype: bool
         """
         return self.get(key) != None
+
 
 def encode_name_uncompressed(name: str) -> bytes:
     """Encode a DNS name, without compression
@@ -448,8 +449,8 @@ def unpack_all(
 
 
 class ServerManager:
-    """A server session
-    """
+    """A server session"""
+
     def __init__(
         self,
         # resolver_socket: socket.socket,
@@ -591,7 +592,7 @@ class ServerManager:
             # self.cache[cache_question]
             if cache_question not in self.cache:
                 self.cache.set(cache_question, cache_answer, cache_answer.ttl)
-        
+
         # Pack and compress header, questions, answers
         return pack_all_compressed(recv_header, recv_questions, recv_answers)
 
