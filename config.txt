@@ -1,0 +1,7 @@
+--host=127.0.0.1:2053
+--resolver=1.1.1.1:53
+--redirect=127.0.0.2
+--blocklist=./blocklist.example
+--loglevel=INFO
+--mode=threaded
+--ttl=60

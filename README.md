@@ -32,6 +32,11 @@ options:
                         Mode to run server (default = threaded)
   --ttl TTL             Default TTL for blocked hosts
 ```
+
+or since `fromfile_prefix_chars="@"`, store the arguments inside a file (eg `./config.txt`).
+```
+python cdns.py @config.txt
+```
 ### Example
 ```
 python cdns.py --host 127.0.0.1:2053 --resolver 1.1.1.1:53 --redirect 127.0.0.2

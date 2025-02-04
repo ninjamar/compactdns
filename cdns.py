@@ -668,7 +668,9 @@ class ServerManager:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="A simple forwarding DNS server")
+    parser = argparse.ArgumentParser(
+        description="A simple forwarding DNS server", fromfile_prefix_chars="@"
+    )
     parser.add_argument(
         "--host",
         "-a",
