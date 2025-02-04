@@ -187,7 +187,7 @@ class DNSHeader:
             | (self.z << 4)  # Z: 3 bits at bits 4-6
             | (self.rcode)  # RCODE: 4 bits at bits 0-3
         )
-
+        
         return struct.pack(
             "!HHHHHH",
             self.id,
@@ -507,7 +507,7 @@ class ServerManager:
         # Copy header
         new_header = dataclasses.replace(header)
         new_questions = []
-        questions_index_blocked = []
+        question_index_blocked = []
         question_index_cached = []
 
         # Remove blocked sites, so it doesn't get forwarded
@@ -519,7 +519,7 @@ class ServerManager:
             elif any(
                 fnmatch.fnmatch(question.decoded_name, loc) for loc in self.blocklist
             ):
-                questions_index_blocked.append(idx)
+                question_index_blocked.append(idx)
             else:
                 new_questions.append(question)
 
@@ -551,6 +551,13 @@ class ServerManager:
             recv_questions = new_questions
             recv_answers = []
 
+        # Disable the recursion flag for cached or blocked queries
+        # I'm not sure how much this actually works
+        # https://serverfault.com/a/729121
+        if len(question_index_cached) > 0 or len(question_index_blocked) > 0:
+            recv_header.rd = 0
+            recv_header.ra = 0
+
         # Add the cached questions to the response, keeping the position
         for idx in question_index_cached:
             question = questions[idx]
@@ -559,7 +566,7 @@ class ServerManager:
             # Update question answer for header
 
         # Add the blocked questions to the response, keeping the position
-        for idx in questions_index_blocked:
+        for idx in question_index_blocked:
             question = questions[idx]
             # Fake answer
             answer = DNSAnswer(
