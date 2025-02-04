@@ -14,7 +14,7 @@ import threading
 import concurrent.futures
 import time
 
-# TODO: Use cache
+# TODO: Make sure cache is better
 # TODO: Ensure all code is right (via tests)
 # TODO: Document the archictecture (comments)
 # TODO: Add timeout
@@ -187,7 +187,7 @@ class DNSHeader:
             | (self.z << 4)  # Z: 3 bits at bits 4-6
             | (self.rcode)  # RCODE: 4 bits at bits 0-3
         )
-        
+
         return struct.pack(
             "!HHHHHH",
             self.id,
@@ -591,8 +591,6 @@ class ServerManager:
             f"Sending query back, {recv_header}, {recv_questions}, {recv_answers}"
         )
 
-        # TODO: Make cache expire
-        # TODO: Only update catch if not cached before (question_index_cached)
         # Since we have a new response, cache it, using the original question and new answer
         for cache_question, cache_answer in zip(questions, recv_answers):
             # if cache_questio
