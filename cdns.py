@@ -5,13 +5,13 @@
 # https://github.com/ninjamar/compactdns
 
 import argparse
+import concurrent.futures
+import dataclasses
+import fnmatch
 import logging
 import socket
 import struct
-import dataclasses
-import fnmatch
 import threading
-import concurrent.futures
 import time
 
 # TODO: Make sure cache is better
