@@ -13,6 +13,7 @@ import fnmatch
 import threading
 import concurrent.futures
 import time
+import sys
 
 # TODO: Make sure cache is better
 # TODO: Ensure all code is right (via tests)
@@ -24,14 +25,28 @@ import time
 
 
 class TimedCache:
-    """Basically a dictionary but except the keys expire after some time"""
+    """Basically a dictionary but except the keys expire after some time.
+    The keys are lazily deleted.
+    However, if the estimated size of the storage exceeds max_size, all expired keys are purged
+    """
 
-    def __init__(self):
+    def __init__(self, max_size):
         """Create a TimedCache instance"""
         self.data = {}
-
+        self.max_size = max_size
+        self.estimated_size = None
+    
+    def purge_keys(self):
+        """Delete all expired keys
+        """
+        print("Purging all keys")
+        for key in self.data.keys():
+            # value, expiry
+            if self.data[key][1] < time.time():
+                del self.data[key]
+        
     def set(self, key, value, ttl):
-        """Set a key
+        """Set a key. Also calls auto_purge_keys
 
         :param key: the key to set
         :type key: Hashable
@@ -40,8 +55,17 @@ class TimedCache:
         :param ttl: duration of key
         :type ttl: int
         """
-        self.data[key] = (value, time.time() + ttl)
 
+        # Try to assume the estimated size
+        if self.estimated_size is None:
+            self.estimated_size = sys.getsizeof((value, time.time() + ttl))
+        print(len(self.data.keys()))
+        # Automatically purge keys, by estimating size
+        if len(self.data.keys()) * self.estimated_size > self.max_size:
+            self.purge_keys()
+
+        self.data[key] = (value, time.time() + ttl)
+    
     def get(self, key):
         """Get a timed, key, deleting it if it expires
 
@@ -459,6 +483,7 @@ class ServerManager:
         blocklist: set[str],
         redirect_ip: str,
         default_blocking_ttl: int = 60,
+        cache_size: int = float("inf")
     ):
         """Create a ServerManager instance
 
@@ -484,7 +509,7 @@ class ServerManager:
 
         self.default_blocking_ttl = default_blocking_ttl
 
-        self.cache = TimedCache()
+        self.cache = TimedCache(cache_size)
         # hostname : answer
 
     def handle_dns_query(self, buf: bytes) -> bytes:
@@ -716,6 +741,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--ttl", default=60, type=int, help="Default TTL for blocked hosts"
     )
+    parser.add_argument(
+        "--cache-size",
+        default=float("inf"),
+        type=int,
+        help="Max size for cache"
+    )
 
     args = parser.parse_args()
 
@@ -742,6 +773,7 @@ if __name__ == "__main__":
         blocklist=blocklist,
         redirect_ip=redirect_ip,
         default_blocking_ttl=args.ttl,
+        cache_size=args.cache_size
     )
 
     if args.mode == "normal":
