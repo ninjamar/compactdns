@@ -33,6 +33,7 @@ import tomllib
 # TODO: use TimedCache to store blocklist (possibly via a subclass)
 
 # TODO: Block via ip addresses
+# TODO: Allow changing default_blocking_ttl via blocklist
 
 
 class TimedCache:
@@ -219,7 +220,9 @@ class DNSHeader:
         :return: DNS header
         :rtype: DNSHeader
         """
-        id_, flags, qdcount, ancount, nscount, arcount = struct.unpack("!HHHHHH", buf[:12])  # Header is always 12 bytes
+        id_, flags, qdcount, ancount, nscount, arcount = struct.unpack(
+            "!HHHHHH", buf[:12]
+        )  # Header is always 12 bytes
         flags = flags
         qr = (flags >> 15) & 0x1
         opcode = (flags >> 11) & 0xF
@@ -490,12 +493,29 @@ class ServerManager:
         self.resolver_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.resolver_socket_addr = resolver_addr
 
-        self.blocklist = blocklist
-
         self.default_blocking_ttl = default_blocking_ttl
 
+        self.blocklist = blocklist
+
         self.cache = TimedCache()
-        # hostname : answer
+
+        # Cache individual hosts that don't contain any special syntax
+        # TODO: This just assumes type and class but it needs to be better
+        for host in self.blocklist.keys():
+            if not any(x in host for x in "*?[]!"):
+                self.cache.set(
+                    DNSQuestion(decoded_name=host, type_=1, class_=1),
+                    DNSAnswer(
+                        decoded_name=host,
+                        type_=1,
+                        class_=1,
+                        ttl=self.default_blocking_ttl,
+                        rdlength=4,
+                        # inet_aton encodes a ip address into bytes
+                        rdata=socket.inet_aton(self.blocklist[host]),
+                    ),
+                    self.default_blocking_ttl,
+                )
 
     def handle_dns_query(self, buf: bytes) -> bytes:
         """Handle a DNS query
@@ -534,7 +554,6 @@ class ServerManager:
                 ),
                 None,
             ):
-                # elif next((fnmatch.fnmatch(question.decoded_name, loc) for loc in self.blocklist.keys()), None):
                 question_index_blocked.append((idx, question_index_match))
             else:
                 new_questions.append(question)
@@ -700,7 +719,14 @@ def is_ip_addr_valid(ip_addr: str) -> bool:
         return False
 
 
-def parse_blocklist(data: dict) -> dict:
+def parse_blocklist(data: dict) -> dict[str, str]:
+    """Parse a blocklist
+
+    :param data: blocklist to parse
+    :type data: dict
+    :return: parsed version of blocklist
+    :rtype: dict[str, str]
+    """
     # TODO: Validate ip
     # TODO: Check for collision
     blocklist = {}
@@ -714,7 +740,15 @@ def parse_blocklist(data: dict) -> dict:
     return blocklist
 
 
-def read_blocklist(fpath):
+def read_blocklist(fpath: str) -> dict[str, str]:
+    """Read a blocklist from a file
+
+    :param fpath: path to file
+    :type fpath: str
+    :raises Exception: unknown file extension
+    :return: blocklist
+    :rtype: dict[str, str]
+    """
     with open(fpath, "rb") as f:
         ext = os.path.splitext(fpath)[1]
         if ext == ".json":
@@ -725,7 +759,14 @@ def read_blocklist(fpath):
             raise Exception("Unable to read blocklist: unknown file extension")
 
 
-def load_all_blocklists(paths: list[str]) -> dict:
+def load_all_blocklists(paths: list[str]) -> dict[str, str]:
+    """Load all blocklists from paths
+
+    :param paths: files containing blocklists
+    :type paths: list[str]
+    :return: parsed blocklists
+    :rtype: dict[str, str]
+    """
     blocklist = {}
     for path in paths:
         blocklist.update(read_blocklist(path))
@@ -733,6 +774,7 @@ def load_all_blocklists(paths: list[str]) -> dict:
 
 
 def cli():
+    """Command line interface"""
     parser = argparse.ArgumentParser(
         description="A simple forwarding DNS server", fromfile_prefix_chars="@"
     )
