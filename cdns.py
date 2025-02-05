@@ -8,11 +8,15 @@ import argparse
 import concurrent.futures
 import dataclasses
 import fnmatch
+import functools
+import json
 import logging
+import os.path
 import socket
 import struct
 import threading
 import time
+import tomllib
 
 # TODO: Make sure cache is better
 # TODO: Ensure all code is right (via tests)
@@ -21,6 +25,14 @@ import time
 # TODO: Load configuration from file
 # TODO: Type annotations
 # TODO: Handle builtins for classes
+# TODO: Better way to pass arguments from file (possibly via tomllib)
+
+# TODO: Better blocklist syntax -- certain hosts can be redirected to certain ip addresses
+# TODO: Support json toml (rules + basic) and /etc/hosts syntax (basic)
+# TODO: Multiple blocklists passed eg --blocklist a --blocklist b
+# TODO: use TimedCache to store blocklist (possibly via a subclass)
+
+# TODO: Block via ip addresses
 
 
 class TimedCache:
@@ -456,7 +468,7 @@ class ServerManager:
         # resolver_socket: socket.socket,
         host,
         resolver_addr: tuple[str, int],
-        blocklist: set[str],
+        blocklist: dict[str, str],
         redirect_ip: str,
         default_blocking_ttl: int = 60,
     ):
@@ -466,13 +478,15 @@ class ServerManager:
         :type resolver_socket: socket.socket
         :param resolver_socket_addr: socket addr and port
         :type resolver_socket_addr: tuple[str, int]
-        :param blocklist: block these websites
-        :type blocklist: set[str]
+        :param blocklist: host to ip address
+        :type blocklist: dict[str, str]
         :param redirect_ip: answer with ip on block
         :type redirect_ip: str
         :param default_blocking_ttl: default ttl for blocked hosts
         :type default_blocking_ttl: int
         """
+        self.host = host
+
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(host)
 
@@ -516,10 +530,16 @@ class ServerManager:
             if question in self.cache:
                 question_index_cached.append(idx)
             # Use file matching syntax to detect block
-            elif any(
-                fnmatch.fnmatch(question.decoded_name, loc) for loc in self.blocklist
+            elif question_index_match := next(
+                (
+                    loc
+                    for loc in self.blocklist.keys()
+                    if fnmatch.fnmatch(question.decoded_name, loc)
+                ),
+                None,
             ):
-                question_index_blocked.append(idx)
+                # elif next((fnmatch.fnmatch(question.decoded_name, loc) for loc in self.blocklist.keys()), None):
+                question_index_blocked.append((idx, question_index_match))
             else:
                 new_questions.append(question)
 
@@ -566,7 +586,7 @@ class ServerManager:
             # Update question answer for header
 
         # Add the blocked questions to the response, keeping the position
-        for idx in question_index_blocked:
+        for idx, match in question_index_blocked:
             question = questions[idx]
             # Fake answer
             answer = DNSAnswer(
@@ -576,7 +596,8 @@ class ServerManager:
                 ttl=self.default_blocking_ttl,
                 rdlength=4,
                 # inet_aton encodes a ip address into bytes
-                rdata=socket.inet_aton(self.redirect_ip),
+                # rdata=socket.inet_aton(self.redirect_ip),
+                rdata=socket.inet_aton(self.blocklist[match]),
             )
 
             # Insert the questions and answer to the correct spot
@@ -636,7 +657,7 @@ class ServerManager:
 
     def start_threaded(self):
         """Start a threaded server"""
-        logging.info(f"Threaded DNS Server running at {host[0]}:{host[1]}")
+        logging.info(f"Threaded DNS Server running at {self.host[0]}:{self.host[1]}")
 
         # Lock sockets send back
         lock = threading.Lock()
@@ -655,7 +676,7 @@ class ServerManager:
 
     def start(self):
         """Start a non-threaded server"""
-        logging.info(f"DNS Server running at {host[0]}:{host[1]}")
+        logging.info(f"DNS Server running at {self.host[0]}:{self.host[1]}")
         while True:
             try:
                 buf, addr = self.sock.recvfrom(512)
@@ -667,7 +688,56 @@ class ServerManager:
                 logging.error("Error", exc_info=1)
 
 
-if __name__ == "__main__":
+@functools.cache
+def is_ip_addr_valid(ip_addr: str) -> bool:
+    """Check if an IP address is valid
+    This function is cached
+
+    :param ip_addr: ip ap address
+    :type ip_addr: str
+    :return: is the ip address valid
+    :rtype: bool
+    """
+    try:
+        socket.inet_aton(ip_addr)
+        return True
+    except socket.error:
+        return False
+
+
+def parse_blocklist(data: dict) -> dict:
+    # TODO: Validate ip
+    # TODO: Check for collision
+    blocklist = {}
+    for rule in data.get("rules", []):
+        block_ip = rule["block_ip"]
+        for host in rule["hosts"]:
+            blocklist[host] = block_ip
+
+    for host, block_ip in data.get("blocklist", {}).items():
+        blocklist[host] = block_ip
+    return blocklist
+
+
+def read_blocklist(fpath):
+    with open(fpath, "rb") as f:
+        ext = os.path.splitext(fpath)[1]
+        if ext == ".json":
+            return parse_blocklist(json.load(f))
+        elif ext == ".toml":
+            return parse_blocklist(tomllib.load(f))
+        else:
+            raise Exception("Unable to read blocklist: unknown file extension")
+
+
+def load_all_blocklists(paths: list[str]) -> dict:
+    blocklist = {}
+    for path in paths:
+        blocklist.update(read_blocklist(path))
+    return blocklist
+
+
+def cli():
     parser = argparse.ArgumentParser(
         description="A simple forwarding DNS server", fromfile_prefix_chars="@"
     )
@@ -698,6 +768,7 @@ if __name__ == "__main__":
         # required=False
         type=str,
         help="Path to file containing blocklist (fnmatch syntax)",
+        nargs="*",
     )
     parser.add_argument(
         "--loglevel",
@@ -732,11 +803,11 @@ if __name__ == "__main__":
     redirect_ip = args.redirect
 
     if args.blocklist is not None:
-        with open(args.blocklist) as f:
-            # Set should be faster than a list
-            blocklist = set([line.strip() for line in f.readlines()])
+        blocklist = load_all_blocklists(args.blocklist)
     else:
-        blocklist = set()
+        blocklist = dict()
+
+    print(blocklist)
 
     manager = ServerManager(
         host=(host[0], int(host[1])),
@@ -752,22 +823,5 @@ if __name__ == "__main__":
         manager.start_threaded()
 
 
-"""
-No Cache
-Received: 
-    DNSHeader(id=6353, qr=0, opcode=0, aa=0, tc=0, rd=1, ra=0, z=2, rcode=0, qdcount=1, ancount=0, nscount=0, arcount=1)
-    [DNSQuestion(decoded_name='github.com', type_=1, class_=1)]
-Sent Back:
-    DNSHeader(id=6353, qr=1, opcode=0, aa=0, tc=0, rd=1, ra=1, z=0, rcode=0, qdcount=1, ancount=1, nscount=0, arcount=0)
-    [DNSQuestion(decoded_name='github.com', type_=1, class_=1)]
-     [DNSAnswer(decoded_name='github.com', type_=1, class_=1, ttl=8, rdlength=4, rdata=b'\x14\xcd\xf3\xa6')]
-
-Cache:
-Received:
-    DNSHeader(id=50149, qr=0, opcode=0, aa=0, tc=0, rd=1, ra=0, z=2, rcode=0, qdcount=1, ancount=0, nscount=0, arcount=1)
-    [DNSQuestion(decoded_name='github.com', type_=1, class_=1)]
-Sent Back:
-    DNSHeader(id=50149, qr=0, opcode=0, aa=0, tc=0, rd=1, ra=0, z=2, rcode=0, qdcount=1, ancount=1, nscount=0, arcount=1)
-    [DNSQuestion(decoded_name='github.com', type_=1, class_=1)]
-    [DNSAnswer(decoded_name='github.com', type_=1, class_=1, ttl=56, rdlength=4, rdata=b'\x14\xcd\xf3\xa6')]
-"""
+if __name__ == "__main__":
+    cli()

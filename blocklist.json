@@ -1,0 +1,19 @@
+{
+    "rules": [
+        {
+            "block_ip": "127.0.0.2",
+            "hosts": [
+                "example.com"
+            ]
+        },
+        {
+            "block_ip": "96.7.128.198",
+            "hosts": [
+                "*.example.com"
+            ]
+        }
+    ],
+    "blocklist": {
+        "example.edu": "74.125.200.139"
+    }
+}
