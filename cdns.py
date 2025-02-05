@@ -469,7 +469,6 @@ class ServerManager:
         host,
         resolver_addr: tuple[str, int],
         blocklist: dict[str, str],
-        redirect_ip: str,
         default_blocking_ttl: int = 60,
     ):
         """Create a ServerManager instance
@@ -480,8 +479,6 @@ class ServerManager:
         :type resolver_socket_addr: tuple[str, int]
         :param blocklist: host to ip address
         :type blocklist: dict[str, str]
-        :param redirect_ip: answer with ip on block
-        :type redirect_ip: str
         :param default_blocking_ttl: default ttl for blocked hosts
         :type default_blocking_ttl: int
         """
@@ -494,7 +491,6 @@ class ServerManager:
         self.resolver_socket_addr = resolver_addr
 
         self.blocklist = blocklist
-        self.redirect_ip = redirect_ip
 
         self.default_blocking_ttl = default_blocking_ttl
 
@@ -596,7 +592,6 @@ class ServerManager:
                 ttl=self.default_blocking_ttl,
                 rdlength=4,
                 # inet_aton encodes a ip address into bytes
-                # rdata=socket.inet_aton(self.redirect_ip),
                 rdata=socket.inet_aton(self.blocklist[match]),
             )
 
@@ -800,7 +795,6 @@ def cli():
 
     host = args.host.split(":")
     resolver = args.resolver.split(":")
-    redirect_ip = args.redirect
 
     if args.blocklist is not None:
         blocklist = load_all_blocklists(args.blocklist)
@@ -813,7 +807,6 @@ def cli():
         host=(host[0], int(host[1])),
         resolver_addr=(resolver[0], int(resolver[1])),
         blocklist=blocklist,
-        redirect_ip=redirect_ip,
         default_blocking_ttl=args.ttl,
     )
 
