@@ -219,8 +219,8 @@ class DNSHeader:
         :return: DNS header
         :rtype: DNSHeader
         """
-        unpacked = struct.unpack("!HHHHHH", buf[:12])  # Header is always 12 bytes
-        flags = unpacked[1]
+        id_, flags, qdcount, ancount, nscount, arcount = struct.unpack("!HHHHHH", buf[:12])  # Header is always 12 bytes
+        flags = flags
         qr = (flags >> 15) & 0x1
         opcode = (flags >> 11) & 0xF
         aa = (flags >> 10) & 0x1
@@ -230,7 +230,7 @@ class DNSHeader:
         z = (flags >> 4) & 0x7
         rcode = flags & 0xF
         return cls(
-            id=unpacked[0],
+            id=id_,
             qr=qr,
             opcode=opcode,
             aa=aa,
@@ -239,10 +239,10 @@ class DNSHeader:
             ra=ra,
             z=z,
             rcode=rcode,
-            qdcount=unpacked[2],
-            ancount=unpacked[3],
-            nscount=unpacked[4],
-            arcount=unpacked[5],
+            qdcount=qdcount,
+            ancount=ancount,
+            nscount=nscount,
+            arcount=arcount,
         )
 
 
