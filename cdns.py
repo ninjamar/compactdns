@@ -174,7 +174,7 @@ class DNSHeader:
 
     # Required fields
     # https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.1
-    id: int = 0
+    id_: int = 0
     qr: int = 0
     opcode: int = 0
     aa: int = 0
@@ -207,7 +207,7 @@ class DNSHeader:
 
         return struct.pack(
             "!HHHHHH",
-            self.id,
+            self.id_,
             flags,
             self.qdcount,
             self.ancount,
@@ -237,7 +237,7 @@ class DNSHeader:
         z = (flags >> 4) & 0x7
         rcode = flags & 0xF
         return cls(
-            id=id_,
+            id_=id_,
             qr=qr,
             opcode=opcode,
             aa=aa,
@@ -499,7 +499,7 @@ class ServerManager:
         self.cache = TimedCache()
 
         # Cache individual hosts that don't contain any special syntax
-        # TODO: This just assumes type and class but it needs to be better
+        # Caching is for when type_ and class_ is 1
         for host in self.blocklist.keys():
             if not any(x in host for x in "*?[]!"):
                 self.cache.set(
