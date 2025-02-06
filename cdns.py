@@ -27,6 +27,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+
 import argparse
 import concurrent.futures
 import dataclasses
@@ -40,6 +41,8 @@ import struct
 import threading
 import time
 import tomllib
+from typing import Union
+
 
 # TODO: Turn this into a module in a directory
 # TODO: Document the archictecture (comments)
@@ -58,6 +61,7 @@ import tomllib
 # TODO: Support /etc/hosts syntax
 
 DEFAULT_TTL = 300
+
 
 class TimedCache:
     """Basically a dictionary but except the keys expire after some time"""
@@ -93,7 +97,7 @@ class TimedCache:
 
         # Remove the item if it's expired
         if expiry < time.time():
-           
+
             del self.data[key]
             return None
         return value
@@ -142,7 +146,7 @@ def decode_name_uncompressed(buf: bytes) -> str:
     return ".".join(labels)
 
 
-def decode_name(buf: bytes, start_idx: int) -> str:
+def decode_name(buf: bytes, start_idx: int) -> tuple[str, int]:
     """Decode a name, that is compressed, from a buffer
 
     :param buf: buffer containing name
@@ -150,8 +154,8 @@ def decode_name(buf: bytes, start_idx: int) -> str:
     :param start_idx: start index of name
     :type start_idx: int
     :raises Exception: infinite loop
-    :return: decoded name
-    :rtype: str
+    :return: decoded name, and index of name
+    :rtype: tuple[str, int]
     """
     labels = []
     idx = start_idx
@@ -248,7 +252,8 @@ class DNSHeader:
         id_, flags, qdcount, ancount, nscount, arcount = struct.unpack(
             "!HHHHHH", buf[:12]
         )  # Header is always 12 bytes
-        flags = flags
+
+        # Pack the flags
         qr = (flags >> 15) & 0x1
         opcode = (flags >> 11) & 0xF
         aa = (flags >> 10) & 0x1
@@ -257,6 +262,7 @@ class DNSHeader:
         ra = (flags >> 7) & 0x1
         z = (flags >> 4) & 0x7
         rcode = flags & 0xF
+
         return cls(
             id_=id_,
             qr=qr,
@@ -312,7 +318,7 @@ class DNSAnswer:
     class_: int = 1
     ttl: int = 0
     rdlength: int = 4
-    rdata: str = ""  # IPV4
+    rdata: bytes = b""  # IPV4
 
     def pack(self, encoded_name: bytes) -> bytes:
         """Pack the DNS answer
@@ -379,7 +385,7 @@ def pack_all_compressed(
     # Pack header
     response = header.pack()
     # Store pointer locations
-    name_offset_map = {}
+    name_offset_map: dict[str, int] = {}
 
     # Compress question + answers
     # Pack + store names + compression
@@ -415,10 +421,7 @@ def pack_all_compressed(
 
 def unpack_all(
     buf: bytes,
-) -> (
-    tuple[DNSHeader, list[DNSQuestion]]
-    | tuple[DNSHeader, list[DNSQuestion], list[DNSAnswer]]
-):
+) -> tuple[DNSHeader, list[DNSQuestion], list[DNSAnswer] | None]:
     """Unpack a sent buffer into the header and questions
 
     :param buf: sent buffer
@@ -485,7 +488,7 @@ def unpack_all(
         )
 
     # If there aren't any answers, don't return it
-    return (header, questions) if header.ancount == 0 else (header, questions, answers)
+    return (header, questions, None if len(answers) == 0 else answers)
 
 
 class ServerManager:
@@ -549,7 +552,7 @@ class ServerManager:
         logging.info("Received query")
 
         # Recieve header and questions
-        header, questions = unpack_all(buf)
+        header, questions, _ = unpack_all(buf)
 
         logging.debug(f"Received query: {header}, {questions}")
 
@@ -594,11 +597,10 @@ class ServerManager:
             logging.debug("Received query from dns server")
 
             # Add the blocked sites to the response
-            recv = unpack_all(response)
-            recv_header = recv[0]
-            recv_questions = recv[1]
-            # Sometimes there will be no answers
-            recv_answers = recv[2] if len(recv) > 2 else []
+            recv_header, recv_questions, recv_answers = unpack_all(response)
+
+            if recv_answers is None:
+                recv_answers = []
         else:
             recv_header = new_header
             # QR = 0 for queries, QR = 1 for responses
