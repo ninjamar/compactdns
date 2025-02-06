@@ -557,7 +557,6 @@ class ServerManager:
             else:
                 new_questions.append(question)
 
-        # print(question_index_cached)
         # Set new qdcount for forwarded header
         new_header.qdcount = len(new_questions)
 
