@@ -11,9 +11,9 @@ Download this repository (or `cdns.py`). This project only depends on the Python
 
 ## Usage
 ```
-usage: cdns.py [-h] --host HOST --resolver RESOLVER --redirect REDIRECT [--blocklist BLOCKLIST]
-               [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}] [--mode {normal,threaded}]
-               [--ttl TTL]
+usage: cdns.py [-h] --host HOST --resolver RESOLVER [--blocklist [BLOCKLIST ...]]
+               [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}]
+               [--mode {normal,threaded}] [--ttl TTL]
 
 A simple forwarding DNS server
 
@@ -22,15 +22,13 @@ options:
   --host HOST, -a HOST  The host address in the format of a.b.c.d:port
   --resolver RESOLVER, -r RESOLVER
                         The resolver address in the format of a.b.c.d:port
-  --redirect REDIRECT, -R REDIRECT
-                        The IP address to redirect to in the format of a.b.c.d
-  --blocklist BLOCKLIST, -b BLOCKLIST
+  --blocklist [BLOCKLIST ...], -b [BLOCKLIST ...]
                         Path to file containing blocklist (fnmatch syntax)
   --loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}, -l {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}
                         Provide information about the logging level (default = info)
   --mode {normal,threaded}, -m {normal,threaded}
                         Mode to run server (default = threaded)
-  --ttl TTL             Default TTL for blocked hosts
+  --ttl TTL             Default TTL for blocked hosts          Default TTL for blocked hosts
 ```
 
 or since `fromfile_prefix_chars="@"`, store the arguments inside a file (eg `./config.txt`).
@@ -39,13 +37,19 @@ python cdns.py @config.txt
 ```
 ### Example
 ```
-python cdns.py --host 127.0.0.1:2053 --resolver 1.1.1.1:53 --redirect 127.0.0.2
+python cdns.py --host 127.0.0.1 --resolver 1.1.1.1:53 --blocklist blocklist.toml --loglevel INFO --mode threaded --ttl 60
 ```
 Runs the DNS server on `127.0.0.1:2053`, forwarding queries to `1.1.1.1:53`. For blocked sites, returns to `127.0.0.2`. Server is run in threaded mode and log level INFO.
 
+### Blocklist Format
+Blocklists should be either a `toml` or `json` file. See `blocklist.toml` and `blocklist.json` for an example.
+
+The file contains a list of rules (`rules`), which have a list of hosts (`hosts`)that get blocked to a certain ip address (`block_ip`). Key value pairs of host to ip address can be specified in the `blocklist` section.
+
+Multiple blocklists can be given as an input.
 ### Loopback Addresses
 
-DNS servers run on port 53. If you want to run this on port 53, use sudo.
+DNS servers run on port 53. If you want to run this on port 53, run this as root.
 
 If you don't want to clog up the loopback address, make a new one.
 #### MacOS

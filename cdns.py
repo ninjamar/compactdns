@@ -796,7 +796,7 @@ def cli():
         "-b",
         # required=False
         type=str,
-        help="Path to file containing blocklist (fnmatch syntax)",
+        help="Path to file containing blocklist",
         nargs="*",
     )
     parser.add_argument(

@@ -14,6 +14,7 @@ hosts = [
 block_ip = "96.7.128.198" # IP address of example.com
 hosts = [
     "*.example.com", # All subdomains of example.com go to $target_ip
+    "test.example.edu"
 ]
 
 # Key-value pairs of hostname to ip address 
