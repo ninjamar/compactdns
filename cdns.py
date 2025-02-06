@@ -835,7 +835,7 @@ def cli():
     else:
         blocklist = dict()
 
-    print(blocklist)
+    logging.debug(f"Blocklist: {blocklist}")
 
     manager = ServerManager(
         host=(host[0], int(host[1])),

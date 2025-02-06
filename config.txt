@@ -1,12 +1,12 @@
 --host
-127.0.0.1:2053
+127.0.0.1:53
 --resolver
 1.1.1.1:53
 --blocklist
 blocklist.json
 blocklist.toml
 --loglevel
-DEBUG
+INFO
 --mode
 threaded
 --ttl
