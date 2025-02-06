@@ -4,6 +4,7 @@
 
 # Rules
 [[rules]]
+ttl = 0
 # All hosts in blocklist get $target_ip
 block_ip = "127.0.0.2"
 hosts = [
