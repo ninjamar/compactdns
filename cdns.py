@@ -3,7 +3,6 @@
 # dns-server
 # A simple forwarding DNS server
 # https://github.com/ninjamar/compactdns
-
 import argparse
 import concurrent.futures
 import dataclasses
@@ -791,13 +790,6 @@ def cli():
         required=True,
         type=str,
         help="The resolver address in the format of a.b.c.d:port",
-    )
-    parser.add_argument(
-        "--redirect",
-        "-R",
-        required=True,
-        type=str,
-        help="The IP address to redirect to in the format of a.b.c.d",
     )
     parser.add_argument(
         "--blocklist",
