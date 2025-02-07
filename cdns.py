@@ -28,6 +28,7 @@
 # SOFTWARE.
 
 
+
 import argparse
 import concurrent.futures
 import dataclasses
@@ -685,7 +686,10 @@ class ServerManager:
         :param addr: address + port of client
         :type addr: tuple[str, int]
         """
+        # t = time.time()
         response = self.handle_dns_query(*args, **kwargs)
+        # logging.warning(time.time() - t)
+
         with lock:
             self.sock.sendto(response, addr)
         # self.sock.sendto(self.handle_dns_query(*args, **kwargs), addr)
