@@ -66,6 +66,7 @@ import struct
 import threading
 import time
 import tomllib
+from typing import Any, Hashable
 
 # TODO: Verbose mode (better logging stuff)
 
@@ -83,7 +84,6 @@ import tomllib
 # TODO: Convert documentation to google-notypes
 # TODO: Should docstrings be formatted as using a period
 # TODO: Type annotations
-# TODO: Consistent naming for builtin methods on classes
 
 # TODO: Configuration file format other than fromfile_prefix_chars
 # TODO: Support /etc/hosts syntax
@@ -93,17 +93,19 @@ import tomllib
 
 # TODO: Clear out this todo list (no way)
 # TODO: Document this code more
+# TODO: Use named tuple
+
 DEFAULT_TTL = 300
 
 
 class TimedCache:
     """A dictionary, with expiring keys."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Create a TimedCache instance."""
-        self.data = {}
+        self.data :dict[Hashable, tuple[Any, float]] = {}
 
-    def set(self, key, value, ttl):
+    def set(self, key: Hashable, value: Any, ttl: float) -> None:
         """Set a key in the TimedCache.
 
         Args:
@@ -113,7 +115,7 @@ class TimedCache:
         """
         self.data[key] = (value, time.time() + ttl)
 
-    def get(self, key):
+    def get(self, key: Hashable) -> Any:
         """Get a timed key, deleting it if it has expired.
 
         Args:
@@ -133,7 +135,7 @@ class TimedCache:
             return None
         return value
 
-    def __contains__(self, key) -> bool:
+    def __contains__(self, key: Hashable) -> bool:
         """Check if the TimedCache contains a key.
 
         Args:
@@ -525,12 +527,7 @@ def unpack_all(
             )
         )
 
-    # If there aren't any questions, answers, return None instead
-    #return (
-    #    header,
-    #    None if len(questions) == 0 else questions,
-    #    None if len(answers) == 0 else answers,
-    #)
+    # Return empty questions and answers, rather than None, due to mypy
     return header, questions, answers
 
 
@@ -542,7 +539,7 @@ class ServerManager:
         host: tuple[str, int],
         resolver: tuple[str, int],
         blocklist: dict[str, tuple[str, int]],
-    ):
+    ) -> None:
         """Create a ServerManager instance.
 
         Args:
@@ -564,7 +561,6 @@ class ServerManager:
 
         # Cache individual hosts that don't contain any special syntax
         # Caching is for when type_ and class_ is 1
-
         # Use _host rather than host, since host is an argument to this function
         for _host in self.blocklist.keys():
             if not any(x in _host for x in "*?[]!"):
@@ -718,7 +714,7 @@ class ServerManager:
         response, _ = self.resolver_socket.recvfrom(512)
         return response
 
-    def done(self):
+    def done(self) -> None:
         """Handle destroying the sockets."""
         # TODO: What about using a context manager? Pointless idea, but anyway
         self.sock.close()
@@ -726,12 +722,14 @@ class ServerManager:
 
     def threaded_handle_dns_query(
         self, addr: tuple[str, int], lock: threading.Lock, *args, **kwargs
-    ):
+    ) -> None:
         """Run a threaded version of handle_dns_query.
 
         Args:
             addr: Address of client.
             lock: Thread lock.
+            *args: Arguments to pass to `self.handle_dns_query`.
+            **kwargs: Keyword arguments to pass to `self.handle_dns_query`.
         """
         # t = time.time()
         response = self.handle_dns_query(*args, **kwargs)
@@ -743,7 +741,7 @@ class ServerManager:
         # self.sock.sendto(self.handle_dns_query(*args, **kwargs), addr)
         logging.info("Sent response")
 
-    def start_threaded(self):
+    def start_threaded(self) -> None:
         """Start a threaded server."""
 
         logging.info("Threaded DNS Server running at %s:%s", self.host[0], self.host[1])
@@ -761,9 +759,9 @@ class ServerManager:
                 except Exception:
                     # Handle errors, but keep the program running
                     self.done()
-                    logging.error("Error", exc_info=1)
+                    logging.error("Error", exc_info=True)
 
-    def start(self):
+    def start(self) -> None:
         """Start a non-threaded server."""
         logging.info("DNS Server running at %s:%s", self.host[0], self.host[1])
         while True:
@@ -774,7 +772,7 @@ class ServerManager:
                 logging.info("Sent response")
             except Exception:
                 self.done()
-                logging.error("Error", exc_info=1)
+                logging.error("Error", exc_info=True)
 
 
 @functools.cache
@@ -858,7 +856,7 @@ def load_all_blocklists(paths: list[str]) -> dict[str, tuple[str, int]]:
     return blocklist
 
 
-def cli():
+def cli() -> None:
     """The command line interface for compactdns."""
     # TODO: Document this more
     parser = argparse.ArgumentParser(
