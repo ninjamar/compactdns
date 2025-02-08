@@ -746,7 +746,7 @@ class ServerManager:
                     buf, addr = self.sock.recvfrom(512)
 
                     executor.submit(self.threaded_handle_dns_query, addr, lock, buf)
-                except Exception as e:
+                except Exception:
                     # Handle errors, but keep the program running
                     self.done()
                     logging.error("Error", exc_info=1)
@@ -915,7 +915,7 @@ def cli():
     if args.blocklist is not None:
         blocklist = load_all_blocklists(args.blocklist)
     else:
-        blocklist = dict()
+        blocklist = {}
 
     logging.debug(f"Blocklist: {blocklist}")
 
