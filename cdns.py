@@ -103,7 +103,7 @@ class TimedCache:
 
     def __init__(self) -> None:
         """Create a TimedCache instance."""
-        self.data :dict[Hashable, tuple[Any, float]] = {}
+        self.data: dict[Hashable, tuple[Any, float]] = {}
 
     def set(self, key: Hashable, value: Any, ttl: float) -> None:
         """Set a key in the TimedCache.
