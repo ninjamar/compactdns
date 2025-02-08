@@ -42,7 +42,8 @@ import struct
 import threading
 import time
 import tomllib
-from typing import Union
+
+# TODO: Verbose mode (better logging stuff)
 
 # TODO: Turn this into a module in a directory
 # TODO: Document the archictecture (comments)

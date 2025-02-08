@@ -37,7 +37,7 @@ python cdns.py @config.txt
 ```
 ### Example
 ```
-python cdns.py --host 127.0.0.1 --resolver 1.1.1.1:53 --blocklist example-blocklist/blocklist.toml --loglevel INFO --mode threaded --ttl 60
+python cdns.py --host 127.0.0.1 --resolver 1.1.1.1:53 --blocklist example-blocklists/blocklist.toml --loglevel INFO --mode threaded --ttl 60
 ```
 Runs the DNS server on `127.0.0.1:2053`, forwarding queries to `1.1.1.1:53`. For blocked sites, returns to `127.0.0.2`. Server is run in threaded mode and log level INFO.
 
