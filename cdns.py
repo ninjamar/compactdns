@@ -28,7 +28,6 @@
 # SOFTWARE.
 
 
-
 import argparse
 import concurrent.futures
 import dataclasses
@@ -56,41 +55,45 @@ import tomllib
 # TODO: use TimedCache to store blocklist in a better way
 
 # TODO: Convert documentation to google-notypes
+# TODO: Should docstrings be formatted as using a period
 # TODO: Type annotations
 # TODO: Consistent naming for builtin methods on classes
 
 # TODO: Configuration file format other than fromfile_prefix_chars
 # TODO: Support /etc/hosts syntax
 
+# TODO: Rename resolver_addr to resolver
+
 DEFAULT_TTL = 300
 
 
 class TimedCache:
-    """Basically a dictionary but except the keys expire after some time"""
+    """A dictionary, with expiring keys."""
 
     def __init__(self):
-        """Create a TimedCache instance"""
+        """Create a TimedCache instance."""
         self.data = {}
 
     def set(self, key, value, ttl):
-        """Set a key
+        """
+        Set a key in the TimedCache.
 
-        :param key: the key to set
-        :type key: Hashable
-        :param value: the value to set
-        :type value: Any
-        :param ttl: duration of key
-        :type ttl: int
+        Args:
+            key: The key to set
+            value: The value of the key
+            ttl: The time to expiry of the key in the future
         """
         self.data[key] = (value, time.time() + ttl)
 
     def get(self, key):
-        """Get a timed, key, deleting it if it expires
+        """
+        Get a timed key, deleting it if it has expired.
 
-        :param key: the key to get
-        :type key: Hashable
-        :return: value for key
-        :rtype: _Any
+        Args:
+            key: The key to get
+
+        Returns:
+            The value of the key
         """
         if key not in self.data:
             return None
@@ -99,29 +102,32 @@ class TimedCache:
 
         # Remove the item if it's expired
         if expiry < time.time():
-
             del self.data[key]
             return None
         return value
 
     def __contains__(self, key) -> bool:
-        """Check if cache contains key
-
-        :param key: key to check
-        :type key: Hashable
-        :return: is the key inside the cache?
-        :rtype: bool
         """
-        return self.get(key) != None
+        Check if the TimedCache contains a key.
+
+        Args:
+            key: The key to check
+
+        Returns:
+            Is the key inside the TimedCache?
+        """
+        return self.get(key) is not None
 
 
 def encode_name_uncompressed(name: str) -> bytes:
-    """Encode a DNS name, without compression
+    """
+    Encode a DNS name without using compression.
 
-    :param name: DNS name to encode
-    :type name: str
-    :return: encoded DNS name
-    :rtype: bytes
+    Args:
+        name: The name to encode
+
+    Returns:
+        The encoded DNS name
     """
     labels = name.split(".")
     encoded = [bytes([len(label)]) + label.encode("ascii") for label in labels]
@@ -129,12 +135,14 @@ def encode_name_uncompressed(name: str) -> bytes:
 
 
 def decode_name_uncompressed(buf: bytes) -> str:
-    """Decode a DNS name, without compression
+    """
+    Decode a DNS name that is uncompressed.
 
-    :param buf: DNS name to decode
-    :type buf: bytes
-    :return: decoded DNS name
-    :rtype: str
+    Args:
+        buf: The name to decode
+
+    Returns:
+        The decoded name
     """
     labels = []
     idx = 0
@@ -149,15 +157,18 @@ def decode_name_uncompressed(buf: bytes) -> str:
 
 
 def decode_name(buf: bytes, start_idx: int) -> tuple[str, int]:
-    """Decode a name, that is compressed, from a buffer
+    """
+    Decode a compressed DNS name from a position in a buffer.
 
-    :param buf: buffer containing name
-    :type buf: bytes
-    :param start_idx: start index of name
-    :type start_idx: int
-    :raises Exception: infinite loop
-    :return: decoded name, and index of name
-    :rtype: tuple[str, int]
+    Args:
+        buf: The buffer containing the DNS name
+        start_idx: Starting index of the DNS name
+
+    Raises:
+        Exception: A loop is detected
+
+    Returns:
+        Decoded DNS name and index
     """
     labels = []
     idx = start_idx
@@ -197,7 +208,7 @@ def decode_name(buf: bytes, start_idx: int) -> tuple[str, int]:
 
 @dataclasses.dataclass(unsafe_hash=True)
 class DNSHeader:
-    """Dataclass to store DNS header"""
+    """Dataclass to store a DNS header."""
 
     # Required fields
     # https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.1
@@ -216,10 +227,11 @@ class DNSHeader:
     arcount: int = 0
 
     def pack(self) -> bytes:
-        """Pack the DNS header
+        """
+        Pack the DNS header into bytes.
 
-        :return: packed DNS header
-        :rtype: bytes
+        Returns:
+            The packed DNS header
         """
         flags = (
             (self.qr << 15)  # QR: 1 bit at bit 15
@@ -244,12 +256,14 @@ class DNSHeader:
 
     @classmethod
     def from_buffer(cls, buf: bytes) -> "DNSHeader":
-        """Create a DNSHeader object from a buffer
+        """
+        Create a DNSHeader instance using data stored in a buffer
 
-        :param buf: buffer containing a DNS header
-        :type buf: bytes
-        :return: DNS header
-        :rtype: DNSHeader
+        Args:
+            buf: The buffer containing a DNS header
+
+        Returns:
+            The DNSHeader instance
         """
         id_, flags, qdcount, ancount, nscount, arcount = struct.unpack(
             "!HHHHHH", buf[:12]
@@ -284,7 +298,7 @@ class DNSHeader:
 
 @dataclasses.dataclass(unsafe_hash=True)
 class DNSQuestion:
-    """Dataclass to store DNS question"""
+    """Dataclass to store a DNS question."""
 
     # Keep QNAME decoded, since it encoded in the message
     decoded_name: str = ""
@@ -295,12 +309,14 @@ class DNSQuestion:
     class_: int = 1
 
     def pack(self, encoded_name: bytes) -> bytes:
-        """Pack the DNS question
+        """
+        Pack the DNS question into bytes.
 
-        :param encoded_name: encoded name
-        :type encoded_name: bytes
-        :return: packed DNS question
-        :rtype: bytes
+        Args:
+            encoded_name: The encoded form of decoded_name
+
+        Returns:
+            The packed DNS question
         """
 
         # Require an encoded name, since compression is handled elsewhere
@@ -309,7 +325,7 @@ class DNSQuestion:
 
 @dataclasses.dataclass(unsafe_hash=True)
 class DNSAnswer:
-    """Dataclass to store DNS answer"""
+    """Dataclass to store a DNS answer."""
 
     # Keep NAME decoded, since it encoded in the message
     decoded_name: str = ""
@@ -323,12 +339,14 @@ class DNSAnswer:
     rdata: bytes = b""  # IPV4
 
     def pack(self, encoded_name: bytes) -> bytes:
-        """Pack the DNS answer
+        """
+        Pack the DNS answer.
 
-        :param encoded_name: name encoded
-        :type encoded_name: bytes
-        :return: packed DNS answer
-        :rtype: bytes
+        Args:
+            encoded_name: The encoded form of decoded_name
+
+        Returns:
+            The packed DNS answer
         """
         # Require an encoded name, since compression is handled elsewhere
         return (
@@ -345,18 +363,18 @@ class DNSAnswer:
 
 
 def pack_all_uncompressed(
-    header: DNSHeader, questions: list[DNSQuestion], answers: list[DNSAnswer]
+    header: DNSHeader, questions: list[DNSQuestion] = [], answers: list[DNSAnswer] = []
 ) -> bytes:
-    """Pack DNS headers, questions, and answers, without compression
+    """
+    Pack a DNS header, DNS questions, and DNS answers, without compression.
 
-    :param header: A singular DNS header
-    :type header: DNSHeader
-    :param questions: All the DNS questions
-    :type questions: list[DNSQuestion]
-    :param answers: All the DNS answers
-    :type answers: list[DNSAnswer]
-    :return: uncompressed DNS bytes
-    :rtype: bytes
+    Args:
+        header: The DNS header to pack
+        questions: Multiple DNS questions to pack. Defaults to [].
+        answers: Multiple DNS answers to pack. Defaults to [].
+
+    Returns:
+        The packed DNS header, DNS questions, and DNS answers, without compression
     """
 
     # Pack header
@@ -373,16 +391,16 @@ def pack_all_uncompressed(
 def pack_all_compressed(
     header: DNSHeader, questions: list[DNSQuestion] = [], answers: list[DNSAnswer] = []
 ) -> bytes:
-    """Pack DNS headers, questions, and answers, with compression
+    """
+    Pack a DNS header, DNS questions, and DNS answers, with compression.
 
-    :param header: A singular DNS header
-    :type header: DNSHeader
-    :param questions: All the DNS questions
-    :type questions: list[DNSQuestion]
-    :param answers: All the DNS answers
-    :type answers: list[DNSAnswer]
-    :return: compressed DNS bytes
-    :rtype: bytes
+    Args:
+        header: The DNSHeader to pack
+        questions: Multiple DNS questions to pack. Defaults to [].
+        answers: Multiple DNS answers to pack. Defaults to [].
+
+    Returns:
+        The packed DNS header, DNS questions, and DNS answers, with compression
     """
     # Pack header
     response = header.pack()
@@ -423,13 +441,15 @@ def pack_all_compressed(
 
 def unpack_all(
     buf: bytes,
-) -> tuple[DNSHeader, list[DNSQuestion], list[DNSAnswer] | None]:
-    """Unpack a sent buffer into the header and questions
+) -> tuple[DNSHeader, list[DNSQuestion] | None, list[DNSAnswer] | None]:
+    """
+    Unpack a buffer into a DNS header, DNS questions, and DNS answers.
 
-    :param buf: sent buffer
-    :type buf: bytes
-    :return: unpacked header and questions
-    :rtype: tuple[DNSHeader, DNSQuestion]
+    Args:
+        buf: Buffer containing a DNS header, DNS questions, DNS answers
+
+    Returns:
+        The DNS header, DNS answers, and DNS questions
     """
 
     # Header isn't compressed
@@ -489,28 +509,30 @@ def unpack_all(
             )
         )
 
-    # If there aren't any answers, don't return it
-    return (header, questions, None if len(answers) == 0 else answers)
+    # If there aren't any questions, answers, return None instead
+    return (
+        header,
+        None if len(questions) == 0 else questions,
+        None if len(answers) == 0 else answers,
+    )
 
 
 class ServerManager:
-    """A server session"""
+    """A class to store a server session."""
 
     def __init__(
         self,
-        # resolver_socket: socket.socket,
-        host,
+        host: tuple[str, int],
         resolver_addr: tuple[str, int],
         blocklist: dict[str, tuple[str, int]],
     ):
-        """Create a ServerManager instance
+        """
+        Create a ServerManager instance.
 
-        :param resolver_socket: socket to use to send by resolver_socket_addr
-        :type resolver_socket: socket.socket
-        :param resolver_socket_addr: socket addr and port
-        :type resolver_socket_addr: tuple[str, int]
-        :param blocklist: host : (ip, ttl)
-        :type blocklist: dict[str, tuple[str, int]]
+        Args:
+            host: Host and port of server
+            resolver_addr: Host and port of resolver
+            blocklist: Blocklist of sites
         """
         self.host = host
 
@@ -544,13 +566,17 @@ class ServerManager:
                 )
 
     def handle_dns_query(self, buf: bytes) -> bytes:
-        """Handle a DNS query
-
-        :param buf: buffer containing DNS query
-        :type buf: bytes
-        :return: response from server
-        :rtype: bytes
         """
+        Handle an incoming DNS query. Block IP addresses on the blocklist, and forward those not to the resolver.
+
+        Args:
+            buf: The buffer containing a DNS query
+
+        Returns:
+            The response
+        """
+        # TODO: Document this function more
+
         logging.info("Received query")
 
         # Recieve header and questions
@@ -661,31 +687,37 @@ class ServerManager:
         return pack_all_compressed(recv_header, recv_questions, recv_answers)
 
     def forward_dns_query(self, query: bytes) -> bytes:
-        """Forward a DNS query to an address
-
-        :param query: query to forward
-        :type query: bytes
-        :param addr: tuple containing address and port
-        :type addr: tuple[str, int]
-        :return: response from the server
-        :rtype: bytes
         """
+        Forward a DNS query to an address.
 
+        Args:
+            query: The DNS query to forward
+
+        Returns:
+            The response from the forwarding server
+        """
         self.resolver_socket.sendto(query, self.resolver_socket_addr)
 
         response, _ = self.resolver_socket.recvfrom(512)
         return response
 
     def done(self):
-        """Close sockets"""
+        """
+        Handle destroying the sockets.
+        """
+        # TODO: What about using a context manager? Pointless idea, but anyway
         self.sock.close()
         self.resolver_socket.close()
 
-    def threaded_handle_dns_query(self, addr, lock, *args, **kwargs):
-        """Run a threaded version of handle_dns_query
+    def threaded_handle_dns_query(
+        self, addr: socket._RetAddress, lock: threading.Lock, *args, **kwargs
+    ):
+        """
+        Run a threaded version of handle_dns_query.
 
-        :param addr: address + port of client
-        :type addr: tuple[str, int]
+        Args:
+            addr: Address to client
+            lock: Thread lock
         """
         # t = time.time()
         response = self.handle_dns_query(*args, **kwargs)
@@ -693,11 +725,15 @@ class ServerManager:
 
         with lock:
             self.sock.sendto(response, addr)
+
         # self.sock.sendto(self.handle_dns_query(*args, **kwargs), addr)
         logging.info("Sent response")
 
     def start_threaded(self):
-        """Start a threaded server"""
+        """
+        Start a threaded server.
+        """
+
         logging.info(f"Threaded DNS Server running at {self.host[0]}:{self.host[1]}")
 
         # Lock sockets send back
@@ -716,7 +752,9 @@ class ServerManager:
                     logging.error("Error", exc_info=1)
 
     def start(self):
-        """Start a non-threaded server"""
+        """
+        Start a non-threaded server.
+        """
         logging.info(f"DNS Server running at {self.host[0]}:{self.host[1]}")
         while True:
             try:
@@ -731,13 +769,14 @@ class ServerManager:
 
 @functools.cache
 def is_ip_addr_valid(ip_addr: str) -> bool:
-    """Check if an IP address is valid
-    This function is cached
+    """
+    Check if an IP address is valid. This function caches the validity of an IP address.
 
-    :param ip_addr: ip ap address
-    :type ip_addr: str
-    :return: is the ip address valid
-    :rtype: bool
+    Args:
+        ip_addr: The IP address to check validity.
+
+    Returns:
+        Is the IP address valid?
     """
     try:
         socket.inet_aton(ip_addr)
@@ -747,13 +786,16 @@ def is_ip_addr_valid(ip_addr: str) -> bool:
 
 
 def parse_blocklist(data: dict) -> dict[str, tuple[str, int]]:
-    """Parse a blocklist
-
-    :param data: blocklist to parse
-    :type data: dict
-    :return: parsed version of blocklist
-    :rtype: dict[str, tuple[str, int]]
     """
+    Parse a blocklist.
+
+    Args:
+        data: The blocklist to parse
+
+    Returns:
+        A dictionary of hosts to ip addresses.
+    """
+
     # TODO: Validate ip
     # TODO: Check for collision
     blocklist = {}
@@ -771,13 +813,17 @@ def parse_blocklist(data: dict) -> dict[str, tuple[str, int]]:
 
 
 def read_blocklist(fpath: str) -> dict[str, tuple[str, int]]:
-    """Read a blocklist from a file
+    """
+    Read and parse blocklist from a file.
 
-    :param fpath: path to file
-    :type fpath: str
-    :raises Exception: unknown file extension
-    :return: blocklist
-    :rtype: dict[str, tuple[str, int]]
+    Args:
+        fpath: The path to the file
+
+    Raises:
+        Exception: Unknown file extension
+
+    Returns:
+        A parsed blocklist
     """
     with open(fpath, "rb") as f:
         ext = os.path.splitext(fpath)[1]
@@ -790,12 +836,14 @@ def read_blocklist(fpath: str) -> dict[str, tuple[str, int]]:
 
 
 def load_all_blocklists(paths: list[str]) -> dict[str, tuple[str, int]]:
-    """Load all blocklists from paths
+    """
+    Load all blocklists from a list of paths.
 
-    :param paths: files containing blocklists
-    :type paths: list[str]
-    :return: parsed blocklists
-    :rtype: dict[str, tuple[str, int]]
+    Args:
+        paths: A list containing paths to the blocklist
+
+    Returns:
+        The blocklist from those files
     """
     blocklist = {}
     for path in paths:
@@ -804,7 +852,10 @@ def load_all_blocklists(paths: list[str]) -> dict[str, tuple[str, int]]:
 
 
 def cli():
-    """Command line interface"""
+    """
+    The command line interface for compactdns.s
+    """
+    # TODO: Document this more
     parser = argparse.ArgumentParser(
         description="A simple forwarding DNS server", fromfile_prefix_chars="@"
     )
