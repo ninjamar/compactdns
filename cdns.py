@@ -27,7 +27,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-
+"""
+This module, CompactDNS is a small, portable DNS server with support for blocking certain hostnames.
+"""
 import argparse
 import concurrent.futures
 import dataclasses
@@ -692,12 +694,12 @@ class ServerManager:
         self.resolver_socket.close()
 
     def threaded_handle_dns_query(
-        self, addr: socket._RetAddress, lock: threading.Lock, *args, **kwargs
+        self, addr: tuple[str, int], lock: threading.Lock, *args, **kwargs
     ):
         """Run a threaded version of handle_dns_query.
 
         Args:
-            addr: Address to client.
+            addr: Address of client.
             lock: Thread lock.
         """
         # t = time.time()
