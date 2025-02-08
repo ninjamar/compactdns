@@ -45,6 +45,7 @@ import tomllib
 # TODO: Verbose mode (better logging stuff)
 
 # TODO: Turn this into a module in a directory
+# TODO: When this is a module, maybe allow some DNS tunneling and messaging stuff?
 # TODO: Document the archictecture (comments)
 # TODO: Ensure all code is right (via tests)
 
@@ -61,8 +62,6 @@ import tomllib
 
 # TODO: Configuration file format other than fromfile_prefix_chars
 # TODO: Support /etc/hosts syntax
-
-# TODO: Rename resolver_addr to resolver
 
 DEFAULT_TTL = 300
 
@@ -523,7 +522,7 @@ class ServerManager:
     def __init__(
         self,
         host: tuple[str, int],
-        resolver_addr: tuple[str, int],
+        resolver: tuple[str, int],
         blocklist: dict[str, tuple[str, int]],
     ):
         """
@@ -531,7 +530,7 @@ class ServerManager:
 
         Args:
             host: Host and port of server
-            resolver_addr: Host and port of resolver
+            resolver: Host and port of resolver
             blocklist: Blocklist of sites
         """
         self.host = host
@@ -540,7 +539,7 @@ class ServerManager:
         self.sock.bind(host)
 
         self.resolver_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.resolver_socket_addr = resolver_addr
+        self.resolver_socket_addr = resolver
 
         self.blocklist = blocklist
 
@@ -762,7 +761,7 @@ class ServerManager:
                 response = self.handle_dns_query(buf)
                 self.sock.sendto(response, addr)
                 logging.info("Sent response")
-            except Exception as e:
+            except Exception:
                 self.done()
                 logging.error("Error", exc_info=1)
 
@@ -921,7 +920,7 @@ def cli():
 
     manager = ServerManager(
         host=(host[0], int(host[1])),
-        resolver_addr=(resolver[0], int(resolver[1])),
+        resolver=(resolver[0], int(resolver[1])),
         blocklist=blocklist,
     )
 
