@@ -26,7 +26,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 """This module, CompactDNS is a small, portable DNS server with support for
 blocking certain hostnames.
 
@@ -182,6 +181,12 @@ def decode_name_uncompressed(buf: bytes) -> str:
     return ".".join(labels)
 
 
+class DNSDecodeLoopError(Exception):
+    """An exception if a loop is encountered while encoding a DNS query."""
+
+    pass
+
+
 def decode_name(buf: bytes, start_idx: int) -> tuple[str, int]:
     """Decode a compressed DNS name from a position in a buffer.
 
@@ -203,7 +208,7 @@ def decode_name(buf: bytes, start_idx: int) -> tuple[str, int]:
 
     while True:
         if idx in visited:
-            raise Exception("Unable to decode domain: loop detected")
+            raise DNSDecodeLoopError("Unable to decode domain: loop detected.")
         visited.add(idx)
 
         # Length of section
@@ -819,6 +824,12 @@ def parse_blocklist(data: dict) -> dict[str, tuple[str, int]]:
     return blocklist
 
 
+class UnknownBlocklistFormatError(Exception):
+    """Exception for unknown blocklist format."""
+
+    pass
+
+
 def read_blocklist(fpath: str) -> dict[str, tuple[str, int]]:
     """Read and parse blocklist from a file.
 
@@ -838,7 +849,9 @@ def read_blocklist(fpath: str) -> dict[str, tuple[str, int]]:
         elif ext == ".toml":
             return parse_blocklist(tomllib.load(f))
         else:
-            raise Exception("Unable to read blocklist: unknown file extension")
+            raise UnknownBlocklistFormatError(
+                "Unable to read blocklist: unknown file extension"
+            )
 
 
 def load_all_blocklists(paths: list[str]) -> dict[str, tuple[str, int]]:
