@@ -27,9 +27,32 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+"""This module, CompactDNS is a small, portable DNS server with support for
+blocking certain hostnames.
+
+$ python cdns.py -h
+usage: cdns.py [-h] --host HOST --resolver RESOLVER [--blocklist [BLOCKLIST ...]]
+               [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}]
+               [--mode {normal,threaded}] [--ttl TTL]
+
+A simple forwarding DNS server
+
+options:
+  -h, --help            show this help message and exit
+  --host HOST, -a HOST  The host address in the format of a.b.c.d:port
+  --resolver RESOLVER, -r RESOLVER
+                        The resolver address in the format of a.b.c.d:port
+  --blocklist [BLOCKLIST ...], -b [BLOCKLIST ...]
+                        Path to file containing blocklist
+  --loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}, -l {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}
+                        Provide information about the logging level (default = info)
+  --mode {normal,threaded}, -m {normal,threaded}
+                        Mode to run server (default = threaded)
+  --ttl TTL             Default TTL for blocked hosts
+
+See example-blocklists/ for example blocklists.
 """
-This module, CompactDNS is a small, portable DNS server with support for blocking certain hostnames.
-"""
+
 import argparse
 import concurrent.futures
 import dataclasses
@@ -65,6 +88,11 @@ import tomllib
 # TODO: Configuration file format other than fromfile_prefix_chars
 # TODO: Support /etc/hosts syntax
 
+# TODO: Add contributing guide to README before 1.0.0
+# TODO: Once version 1.0.0 is released, upload this project to PyPi
+
+# TODO: Clear out this todo list (no way)
+# TODO: Document this code more
 DEFAULT_TTL = 300
 
 
@@ -430,7 +458,7 @@ def pack_all_compressed(
 
 def unpack_all(
     buf: bytes,
-) -> tuple[DNSHeader, list[DNSQuestion] | None, list[DNSAnswer] | None]:
+) -> tuple[DNSHeader, list[DNSQuestion], list[DNSAnswer]]:
     """Unpack a buffer into a DNS header, DNS questions, and DNS answers.
 
     Args:
@@ -498,11 +526,12 @@ def unpack_all(
         )
 
     # If there aren't any questions, answers, return None instead
-    return (
-        header,
-        None if len(questions) == 0 else questions,
-        None if len(answers) == 0 else answers,
-    )
+    #return (
+    #    header,
+    #    None if len(questions) == 0 else questions,
+    #    None if len(answers) == 0 else answers,
+    #)
+    return header, questions, answers
 
 
 class ServerManager:
@@ -535,21 +564,23 @@ class ServerManager:
 
         # Cache individual hosts that don't contain any special syntax
         # Caching is for when type_ and class_ is 1
-        for host in self.blocklist.keys():
-            if not any(x in host for x in "*?[]!"):
+
+        # Use _host rather than host, since host is an argument to this function
+        for _host in self.blocklist.keys():
+            if not any(x in _host for x in "*?[]!"):
                 self.cache.set(
-                    DNSQuestion(decoded_name=host, type_=1, class_=1),
+                    DNSQuestion(decoded_name=_host, type_=1, class_=1),
                     DNSAnswer(
-                        decoded_name=host,
+                        decoded_name=_host,
                         type_=1,
                         class_=1,
-                        ttl=self.blocklist[host][1],
+                        ttl=self.blocklist[_host][1],
                         rdlength=4,
                         # inet_aton encodes a ip address into bytes
-                        rdata=socket.inet_aton(self.blocklist[host][0]),
+                        rdata=socket.inet_aton(self.blocklist[_host][0]),
                     ),
                     # TODO: Fix
-                    self.blocklist[host][1],
+                    self.blocklist[_host][1],
                 )
 
     def handle_dns_query(self, buf: bytes) -> bytes:
@@ -569,7 +600,7 @@ class ServerManager:
         # Recieve header and questions
         header, questions, _ = unpack_all(buf)
 
-        logging.debug(f"Received query: {header}, {questions}")
+        logging.debug("Received query: %s, %s", header, questions)
 
         # check cache for all
 
@@ -600,7 +631,7 @@ class ServerManager:
         # Set new qdcount for forwarded header
         new_header.qdcount = len(new_questions)
 
-        logging.debug(f"New header {new_header}, new questions {new_questions}")
+        logging.debug("New header %s, new questions %s", new_header, new_questions)
 
         # Only forward query if there is something to forward
         if new_header.qdcount > 0:
@@ -609,12 +640,12 @@ class ServerManager:
             send = pack_all_compressed(new_header, new_questions)
             response = self.forward_dns_query(send)
 
-            logging.debug("Received query from dns server")
+            logging.debug("Received query from DNS server")
 
             # Add the blocked sites to the response
             recv_header, recv_questions, recv_answers = unpack_all(response)
 
-            if recv_answers is None:
+            if len(recv_answers) == 0:
                 recv_answers = []
         else:
             recv_header = new_header
@@ -660,7 +691,7 @@ class ServerManager:
         recv_header.ancount = len(recv_answers)
 
         logging.debug(
-            f"Sending query back, {recv_header}, {recv_questions}, {recv_answers}"
+            "Sending query back, %s, %s, %s", recv_header, recv_questions, recv_answers
         )
 
         # Since we have a new response, cache it, using the original question and new answer
@@ -715,7 +746,7 @@ class ServerManager:
     def start_threaded(self):
         """Start a threaded server."""
 
-        logging.info(f"Threaded DNS Server running at {self.host[0]}:{self.host[1]}")
+        logging.info("Threaded DNS Server running at %s:%s", self.host[0], self.host[1])
 
         # Lock sockets send back
         lock = threading.Lock()
@@ -734,7 +765,7 @@ class ServerManager:
 
     def start(self):
         """Start a non-threaded server."""
-        logging.info(f"DNS Server running at {self.host[0]}:{self.host[1]}")
+        logging.info("DNS Server running at %s:%s", self.host[0], self.host[1])
         while True:
             try:
                 buf, addr = self.sock.recvfrom(512)
@@ -891,7 +922,7 @@ def cli():
     else:
         blocklist = {}
 
-    logging.debug(f"Blocklist: {blocklist}")
+    logging.debug("Blocklist: %s", blocklist)
 
     manager = ServerManager(
         host=(host[0], int(host[1])),

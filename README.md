@@ -23,12 +23,12 @@ options:
   --resolver RESOLVER, -r RESOLVER
                         The resolver address in the format of a.b.c.d:port
   --blocklist [BLOCKLIST ...], -b [BLOCKLIST ...]
-                        Path to file containing blocklist (fnmatch syntax)
+                        Path to file containing blocklist
   --loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}, -l {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}
                         Provide information about the logging level (default = info)
   --mode {normal,threaded}, -m {normal,threaded}
                         Mode to run server (default = threaded)
-  --ttl TTL             Default TTL for blocked hosts          Default TTL for blocked hosts
+  --ttl TTL             Default TTL for blocked hosts
 ```
 
 or since `fromfile_prefix_chars="@"`, store the arguments inside a file (eg `./config.txt`).
