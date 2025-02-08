@@ -44,7 +44,6 @@ import time
 import tomllib
 from typing import Union
 
-
 # TODO: Turn this into a module in a directory
 # TODO: Document the archictecture (comments)
 # TODO: Ensure all code is right (via tests)
@@ -55,6 +54,7 @@ from typing import Union
 # TODO: Make sure cache is better
 # TODO: use TimedCache to store blocklist in a better way
 
+# TODO: Convert documentation to google-notypes
 # TODO: Type annotations
 # TODO: Consistent naming for builtin methods on classes
 

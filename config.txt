@@ -3,7 +3,7 @@
 --resolver
 1.1.1.1:53
 --blocklist
-blocklist.toml
+example-blocklist/blocklist.toml
 --loglevel
 INFO
 --mode
