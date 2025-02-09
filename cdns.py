@@ -29,6 +29,8 @@
 """This module, CompactDNS is a small, portable DNS server with support for
 blocking certain hostnames.
 
+Requires a minimum python version of 3.11.
+
 $ python cdns.py -h
 usage: cdns.py [-h] --host HOST --resolver RESOLVER [--blocklist [BLOCKLIST ...]]
                [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}]
@@ -65,7 +67,7 @@ import struct
 import threading
 import time
 import tomllib
-from typing import Any, Hashable
+from typing import NamedTuple, Any, Hashable
 
 # TODO: Verbose mode (better logging stuff)
 
@@ -92,7 +94,10 @@ from typing import Any, Hashable
 
 # TODO: Clear out this todo list (no way)
 # TODO: Document this code more
-# TODO: Use named tuple
+# TODO: Use namedtuple
+
+# TODO: Document and organize handle_dns_query
+
 
 DEFAULT_TTL = 300
 
@@ -535,6 +540,12 @@ def unpack_all(
     # Return empty questions and answers, rather than None, due to mypy
     return header, questions, answers
 
+class BlocklistRuleItem(NamedTuple):
+    """
+    IP address and ttl for a host
+    """
+    ip : str
+    ttl : float
 
 class ServerManager:
     """A class to store a server session."""
@@ -543,7 +554,7 @@ class ServerManager:
         self,
         host: tuple[str, int],
         resolver: tuple[str, int],
-        blocklist: dict[str, tuple[str, int]],
+        blocklist: dict[str, BlocklistRuleItem],
     ) -> None:
         """Create a ServerManager instance.
 
@@ -564,6 +575,8 @@ class ServerManager:
 
         self.cache = TimedCache()
 
+        # TODO: This probably doesn't have much of an advantage
+        # TODO: If we get a cached answer, should the ttl in the TimedCache be updated?
         # Cache individual hosts that don't contain any special syntax
         # Caching is for when type_ and class_ is 1
         # Use _host rather than host, since host is an argument to this function
@@ -575,14 +588,18 @@ class ServerManager:
                         decoded_name=_host,
                         type_=1,
                         class_=1,
-                        ttl=self.blocklist[_host][1],
+                        ttl=int(self.blocklist[_host].ttl), # float to int
                         rdlength=4,
                         # inet_aton encodes a ip address into bytes
-                        rdata=socket.inet_aton(self.blocklist[_host][0]),
+                        rdata=socket.inet_aton(self.blocklist[_host].ip),
                     ),
                     # TODO: Fix
-                    self.blocklist[_host][1],
+                    self.blocklist[_host].ttl,
                 )
+
+    def intercept_questions(self):
+        # Cached, blocked
+        pass
 
     def handle_dns_query(self, buf: bytes) -> bytes:
         """Handle an incoming DNS query. Block IP addresses on the blocklist,
@@ -594,7 +611,6 @@ class ServerManager:
         Returns:
             The response.
         """
-        # TODO: Document this function more
 
         logging.info("Received query")
 
@@ -677,10 +693,10 @@ class ServerManager:
                 decoded_name=question.decoded_name,
                 type_=question.type_,
                 class_=question.type_,
-                ttl=self.blocklist[match][1],
+                ttl=int(self.blocklist[match].ttl),
                 rdlength=4,
                 # inet_aton encodes a ip address into bytes
-                rdata=socket.inet_aton(self.blocklist[match][0]),
+                rdata=socket.inet_aton(self.blocklist[match].ip),
             )
 
             # Insert the questions and answer to the correct spot
@@ -797,8 +813,7 @@ def is_ip_addr_valid(ip_addr: str) -> bool:
     except socket.error:
         return False
 
-
-def parse_blocklist(data: dict) -> dict[str, tuple[str, int]]:
+def parse_blocklist(data: dict) -> dict[str, BlocklistRuleItem]:
     """Parse a blocklist.
 
     Args:
@@ -814,13 +829,13 @@ def parse_blocklist(data: dict) -> dict[str, tuple[str, int]]:
 
     ttl = data.get("ttl", DEFAULT_TTL)
     for host, block_ip in data.get("blocklist", {}).items():
-        blocklist[host] = (block_ip, ttl)
+        blocklist[host] = BlocklistRuleItem(ip=block_ip, ttl=ttl)
 
     for rule in data.get("rules", []):
         block_ip = rule["block_ip"]
         rule_ttl = rule.get("ttl", ttl)
         for host in rule["hosts"]:
-            blocklist[host] = (block_ip, rule_ttl)
+            blocklist[host] = BlocklistRuleItem(ip=block_ip, ttl=rule_ttl)
     return blocklist
 
 
@@ -830,7 +845,7 @@ class UnknownBlocklistFormatError(Exception):
     pass
 
 
-def read_blocklist(fpath: str) -> dict[str, tuple[str, int]]:
+def read_blocklist(fpath: str) -> dict[str, BlocklistRuleItem]:
     """Read and parse blocklist from a file.
 
     Args:
@@ -854,7 +869,7 @@ def read_blocklist(fpath: str) -> dict[str, tuple[str, int]]:
             )
 
 
-def load_all_blocklists(paths: list[str]) -> dict[str, tuple[str, int]]:
+def load_all_blocklists(paths: list[str]) -> dict[str, BlocklistRuleItem]:
     """Load all blocklists from a list of paths.
 
     Args:
