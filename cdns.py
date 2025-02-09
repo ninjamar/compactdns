@@ -107,7 +107,7 @@ class TimedCache:
 
     def __init__(self) -> None:
         """Create a TimedCache instance."""
-        self.data: dict[Hashable, tuple[Any, float]] = {}
+        self.data: dict[Hashable, tuple[Any, float, float]] = {}
 
     def set(self, key: Hashable, value: Any, ttl: float) -> None:
         """Set a key in the TimedCache.
@@ -117,7 +117,7 @@ class TimedCache:
             value: The value of the key.
             ttl: The time to expiry of the key in the future.
         """
-        self.data[key] = (value, time.time() + ttl)
+        self.data[key] = (value, time.time() + ttl, ttl)
 
     def get(self, key: Hashable) -> Any:
         """Get a timed key, deleting it if it has expired.
@@ -131,12 +131,33 @@ class TimedCache:
         if key not in self.data:
             return None
 
-        value, expiry = self.data[key]
+        value, expiry, _ = self.data[key]
 
         # Remove the item if it's expired
         if expiry < time.time():
             del self.data[key]
             return None
+        return value
+
+    def renew_ttl(self, key: Hashable) -> None:
+        """Renew the TTL for a key.
+
+        Args:
+            key: The key to renew the TTL.
+        """
+        self.set(key, self.get(key), self.data[key][2])
+
+    def get_and_renew_ttl(self, key: Hashable) -> Any:
+        """Get a key and renew it's TTL.
+
+        Args:
+            key: The key to get and renew it's TTL.
+
+        Returns:
+            The value of the key.
+        """
+        value = self.get(key)
+        self.set(key, value, self.data[key][2])
         return value
 
     def __contains__(self, key: Hashable) -> bool:
@@ -540,12 +561,13 @@ def unpack_all(
     # Return empty questions and answers, rather than None, due to mypy
     return header, questions, answers
 
+
 class BlocklistRuleItem(NamedTuple):
-    """
-    IP address and ttl for a host
-    """
-    ip : str
-    ttl : float
+    """IP address and ttl for a host."""
+
+    ip: str
+    ttl: float
+
 
 class ServerManager:
     """A class to store a server session."""
@@ -588,7 +610,7 @@ class ServerManager:
                         decoded_name=_host,
                         type_=1,
                         class_=1,
-                        ttl=int(self.blocklist[_host].ttl), # float to int
+                        ttl=int(self.blocklist[_host].ttl),  # float to int
                         rdlength=4,
                         # inet_aton encodes a ip address into bytes
                         rdata=socket.inet_aton(self.blocklist[_host].ip),
@@ -682,7 +704,10 @@ class ServerManager:
         for idx in question_index_cached:
             question = questions[idx]
             recv_questions.insert(idx, question)
-            recv_answers.insert(idx, self.cache.get(question))
+            # recv_answers.insert(idx, self.cache.get(question))
+            # print(new_header, recv_header)
+            recv_answers.insert(idx, self.cache.get_and_renew_ttl(question))
+            # recv_answers.insert(idx, self.cache.get_and_update(question, new_header.ttl))
             # Update question answer for header
 
         # Add the blocked questions to the response, keeping the position
@@ -812,6 +837,7 @@ def is_ip_addr_valid(ip_addr: str) -> bool:
         return True
     except socket.error:
         return False
+
 
 def parse_blocklist(data: dict) -> dict[str, BlocklistRuleItem]:
     """Parse a blocklist.
