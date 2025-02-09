@@ -67,7 +67,7 @@ import struct
 import threading
 import time
 import tomllib
-from typing import NamedTuple, Any, Hashable
+from typing import Any, Hashable, NamedTuple
 
 # TODO: Verbose mode (better logging stuff)
 
@@ -209,7 +209,6 @@ def decode_name_uncompressed(buf: bytes) -> str:
 
 class DNSDecodeLoopError(Exception):
     """An exception if a loop is encountered while encoding a DNS query."""
-
     pass
 
 
