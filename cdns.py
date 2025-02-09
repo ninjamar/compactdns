@@ -69,35 +69,30 @@ import time
 import tomllib
 from typing import Any, Hashable, NamedTuple
 
-# TODO: Verbose mode (better logging stuff)
+# TODO: Document this code more
+# TODO: Document and organize handle_dns_query
+
 
 # TODO: Turn this into a module in a directory
 # TODO: When this is a module, maybe allow some DNS tunneling and messaging stuff?
+
 # TODO: Document the archictecture (comments)
 # TODO: Ensure all code is right (via tests)
 
-# TODO: Benchmark
-# TODO: Make sure the threading part of the server is working
-
-# TODO: Make sure cache is better
-# TODO: use TimedCache to store blocklist in a better way
-
-# TODO: Convert documentation to google-notypes
-# TODO: Should docstrings be formatted as using a period
-# TODO: Type annotations
+# TODO: Benchmark via profiler.py
 
 # TODO: Configuration file format other than fromfile_prefix_chars
 # TODO: Support /etc/hosts syntax
 
+# TODO: Verbose mode (better logging stuff)
+# TODO: Forward logging to logging process (via multiprocessing)
+
+# TODO: Add timeout to ThreadPoolExecutor
+# TODO: Make sure the threading part of the server is working
+
+
 # TODO: Add contributing guide to README before 1.0.0
 # TODO: Once version 1.0.0 is released, upload this project to PyPi
-
-# TODO: Clear out this todo list (no way)
-# TODO: Document this code more
-# TODO: Use namedtuple
-
-# TODO: Document and organize handle_dns_query
-
 
 DEFAULT_TTL = 300
 
@@ -209,6 +204,7 @@ def decode_name_uncompressed(buf: bytes) -> str:
 
 class DNSDecodeLoopError(Exception):
     """An exception if a loop is encountered while encoding a DNS query."""
+
     pass
 
 

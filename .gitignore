@@ -179,3 +179,6 @@ static/
 *.pem
 *.pcapng
 ignore/
+
+ignore-*.*
+.vscode
