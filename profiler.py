@@ -1,7 +1,5 @@
-import statistics
-import sys
+import line_profiler as lp
 import time
-
 from cdns import *
 
 
@@ -29,7 +27,7 @@ def time_fn(fn, *args, **kwargs):
     return elapsed
 
 
-def main(n_times):
+def main():
     # This is what the server decodes when using dig
     # $ dig @127.0.0.1 -p 2053 google.com
     query = pack_all_compressed(
@@ -48,14 +46,27 @@ def main(n_times):
             nscount=0,
             arcount=1,
         ),
-        [DNSQuestion(decoded_name="google.com", type_=1, class_=1)],
+        [DNSQuestion(decoded_name="github.com", type_=1, class_=1)],
     )
+    # with open("example-blocklists/hosts.txt", "rb") as f:
+    #   blocklist = parse_blocklist_from_hosts(f.readlines())
+    blocklist = load_all_blocklists(["example-blocklists/hosts.txt"])
+    print(blocklist.normal)
     manager = ServerManager(
         host=("127.0.0.1", 2053),  # Not needed
         resolver=("1.1.1.1", 53),  # Needed
-        blocklist={},  # Right now, isn't needed, but may change
+        blocklist=blocklist,  # Profile with 3538 rules
     )
 
+    # cProfile.runctx("manager.handle_dns_query(query)", globals(), locals())
+    p = lp.LineProfiler()
+    p.add_function(manager.handle_dns_query)
+    p.enable()
+    manager.handle_dns_query(query)
+    p.disable()
+    p.print_stats()
+    #
+    """
     results = []
     for i in range(n_times):
         results.append(time_fn(manager.handle_dns_query, query))
@@ -67,7 +78,9 @@ def main(n_times):
         print(humanize_float(mean))
     else:
         print(f"Ran {n_times} iterations, Average Time: {humanize_float(mean)}")
+    """
+    manager.done()
 
 
 if __name__ == "__main__":
-    main(int(sys.argv[1]))
+    main()

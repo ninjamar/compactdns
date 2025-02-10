@@ -67,11 +67,17 @@ import struct
 import threading
 import time
 import tomllib
-from typing import Any, Hashable, NamedTuple
+from collections.abc import KeysView
+from typing import Any, Hashable, NamedTuple, overload
 
 # TODO: Document this code more
 # TODO: Document and organize handle_dns_query
 
+# TODO: Max size on TimedCache
+# TODO: Speedup with large blocklists
+# TODO: Test with larger blocklists
+
+# TODO: Master override ttl via command line arguments
 
 # TODO: Turn this into a module in a directory
 # TODO: When this is a module, maybe allow some DNS tunneling and messaging stuff?
@@ -94,7 +100,10 @@ from typing import Any, Hashable, NamedTuple
 # TODO: Add contributing guide to README before 1.0.0
 # TODO: Once version 1.0.0 is released, upload this project to PyPi
 
+# TODO: Support -b FILE FILE FILE and -b FILE -b FILE -b FILE
+
 DEFAULT_TTL = 300
+FNMATCH_CHARS = "*?[]!"
 
 
 class TimedCache:
@@ -165,6 +174,84 @@ class TimedCache:
             Is the key inside the TimedCache?
         """
         return self.get(key) is not None
+
+
+class BlocklistRuleItem(NamedTuple):
+    """IP address and ttl for a host."""
+
+    ip: str
+    ttl: float
+
+
+class Blocklist:
+    """A class to store blocklist rules."""
+
+    def __init__(
+        self,
+        normal_blocklist: dict[str, BlocklistRuleItem],
+        fnmatch_blocklist: dict[str, BlocklistRuleItem],
+    ) -> None:
+        """Create an instance of Blocklist.
+
+        Args:
+            normal_blocklist: Blocklist using host to ip address syntax.
+            fnmatch_blocklist: Blocklist using host to IP address syntax where host supports fnmatch syntax.
+        """
+        self.normal = normal_blocklist
+        self.fnmatch = fnmatch_blocklist
+
+    def get_name_block(self, name: str) -> str | None:
+        """Find the match for a name in the blocklist.
+
+        Args:
+            name: The name to find the match.
+
+        Returns:
+            The match for the name.
+        """
+        if name in self.normal:
+            return name
+        if ret := next(
+            (loc for loc in self.fnmatch.keys() if fnmatch.fnmatch(name, loc)),
+            None,
+        ):
+            return ret
+        return None
+
+    def __getitem__(self, item: str) -> BlocklistRuleItem:
+        """Get an item from the blocklist.
+
+        Args:
+            item: The item to get.
+
+        Raises:
+            KeyError: If the item isn't found.
+
+        Returns:
+            The value of the item.
+        """
+        if item in self.normal:
+            return self.normal[item]
+        if item in self.fnmatch:
+            return self.fnmatch[item]
+        raise KeyError(item)
+
+    def keys(self) -> KeysView:
+        """Get all the keys in the blocklist.
+
+        Returns:
+            All the keys in the blocklist.
+        """
+        # TODO: IDK
+        return (self.normal | self.fnmatch).keys()
+
+    def __repr__(self) -> str:
+        """Repr format of Blocklist.
+
+        Returns:
+            Repr format of Blocklist.
+        """
+        return f"Blocklist(<{len(self.normal)} normal rules>, <{len(self.fnmatch)} fnmatch rules>)"
 
 
 def encode_name_uncompressed(name: str) -> bytes:
@@ -557,13 +644,6 @@ def unpack_all(
     return header, questions, answers
 
 
-class BlocklistRuleItem(NamedTuple):
-    """IP address and ttl for a host."""
-
-    ip: str
-    ttl: float
-
-
 class ServerManager:
     """A class to store a server session."""
 
@@ -571,7 +651,7 @@ class ServerManager:
         self,
         host: tuple[str, int],
         resolver: tuple[str, int],
-        blocklist: dict[str, BlocklistRuleItem],
+        blocklist: Blocklist,
     ) -> None:
         """Create a ServerManager instance.
 
@@ -597,22 +677,21 @@ class ServerManager:
         # Cache individual hosts that don't contain any special syntax
         # Caching is for when type_ and class_ is 1
         # Use _host rather than host, since host is an argument to this function
-        for _host in self.blocklist.keys():
-            if not any(x in _host for x in "*?[]!"):
-                self.cache.set(
-                    DNSQuestion(decoded_name=_host, type_=1, class_=1),
-                    DNSAnswer(
-                        decoded_name=_host,
-                        type_=1,
-                        class_=1,
-                        ttl=int(self.blocklist[_host].ttl),  # float to int
-                        rdlength=4,
-                        # inet_aton encodes a ip address into bytes
-                        rdata=socket.inet_aton(self.blocklist[_host].ip),
-                    ),
-                    # TODO: Fix
-                    self.blocklist[_host].ttl,
-                )
+        for _host in self.blocklist.normal.keys():
+            self.cache.set(
+                DNSQuestion(decoded_name=_host, type_=1, class_=1),
+                DNSAnswer(
+                    decoded_name=_host,
+                    type_=1,
+                    class_=1,
+                    ttl=int(self.blocklist.normal[_host].ttl),  # float to int
+                    rdlength=4,
+                    # inet_aton encodes a ip address into bytes
+                    rdata=socket.inet_aton(self.blocklist.normal[_host].ip),
+                ),
+                # TODO: Fix
+                self.blocklist.normal[_host].ttl,
+            )
 
     def intercept_questions(self):
         # Cached, blocked
@@ -650,13 +729,8 @@ class ServerManager:
             if question in self.cache:
                 question_index_cached.append(idx)
             # Use file matching syntax to detect block
-            elif question_index_match := next(
-                (
-                    loc
-                    for loc in self.blocklist.keys()
-                    if fnmatch.fnmatch(question.decoded_name, loc)
-                ),
-                None,
+            elif question_index_match := self.blocklist.get_name_block(
+                question.decoded_name
             ):
                 question_index_blocked.append((idx, question_index_match))
             else:
@@ -699,11 +773,7 @@ class ServerManager:
         for idx in question_index_cached:
             question = questions[idx]
             recv_questions.insert(idx, question)
-            # recv_answers.insert(idx, self.cache.get(question))
-            # print(new_header, recv_header)
             recv_answers.insert(idx, self.cache.get_and_renew_ttl(question))
-            # recv_answers.insert(idx, self.cache.get_and_update(question, new_header.ttl))
-            # Update question answer for header
 
         # Add the blocked questions to the response, keeping the position
         for idx, match in question_index_blocked:
@@ -834,39 +904,74 @@ def is_ip_addr_valid(ip_addr: str) -> bool:
         return False
 
 
-def parse_blocklist(data: dict) -> dict[str, BlocklistRuleItem]:
+def is_fnmatch_host(host: str) -> bool:
+    """Check if a host uses fnmatch syntax.
+
+    Args:
+        host: The host to check.
+
+    Returns:
+        Does the host use fnmatch syntax?
+    """ """"""
+    return any(x in host for x in FNMATCH_CHARS)
+
+
+# I don't know how to get mypt to accept data: dict | list[bytes] so I set it to any instead
+def parse_blocklist(
+    data: Any,
+) -> tuple[dict[str, BlocklistRuleItem], dict[str, BlocklistRuleItem]]:
     """Parse a blocklist.
 
     Args:
         data: The blocklist to parse.
 
     Returns:
-        A dictionary of hosts to ip addresses.
+        One dictionary of hosts to IP addresses, another dictionary of hosts using fnmatch syntax to IP addresses.
     """
 
     # TODO: Validate ip
     # TODO: Check for collision
-    blocklist = {}
+    normal_blocklist = {}
+    fnmatch_blocklist = {}
 
-    ttl = data.get("ttl", DEFAULT_TTL)
-    for host, block_ip in data.get("blocklist", {}).items():
-        blocklist[host] = BlocklistRuleItem(ip=block_ip, ttl=ttl)
+    # Hosts format
+    if isinstance(data, list):
+        for line in data:
+            line = line.decode()
+            if not line.startswith("#"):
+                ip, host = line.strip().split()
+                item = BlocklistRuleItem(ip=ip, ttl=DEFAULT_TTL)
+                if is_fnmatch_host(host):
+                    fnmatch_blocklist[host] = item
+                else:
+                    normal_blocklist[host] = item
+    else:
+        # Normal format
+        ttl = data.get("ttl", DEFAULT_TTL)
+        for host, block_ip in data.get("blocklist", {}).items():
+            item = BlocklistRuleItem(ip=block_ip, ttl=ttl)
+            if is_fnmatch_host(host):
+                fnmatch_blocklist[host] = item
+            else:
+                normal_blocklist[host] = item
 
-    for rule in data.get("rules", []):
-        block_ip = rule["block_ip"]
-        rule_ttl = rule.get("ttl", ttl)
-        for host in rule["hosts"]:
-            blocklist[host] = BlocklistRuleItem(ip=block_ip, ttl=rule_ttl)
-    return blocklist
+        for rule in data.get("rules", []):
+            block_ip = rule["block_ip"]
+            rule_ttl = rule.get("ttl", ttl)
+            for host in rule["hosts"]:
+                item = BlocklistRuleItem(ip=block_ip, ttl=rule_ttl)
+                if is_fnmatch_host(host):
+                    fnmatch_blocklist[host] = item
+                else:
+                    normal_blocklist[host] = item
+
+    # TODO: Explicit return tuple?
+    return normal_blocklist, fnmatch_blocklist
 
 
-class UnknownBlocklistFormatError(Exception):
-    """Exception for unknown blocklist format."""
-
-    pass
-
-
-def read_blocklist(fpath: str) -> dict[str, BlocklistRuleItem]:
+def read_blocklist(
+    fpath: str,
+) -> tuple[dict[str, BlocklistRuleItem], dict[str, BlocklistRuleItem]]:
     """Read and parse blocklist from a file.
 
     Args:
@@ -885,12 +990,10 @@ def read_blocklist(fpath: str) -> dict[str, BlocklistRuleItem]:
         elif ext == ".toml":
             return parse_blocklist(tomllib.load(f))
         else:
-            raise UnknownBlocklistFormatError(
-                "Unable to read blocklist: unknown file extension"
-            )
+            return parse_blocklist(f.readlines())
 
 
-def load_all_blocklists(paths: list[str]) -> dict[str, BlocklistRuleItem]:
+def load_all_blocklists(paths: list[str]) -> Blocklist:
     """Load all blocklists from a list of paths.
 
     Args:
@@ -899,10 +1002,13 @@ def load_all_blocklists(paths: list[str]) -> dict[str, BlocklistRuleItem]:
     Returns:
         The blocklist from those files.
     """
-    blocklist = {}
+    normal_blocklist = {}
+    fnmatch_blocklist = {}
     for path in paths:
-        blocklist.update(read_blocklist(path))
-    return blocklist
+        normal, fnmatch = read_blocklist(path)
+        normal_blocklist.update(normal)
+        fnmatch_blocklist.update(fnmatch)
+    return Blocklist(normal_blocklist, fnmatch_blocklist)
 
 
 def cli() -> None:
@@ -967,7 +1073,7 @@ def cli() -> None:
     if args.blocklist is not None:
         blocklist = load_all_blocklists(args.blocklist)
     else:
-        blocklist = {}
+        blocklist = Blocklist({}, {})
 
     logging.debug("Blocklist: %s", blocklist)
 
