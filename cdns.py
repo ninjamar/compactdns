@@ -68,34 +68,31 @@ import threading
 import time
 import tomllib
 from collections.abc import KeysView
-from typing import Any, Hashable, NamedTuple, overload
+from typing import Any, Hashable, NamedTuple
+
+# TODO: Document the archictecture (comments)
+# TODO: Ensure all code is right (via tests)
 
 # TODO: Document this code more
 # TODO: Document and organize handle_dns_query
 
 # TODO: Max size on TimedCache
-# TODO: Speedup with large blocklists
-# TODO: Test with larger blocklists
 
 # TODO: Master override ttl via command line arguments
 
 # TODO: Turn this into a module in a directory
 # TODO: When this is a module, maybe allow some DNS tunneling and messaging stuff?
 
-# TODO: Document the archictecture (comments)
-# TODO: Ensure all code is right (via tests)
 
 # TODO: Benchmark via profiler.py
 
 # TODO: Configuration file format other than fromfile_prefix_chars
-# TODO: Support /etc/hosts syntax
 
 # TODO: Verbose mode (better logging stuff)
 # TODO: Forward logging to logging process (via multiprocessing)
 
 # TODO: Add timeout to ThreadPoolExecutor
 # TODO: Make sure the threading part of the server is working
-
 
 # TODO: Add contributing guide to README before 1.0.0
 # TODO: Once version 1.0.0 is released, upload this project to PyPi
@@ -195,7 +192,8 @@ class Blocklist:
 
         Args:
             normal_blocklist: Blocklist using host to ip address syntax.
-            fnmatch_blocklist: Blocklist using host to IP address syntax where host supports fnmatch syntax.
+            fnmatch_blocklist: Blocklist using host to IP address syntax
+            where host supports fnmatch syntax.
         """
         self.normal = normal_blocklist
         self.fnmatch = fnmatch_blocklist
@@ -926,7 +924,8 @@ def parse_blocklist(
         data: The blocklist to parse.
 
     Returns:
-        One dictionary of hosts to IP addresses, another dictionary of hosts using fnmatch syntax to IP addresses.
+        One dictionary of hosts to IP addresses, another dictionary of hosts
+        using fnmatch syntax to IP addresses.
     """
 
     # TODO: Validate ip
@@ -1005,9 +1004,9 @@ def load_all_blocklists(paths: list[str]) -> Blocklist:
     normal_blocklist = {}
     fnmatch_blocklist = {}
     for path in paths:
-        normal, fnmatch = read_blocklist(path)
-        normal_blocklist.update(normal)
-        fnmatch_blocklist.update(fnmatch)
+        normal_b, fnmatch_b = read_blocklist(path)
+        normal_blocklist.update(normal_b)
+        fnmatch_blocklist.update(fnmatch_b)
     return Blocklist(normal_blocklist, fnmatch_blocklist)
 
 
