@@ -73,6 +73,8 @@ from typing import Any, Hashable, NamedTuple
 # TODO: Document the archictecture (comments)
 # TODO: Ensure all code is right (via tests)
 
+# TODO: Add more information about speed, since this can avoid additional network overhead.
+
 # TODO: Document this code more
 # TODO: Document and organize handle_dns_query
 
