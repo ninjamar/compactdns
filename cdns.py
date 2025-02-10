@@ -33,8 +33,8 @@ Requires a minimum python version of 3.11.
 
 $ python cdns.py -h
 usage: cdns.py [-h] --host HOST --resolver RESOLVER [--blocklist [BLOCKLIST ...]]
-               [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}]
-               [--mode {normal,threaded}] [--ttl TTL]
+               [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}] [--mode {normal,threaded}]
+               [--ttl TTL]
 
 A simple forwarding DNS server
 
@@ -49,7 +49,7 @@ options:
                         Provide information about the logging level (default = info)
   --mode {normal,threaded}, -m {normal,threaded}
                         Mode to run server (default = threaded)
-  --ttl TTL             Default TTL for blocked hosts
+  --ttl TTL             Default TTL for blocked hosts (default = 300)
 
 See example-blocklists/ for example blocklists.
 """

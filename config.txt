@@ -4,7 +4,7 @@
 1.1.1.1:53
 --blocklist
 example-blocklists/blocklist.toml
-example-blocklists/hosts.txt
+example-blocklists/lowe.txt
 --loglevel
 INFO
 --mode

@@ -12,8 +12,8 @@ Download this repository (or `cdns.py`). This project only depends on the Python
 ## Usage
 ```
 usage: cdns.py [-h] --host HOST --resolver RESOLVER [--blocklist [BLOCKLIST ...]]
-               [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}]
-               [--mode {normal,threaded}] [--ttl TTL]
+               [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}] [--mode {normal,threaded}]
+               [--ttl TTL]
 
 A simple forwarding DNS server
 
@@ -28,7 +28,7 @@ options:
                         Provide information about the logging level (default = info)
   --mode {normal,threaded}, -m {normal,threaded}
                         Mode to run server (default = threaded)
-  --ttl TTL             Default TTL for blocked hosts
+  --ttl TTL             Default TTL for blocked hosts (default = 300)
 ```
 
 or since `fromfile_prefix_chars="@"`, store the arguments inside a file (eg `./config.txt`).
@@ -42,7 +42,7 @@ python cdns.py --host 127.0.0.1 --resolver 1.1.1.1:53 --blocklist example-blockl
 Runs the DNS server on `127.0.0.1:2053`, forwarding queries to `1.1.1.1:53`. For blocked sites, returns to `127.0.0.2`. Server is run in threaded mode and log level INFO.
 
 ### Blocklist Format
-Blocklists should be either a `toml` or `json` file. See `blocklist.toml` and `blocklist.json` for an example.
+Blocklists should be either a `toml` or `json` file or in the format of Linux's `/etc/hosts`. See `example-blocklists/blocklist.toml` and `example-blocklists/blocklist.json` for an example. For convenience, [Peter Lowe's blocklist](https://pgl.yoyo.org/adservers/) has been inlcuded in `example-blocklists/lowe.txt`
 
 The file contains a list of rules (`rules`), which have a list of hosts (`hosts`)that get blocked to a certain ip address (`block_ip`). Key value pairs of host to ip address can be specified in the `blocklist` section.
 
