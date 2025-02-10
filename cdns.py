@@ -78,11 +78,8 @@ from typing import Any, Hashable, NamedTuple
 
 # TODO: Max size on TimedCache
 
-# TODO: Master override ttl via command line arguments
-
 # TODO: Turn this into a module in a directory
 # TODO: When this is a module, maybe allow some DNS tunneling and messaging stuff?
-
 
 # TODO: Benchmark via profiler.py
 
@@ -99,7 +96,6 @@ from typing import Any, Hashable, NamedTuple
 
 # TODO: Support -b FILE FILE FILE and -b FILE -b FILE -b FILE
 
-DEFAULT_TTL = 300
 FNMATCH_CHARS = "*?[]!"
 
 
@@ -916,12 +912,13 @@ def is_fnmatch_host(host: str) -> bool:
 
 # I don't know how to get mypt to accept data: dict | list[bytes] so I set it to any instead
 def parse_blocklist(
-    data: Any,
+    data: Any, master_ttl: int
 ) -> tuple[dict[str, BlocklistRuleItem], dict[str, BlocklistRuleItem]]:
     """Parse a blocklist.
 
     Args:
         data: The blocklist to parse.
+        master_ttl: Master TTL if TTL isn't set.
 
     Returns:
         One dictionary of hosts to IP addresses, another dictionary of hosts
@@ -939,14 +936,14 @@ def parse_blocklist(
             line = line.decode()
             if not line.startswith("#"):
                 ip, host = line.strip().split()
-                item = BlocklistRuleItem(ip=ip, ttl=DEFAULT_TTL)
+                item = BlocklistRuleItem(ip=ip, ttl=master_ttl)
                 if is_fnmatch_host(host):
                     fnmatch_blocklist[host] = item
                 else:
                     normal_blocklist[host] = item
     else:
         # Normal format
-        ttl = data.get("ttl", DEFAULT_TTL)
+        ttl = data.get("ttl", master_ttl)
         for host, block_ip in data.get("blocklist", {}).items():
             item = BlocklistRuleItem(ip=block_ip, ttl=ttl)
             if is_fnmatch_host(host):
@@ -969,12 +966,13 @@ def parse_blocklist(
 
 
 def read_blocklist(
-    fpath: str,
+    fpath: str, master_ttl: int
 ) -> tuple[dict[str, BlocklistRuleItem], dict[str, BlocklistRuleItem]]:
     """Read and parse blocklist from a file.
 
     Args:
         fpath: The path to the file.
+        master_ttl: Master TTL if TTL isn't set.
 
     Raises:
         Exception: Unknown file extension.
@@ -985,18 +983,20 @@ def read_blocklist(
     with open(fpath, "rb") as f:
         ext = os.path.splitext(fpath)[1]
         if ext == ".json":
-            return parse_blocklist(json.load(f))
+            return parse_blocklist(json.load(f), master_ttl)
         elif ext == ".toml":
-            return parse_blocklist(tomllib.load(f))
+            return parse_blocklist(tomllib.load(f), master_ttl)
         else:
-            return parse_blocklist(f.readlines())
+            return parse_blocklist(f.readlines(), master_ttl)
 
 
-def load_all_blocklists(paths: list[str]) -> Blocklist:
+def load_all_blocklists(paths: list[str], master_ttl: int) -> Blocklist:
     """Load all blocklists from a list of paths.
 
     Args:
         paths: A list containing paths to the blocklist.
+        master_ttl: Master TTL if TTL isn't set.
+
 
     Returns:
         The blocklist from those files.
@@ -1004,7 +1004,7 @@ def load_all_blocklists(paths: list[str]) -> Blocklist:
     normal_blocklist = {}
     fnmatch_blocklist = {}
     for path in paths:
-        normal_b, fnmatch_b = read_blocklist(path)
+        normal_b, fnmatch_b = read_blocklist(path, master_ttl)
         normal_blocklist.update(normal_b)
         fnmatch_blocklist.update(fnmatch_b)
     return Blocklist(normal_blocklist, fnmatch_blocklist)
@@ -1055,7 +1055,10 @@ def cli() -> None:
         help="Mode to run server (default = threaded)",
     )
     parser.add_argument(
-        "--ttl", default=60, type=int, help="Default TTL for blocked hosts"
+        "--ttl",
+        default=300,
+        type=int,
+        help="Default TTL for blocked hosts (default = 300)",
     )
 
     args = parser.parse_args()
@@ -1070,7 +1073,7 @@ def cli() -> None:
     resolver = args.resolver.split(":")
 
     if args.blocklist is not None:
-        blocklist = load_all_blocklists(args.blocklist)
+        blocklist = load_all_blocklists(args.blocklist, args.ttl)
     else:
         blocklist = Blocklist({}, {})
 

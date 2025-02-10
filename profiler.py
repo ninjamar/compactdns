@@ -51,7 +51,6 @@ def main():
     # with open("example-blocklists/hosts.txt", "rb") as f:
     #   blocklist = parse_blocklist_from_hosts(f.readlines())
     blocklist = load_all_blocklists(["example-blocklists/hosts.txt"])
-    print(blocklist.normal)
     manager = ServerManager(
         host=("127.0.0.1", 2053),  # Not needed
         resolver=("1.1.1.1", 53),  # Needed
