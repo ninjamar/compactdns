@@ -103,11 +103,11 @@ from typing import Any, Hashable, NamedTuple
 # TODO: Async programming for speed
 
 # TODO: Review DNS specification RFC1035
-# TODO: Support if TC in header, than packet is longer than 512 bytes
+# TODO: [] Support if TC in header, than packet is longer than 512 bytes
 
-# TODO: Support DNS over TLS - https://datatracker.ietf.org/doc/html/rfc7858
-# TODO: Support DNS over HTTPS (DOH) - https://datatracker.ietf.org/doc/html/rfc8484
-# TODO: Look at https://datatracker.ietf.org/doc/html/rfc8310
+# TODO: [x] Support DNS over TLS - https://datatracker.ietf.org/doc/html/rfc7858
+# TODO: [] Support DNS over HTTPS (DOH) - https://datatracker.ietf.org/doc/html/rfc8484
+# TODO: [] Look at https://datatracker.ietf.org/doc/html/rfc8310
 
 FNMATCH_CHARS = "*?[]!"
 
@@ -965,7 +965,7 @@ class ServerManager:
                         # TODO: TIMEOUT
                         events = sel.select(timeout=0)
                         for key, mask in events:
-                            sock = key.fileobj
+                            sock = key.fileobj # type: ignore[assignment]
 
                             if sock == self.udp_sock:
                                 query, addr = self.udp_sock.recvfrom(512)
