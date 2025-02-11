@@ -104,7 +104,6 @@ from typing import Any, Hashable, NamedTuple
 
 # TODO: Review DNS specification RFC1035
 # TODO: Support if TC in header, than packet is longer than 512 bytes
-# TODO: TCP and UDP
 
 # TODO: Support DNS over TLS - https://datatracker.ietf.org/doc/html/rfc7858
 # TODO: Support DNS over HTTPS (DOH) - https://datatracker.ietf.org/doc/html/rfc8484
