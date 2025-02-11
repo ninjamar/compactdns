@@ -62,14 +62,12 @@ import functools
 import json
 import logging
 import os.path
+import select
 import socket
 import struct
-import threading
+import sys
 import time
 import tomllib
-import ssl
-import sys
-import select
 from collections.abc import KeysView
 from typing import Any, Hashable, NamedTuple
 
@@ -105,7 +103,7 @@ from typing import Any, Hashable, NamedTuple
 # TODO: Async programming for speed
 
 # TODO: Review DNS specification RFC1035
-# TODO: Support if TC in header, than packet is longer than 512 bytes 
+# TODO: Support if TC in header, than packet is longer than 512 bytes
 # TODO: TCP and UDP
 
 # TODO: Support DNS over TLS - https://datatracker.ietf.org/doc/html/rfc7858
@@ -674,7 +672,7 @@ class ServerManager:
 
         # Bind in _start_threaded_udp
         self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    
+
         # Bind in _start_threaded_tcp
         self.tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -863,10 +861,8 @@ class ServerManager:
 
         logging.info("Sent response")
 
-
     def _threaded_handle_dns_query_tcp(self, conn: socket.socket) -> None:
-        """
-        Handle a DNS query over TCP.
+        """Handle a DNS query over TCP.
 
         Args:
             conn: TCP connection.
@@ -879,7 +875,7 @@ class ServerManager:
                 if not length:
                     break
                 length = struct.unpack("!H", length)[0]
-                query = conn.recv(length)
+                query = conn.recv(int(length))
                 if not query:
                     break
 
@@ -889,18 +885,21 @@ class ServerManager:
                 conn.sendall(response_length + response)
         finally:
             conn.close()
-        
+
     def start_threaded(self) -> None:
         """Start a threaded server."""
         # TODO: Configure max workers
         max_workers = 10
         self.udp_sock.bind(self.host)
-        logging.info("Threaded DNS Server running at %s:%s via TCP", self.host[0], self.host[1])
-        
+        logging.info(
+            "Threaded DNS Server running at %s:%s via TCP", self.host[0], self.host[1]
+        )
+
         self.tcp_sock.bind(self.host)
         self.tcp_sock.listen(max_workers)
-        logging.info("Threaded DNS Server running at %s:%s via UDP", self.host[0], self.host[1])
-
+        logging.info(
+            "Threaded DNS Server running at %s:%s via UDP", self.host[0], self.host[1]
+        )
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             sockets = [self.udp_sock, self.tcp_sock]
@@ -912,29 +911,35 @@ class ServerManager:
                             if sock == self.udp_sock:
                                 query, addr = self.udp_sock.recvfrom(512)
 
-                                future = executor.submit(self._threaded_handle_dns_query_udp, addr, query)
-                                future.add_done_callback(self._handle_thread_pool_errors, future)
+                                future = executor.submit(
+                                    self._threaded_handle_dns_query_udp, addr, query
+                                )
+                                future.add_done_callback(
+                                    self._handle_thread_pool_errors
+                                )
                             elif sock == self.tcp_sock:
                                 conn, addr = self.tcp_sock.accept()
                                 # Make connection non-blocking
                                 conn.setblocking(False)
 
-                                future = executor.submit(self._threaded_handle_dns_query_tcp, conn)
-                                future.add_done_callback(self._handle_thread_pool_errors, future)
+                                future = executor.submit(
+                                    self._threaded_handle_dns_query_tcp, conn
+                                )
+                                future.add_done_callback(
+                                    self._handle_thread_pool_errors
+                                )
                     except KeyboardInterrupt:
                         # Don't want the except call here to be called, I want the one outside the while loop
                         raise KeyboardInterrupt
                     except:
                         logging.error("Error", exc_info=True)
 
-
             except KeyboardInterrupt:
                 logging.info("KeyboardInterrupt: Server shutting down")
                 sys.exit()
-    
+
     def _handle_thread_pool_errors(self, future: concurrent.futures.Future) -> None:
-        """
-        Log all errors inside a ThreadPoolExecutor.
+        """Log all errors inside a ThreadPoolExecutor.
 
         Args:
             future: The future from ThreadPoolExecutor.submit()
@@ -1113,14 +1118,6 @@ def cli() -> None:
         help="Provide information about the logging level (default = info)",
     )
     parser.add_argument(
-        "--mode",
-        "-m",
-        choices=["normal", "threaded"],
-        default="threaded",
-        type=str,
-        help="Mode to run server (default = threaded)",
-    )
-    parser.add_argument(
         "--ttl",
         default=300,
         type=int,
@@ -1151,10 +1148,7 @@ def cli() -> None:
         blocklist=blocklist,
     )
 
-    if args.mode == "normal":
-        manager.start()
-    elif args.mode == "threaded":
-        manager.start_threaded()
+    manager.start_threaded()
 
 
 if __name__ == "__main__":

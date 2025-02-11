@@ -1,5 +1,6 @@
-import sys
 import socket
+import sys
+
 import line_profiler as lp
 import timerit
 
@@ -46,11 +47,13 @@ def time_it():
     for _ in timerit:
         manager.handle_dns_query(query)
 
+
 def time_socket():
     manager.resolver_socket_addr = ("127.0.0.1", 2053)
     # Assume server is hosted at 127.0.0.1:2053
     for _ in timerit:
         manager.forward_dns_query(query)
+
 
 if __name__ == "__main__":
     if "-l" in sys.argv:
