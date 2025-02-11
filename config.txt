@@ -7,7 +7,11 @@ example-blocklists/blocklist.toml
 example-blocklists/lowe.txt
 --loglevel
 INFO
---mode
-threaded
 --ttl
 60
+--ssl-host
+127.0.0.1:3053
+--ssl-key
+key.pem
+--ssl-cert
+cert.pem

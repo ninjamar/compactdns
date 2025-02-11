@@ -53,7 +53,6 @@ options:
 
 See example-blocklists/ for example blocklists.
 """
-
 import argparse
 import concurrent.futures
 import dataclasses
@@ -62,8 +61,9 @@ import functools
 import json
 import logging
 import os.path
-import select
+import selectors
 import socket
+import ssl
 import struct
 import sys
 import time
@@ -657,17 +657,24 @@ class ServerManager:
     def __init__(
         self,
         host: tuple[str, int],
+        ssl_host: tuple[str, int],
+        ssl_key_path: str,
+        ssl_cert_path: str,
         resolver: tuple[str, int],
         blocklist: Blocklist,
     ) -> None:
         """Create a ServerManager instance.
 
         Args:
-            host: Host and port of server.
+            host: Host and port of server for UDP and TCP.
+            ssl_host: Host and port of server for DNS over TLS.
+            ssl_key_path: Path to SSL key file.
+            ssl_cert_path: Path to SSL cert file.
             resolver: Host and port of resolver.
             blocklist: Blocklist of sites.
         """
         self.host = host
+        self.ssl_host = ssl_host
 
         # Bind in _start_threaded_udp
         self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -676,6 +683,14 @@ class ServerManager:
         self.tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.tcp_sock.setblocking(False)
+
+        self.tls_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.tls_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.tls_sock.setblocking(False)
+
+        # TODO: SSL optional
+        self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        self.ssl_context.load_cert_chain(certfile=ssl_cert_path, keyfile=ssl_key_path)
 
         self.resolver_udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.resolver_addr = resolver
@@ -842,6 +857,7 @@ class ServerManager:
         """Handle destroying the sockets."""
         self.udp_sock.close()
         self.tcp_sock.close()
+        self.tls_sock.close()
         self.resolver_udp_sock.close()
 
     def _threaded_handle_dns_query_udp(
@@ -885,9 +901,37 @@ class ServerManager:
         finally:
             conn.close()
 
+    def _threaded_handle_dns_query_tls(self, conn: socket.socket) -> None:
+        tls = self.ssl_context.wrap_socket(
+            conn, server_side=True, do_handshake_on_connect=False
+        )  # handshake on connect is false because this socket is non-blocking
+        sel = selectors.DefaultSelector()
+        sel.register(tls, selectors.EVENT_READ | selectors.EVENT_WRITE)
+
+        has_handshake = False
+        while not has_handshake:
+            # TODO: Configure timeout
+            events = sel.select(timeout=0)
+            for key, mask in events:
+                try:
+                    tls.do_handshake()
+                    sel.unregister(tls)
+
+                    has_handshake = True
+                    break
+                except ssl.SSLWantReadError:
+                    # Wait until next time
+                    pass
+                except ssl.SSLWantWriteError:
+                    # Wait for more data
+                    pass
+
+        return self._threaded_handle_dns_query_tcp(tls)
+
     def start_threaded(self) -> None:
         """Start a threaded server."""
         # TODO: Configure max workers
+
         max_workers = 10
         self.udp_sock.bind(self.host)
         logging.info(
@@ -900,13 +944,29 @@ class ServerManager:
             "Threaded DNS Server running at %s:%s via UDP", self.host[0], self.host[1]
         )
 
+        self.tls_sock.bind(self.ssl_host)
+        self.tls_sock.listen(max_workers)
+        logging.info(
+            "Threaded DNS Server running at %s:%s via DNS over TLS",
+            self.ssl_host[0],
+            self.ssl_host[1],
+        )
+
+        sockets = [self.udp_sock, self.tcp_sock, self.tls_sock]
+        # Select a value when READ is available
+        sel = selectors.DefaultSelector()
+        for sock in sockets:
+            sel.register(sock, selectors.EVENT_READ)
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            sockets = [self.udp_sock, self.tcp_sock]
             try:
                 while True:
                     try:
-                        readable, _, _ = select.select(sockets, [], [])
-                        for sock in readable:
+                        # TODO: TIMEOUT
+                        events = sel.select(timeout=0)
+                        for key, mask in events:
+                            sock = key.fileobj
+
                             if sock == self.udp_sock:
                                 query, addr = self.udp_sock.recvfrom(512)
 
@@ -923,6 +983,15 @@ class ServerManager:
 
                                 future = executor.submit(
                                     self._threaded_handle_dns_query_tcp, conn
+                                )
+                                future.add_done_callback(
+                                    self._handle_thread_pool_errors
+                                )
+                            elif sock == self.tls_sock:
+                                conn, addr = self.tls_sock.accept()
+                                conn.setblocking(False)
+                                future = executor.submit(
+                                    self._threaded_handle_dns_query_tls, conn
                                 )
                                 future.add_done_callback(
                                     self._handle_thread_pool_errors
@@ -1122,6 +1191,19 @@ def cli() -> None:
         type=int,
         help="Default TTL for blocked hosts (default = 300)",
     )
+    parser.add_argument(
+        "--ssl-host",
+        "-s",
+        required=True,  # TODO: make optional
+        type=str,
+        help="TLS socket address in the format of a.b.c.d:port",
+    )
+    parser.add_argument(
+        "--ssl-key", "-sk", required=True, type=str, help="Path to SSL key file"
+    )
+    parser.add_argument(
+        "--ssl-cert", "-sc", required=True, type=str, help="Path to SSL cert file"
+    )
 
     args = parser.parse_args()
 
@@ -1133,6 +1215,7 @@ def cli() -> None:
 
     host = args.host.split(":")
     resolver = args.resolver.split(":")
+    ssl_host = args.ssl_host.split(":")
 
     if args.blocklist is not None:
         blocklist = load_all_blocklists(args.blocklist, args.ttl)
@@ -1144,6 +1227,9 @@ def cli() -> None:
     manager = ServerManager(
         host=(host[0], int(host[1])),
         resolver=(resolver[0], int(resolver[1])),
+        ssl_host=(ssl_host[0], int(ssl_host[1])),
+        ssl_key_path=args.ssl_key,
+        ssl_cert_path=args.ssl_cert,
         blocklist=blocklist,
     )
 
