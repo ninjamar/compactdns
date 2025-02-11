@@ -99,6 +99,8 @@ from typing import Any, Hashable, NamedTuple
 # TODO: Support -b FILE FILE FILE and -b FILE -b FILE -b FILE
 # TODO: Support multiple packets for a single request
 
+# TODO: Async programming for speed
+
 # TODO: Review DNS specification RFC1035
 # TODO: Support DNS over TLS - https://datatracker.ietf.org/doc/html/rfc7858
 # TODO: Support DNS over HTTPS (DOH) - https://datatracker.ietf.org/doc/html/rfc8484
