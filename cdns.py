@@ -97,6 +97,12 @@ from typing import Any, Hashable, NamedTuple
 # TODO: Once version 1.0.0 is released, upload this project to PyPi
 
 # TODO: Support -b FILE FILE FILE and -b FILE -b FILE -b FILE
+# TODO: Support multiple packets for a single request
+
+# TODO: Review DNS specification RFC1035
+# TODO: Support DNS over TLS - https://datatracker.ietf.org/doc/html/rfc7858
+# TODO: Support DNS over HTTPS (DOH) - https://datatracker.ietf.org/doc/html/rfc8484
+# TODO: Look at https://datatracker.ietf.org/doc/html/rfc8310
 
 FNMATCH_CHARS = "*?[]!"
 
