@@ -1,5 +1,5 @@
 import sys
-
+import socket
 import line_profiler as lp
 import timerit
 
@@ -25,11 +25,9 @@ query = pack_all_compressed(
     ),
     [DNSQuestion(decoded_name="github.com", type_=1, class_=1)],
 )
-# with open("example-blocklists/hosts.txt", "rb") as f:
-#   blocklist = parse_blocklist_from_hosts(f.readlines())
-blocklist = load_all_blocklists(["example-blocklists/hosts.txt"], 300)
+blocklist = load_all_blocklists(["example-blocklists/lowe.txt"], 300)
 manager = ServerManager(
-    host=("127.0.0.1", 2053),  # Not needed
+    host=("127.0.0.1", 8080),  # Not needed
     resolver=("1.1.1.1", 53),  # Needed
     blocklist=blocklist,  # Profile with 3538 rules
 )
@@ -48,11 +46,18 @@ def time_it():
     for _ in timerit:
         manager.handle_dns_query(query)
 
+def time_socket():
+    manager.resolver_socket_addr = ("127.0.0.1", 2053)
+    # Assume server is hosted at 127.0.0.1:2053
+    for _ in timerit:
+        manager.forward_dns_query(query)
 
 if __name__ == "__main__":
     if "-l" in sys.argv:
         time_lines()
     elif "-t" in sys.argv:
         time_it()
+    elif "-s" in sys.argv:
+        time_socket()
 
     manager.done()
