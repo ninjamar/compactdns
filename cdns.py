@@ -67,6 +67,8 @@ import struct
 import threading
 import time
 import tomllib
+import ssl
+import sys
 from collections.abc import KeysView
 from typing import Any, Hashable, NamedTuple
 
@@ -102,6 +104,9 @@ from typing import Any, Hashable, NamedTuple
 # TODO: Async programming for speed
 
 # TODO: Review DNS specification RFC1035
+# TODO: Support if TC in header, than packet is longer than 512 bytes 
+# TODO: TCP and UDP
+
 # TODO: Support DNS over TLS - https://datatracker.ietf.org/doc/html/rfc7858
 # TODO: Support DNS over HTTPS (DOH) - https://datatracker.ietf.org/doc/html/rfc8484
 # TODO: Look at https://datatracker.ietf.org/doc/html/rfc8310
@@ -666,11 +671,16 @@ class ServerManager:
         """
         self.host = host
 
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.bind(host)
+        # Bind in _start_threaded_udp
+        self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    
+        # Bind in _start_threaded_tcp
+        self.tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # self.tcp_sock.setblocking(False)
 
-        self.resolver_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.resolver_socket_addr = resolver
+        self.resolver_udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.resolver_addr = resolver
 
         self.blocklist = blocklist
 
@@ -824,21 +834,23 @@ class ServerManager:
         Returns:
             The response from the forwarding server.
         """
-        self.resolver_socket.sendto(query, self.resolver_socket_addr)
+        self.resolver_udp_sock.sendto(query, self.resolver_addr)
 
-        response, _ = self.resolver_socket.recvfrom(512)
+        response, _ = self.resolver_udp_sock.recvfrom(512)
+        # TODO: TC flag?
         return response
 
     def done(self) -> None:
         """Handle destroying the sockets."""
         # TODO: What about using a context manager? Pointless idea, but anyway
-        self.sock.close()
-        self.resolver_socket.close()
+        self.udp_sock.close()
+        self.tcp_sock.close()
+        self.resolver_udp_sock.close()
 
-    def threaded_handle_dns_query(
+    def _threaded_handle_dns_query_udp(
         self, addr: tuple[str, int], lock: threading.Lock, *args, **kwargs
     ) -> None:
-        """Run a threaded version of handle_dns_query.
+        """Run a threaded version of handle_dns_query for UDP.
 
         Args:
             addr: Address of client.
@@ -850,45 +862,101 @@ class ServerManager:
         response = self.handle_dns_query(*args, **kwargs)
         # logging.warning(time.time() - t)
 
-        with lock:
-            self.sock.sendto(response, addr)
+        # TODO: Remove lock here
+        # Lock is unnecessary here since .sendto is thread safe (UDP is also connectionless)
+        self.sock.sendto(response, addr)
 
         # self.sock.sendto(self.handle_dns_query(*args, **kwargs), addr)
         logging.info("Sent response")
 
+
+    def _threaded_handle_dns_query_tcp(self, conn, addr):
+        # TODO: Timeout
+        try:
+            while True:
+                # 2 bytes for size of message first
+                length = conn.recv(2)
+                if not length:
+                    break
+                length = struct.unpack("!H", length)[0]
+                query = conn.recv(length)
+                if not query:
+                    break
+
+                response = self.handle_dns_query(query)
+                response_length = struct.pack("!H", len(response))
+
+                conn.sendall(response_length + response)
+        except Exception:
+            pass
+        finally:
+            conn.close()
+        
+    def _start_threaded_udp(self, lock) -> None:
+        # https://datatracker.ietf.org/doc/html/rfc1035#section-4.2.1
+
+        self.udp_sock.bind(self.host)
+
+        logging.info("Threaded DNS Server running at %s:%s via UDP", self.host[0], self.host[1])
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            # TODO: Use try except finally
+            try:
+                while True:
+                    try:
+                        query, addr = self.udp_sock.recvfrom(512)
+                        executor.submit(self._threaded_handle_dns_query_udp, addr, lock, query, mode="udp")
+                    except Exception:
+                        # TODO: Should this be here?
+                        # self.done
+                        logging.error("Error", exc_info=True)
+            except KeyboardInterrupt:
+                logging.info("Server shutting down due to KeyboardInterupt")
+                self.done()
+                sys.exit(0)
+            
+    
+    def _start_threaded_tcp(self, lock) -> None:
+        # https://datatracker.ietf.org/doc/html/rfc1035#section-4.2.2
+
+        self.tcp_sock.bind(self.host)
+        logging.info("Threaded DNS Server running at %s:%s via TCP", self.host[0], self.host[1])
+
+        max_workers = 10
+        self.tcp_sock.listen(max_workers)
+        # self.tcp_sock.listen() # Listen using backlog
+        # TODO: Set backlog to max workers
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            try:
+                while True:
+                    try:
+                        conn, addr = self.tcp_sock.accept()
+                        executor.submit(self._threaded_handle_dns_query_tcp, conn, addr, lock)
+                    except Exception:
+                        logging.error("Error", exc_info=True)
+                    finally:
+                        # TODO: In .close only close if its open
+                        # self.done()
+                        pass
+            except KeyboardInterrupt:
+                logging.info("Server shutting down due to KeyboardInterupt")
+                self.done()
+                sys.exit(0)
+    
     def start_threaded(self) -> None:
         """Start a threaded server."""
-
-        logging.info("Threaded DNS Server running at %s:%s", self.host[0], self.host[1])
-
         # Lock sockets send back
         lock = threading.Lock()
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            while True:
-                try:
-                    # Recieve packet
-                    buf, addr = self.sock.recvfrom(512)
+        # Run on both UDP and TCP
+        # TODO: Make this configurable
+        self.udp_thread = threading.Thread(target=self._start_threaded_udp, args=(lock,), daemon=True)
+        self.tcp_thread = threading.Thread(target=self._start_threaded_tcp, args=(lock,), daemon=True)
 
-                    executor.submit(self.threaded_handle_dns_query, addr, lock, buf)
-                except Exception:
-                    # Handle errors, but keep the program running
-                    self.done()
-                    logging.error("Error", exc_info=True)
+        self.udp_thread.start()
+        self.tcp_thread.start()
 
-    def start(self) -> None:
-        """Start a non-threaded server."""
-        logging.info("DNS Server running at %s:%s", self.host[0], self.host[1])
-        while True:
-            try:
-                buf, addr = self.sock.recvfrom(512)
-                response = self.handle_dns_query(buf)
-                self.sock.sendto(response, addr)
-                logging.info("Sent response")
-            except Exception:
-                self.done()
-                logging.error("Error", exc_info=True)
-
+        self.udp_thread.join()
+        self.tcp_thread.join()
 
 @functools.cache
 def is_ip_addr_valid(ip_addr: str) -> bool:
