@@ -33,8 +33,8 @@ Requires a minimum python version of 3.11.
 
 $ python cdns.py -h
 usage: cdns.py [-h] --host HOST --resolver RESOLVER [--blocklist [BLOCKLIST ...]]
-               [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}] [--mode {normal,threaded}]
-               [--ttl TTL]
+               [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}] [--ttl TTL]
+               [--tls-host TLS_HOST] [--ssl-key SSL_KEY] [--ssl-cert SSL_CERT]
 
 A simple forwarding DNS server
 
@@ -47,9 +47,13 @@ options:
                         Path to file containing blocklist
   --loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}, -l {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}
                         Provide information about the logging level (default = info)
-  --mode {normal,threaded}, -m {normal,threaded}
-                        Mode to run server (default = threaded)
   --ttl TTL             Default TTL for blocked hosts (default = 300)
+  --tls-host TLS_HOST, -s TLS_HOST
+                        TLS socket address in the format of a.b.c.d:port (only needed if using tls)
+  --ssl-key SSL_KEY, -sk SSL_KEY
+                        Path to SSL key file (only needed if using TLS)
+  --ssl-cert SSL_CERT, -sc SSL_CERT
+                        Path to SSL cert file (only needed if using TLS)
 
 See example-blocklists/ for example blocklists.
 """
@@ -1240,13 +1244,13 @@ def cli() -> None:
         "-s",
         default=None,  # TODO: make optional
         type=str,
-        help="TLS socket address in the format of a.b.c.d:port",
+        help="TLS socket address in the format of a.b.c.d:port (only needed if using tls)",
     )
     parser.add_argument(
-        "--ssl-key", "-sk", default=None, type=str, help="Path to SSL key file"
+        "--ssl-key", "-sk", default=None, type=str, help="Path to SSL key file (only needed if using TLS)"
     )
     parser.add_argument(
-        "--ssl-cert", "-sc", default=None, type=str, help="Path to SSL cert file"
+        "--ssl-cert", "-sc", default=None, type=str, help="Path to SSL cert file (only needed if using TLS)"
     )
 
     args = parser.parse_args()
