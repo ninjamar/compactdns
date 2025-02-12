@@ -699,7 +699,9 @@ class ServerManager:
 
             # TODO: SSL optional
             self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            self.ssl_context.load_cert_chain(certfile=ssl_cert_path, keyfile=ssl_key_path)
+            self.ssl_context.load_cert_chain(
+                certfile=ssl_cert_path, keyfile=ssl_key_path  # type: ignore
+            )
         else:
             self.use_tls = False
 
@@ -868,7 +870,7 @@ class ServerManager:
 
         if self.use_tls:
             self.tls_sock.close()
-        
+
         self.resolver_udp_sock.close()
 
     def _threaded_handle_dns_query_udp(
@@ -895,7 +897,7 @@ class ServerManager:
 
         sel = selectors.DefaultSelector()
         sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE)
-        
+
         response = None
         has_conn = True
         try:
@@ -911,16 +913,17 @@ class ServerManager:
                         # 2 bytes for size of message first
                         length = conn.recv(2)
                         if not length:
-                            has_conn = False 
+                            has_conn = False
                             break
                         length = struct.unpack("!H", length)[0]
                         query = conn.recv(int(length))
+
                         if not query:
                             has_conn = False
 
                         response = self.handle_dns_query(query)
                         response_length = struct.pack("!H", len(response))
-                    
+
                     if mask & selectors.EVENT_WRITE and response is not None:
                         try:
                             conn.sendall(response_length + response)
@@ -945,8 +948,8 @@ class ServerManager:
 
         has_handshake = False
         while not has_handshake:
-            # TODO: Configure timeout
-            events = sel.select(timeout=0)
+            # 2 second timeout for handshake
+            events = sel.select(timeout=2)
             for key, mask in events:
                 try:
                     tls.do_handshake()
@@ -980,12 +983,12 @@ class ServerManager:
         )
 
         if self.use_tls:
-            self.tls_sock.bind(self.tls_host)
+            self.tls_sock.bind(self.tls_host)  # type: ignore
             self.tls_sock.listen(max_workers)
             logging.info(
                 "Threaded DNS Server running at %s:%s via DNS over TLS",
-                self.tls_host[0],
-                self.tls_host[1],
+                self.tls_host[0],  # type: ignore
+                self.tls_host[1],  # type: ignore
             )
 
         sockets = [self.udp_sock, self.tcp_sock]
@@ -1004,7 +1007,7 @@ class ServerManager:
                         # TODO: TIMEOUT
                         events = sel.select(timeout=0)
                         for key, mask in events:
-                            sock = key.fileobj # type: ignore[assignment]
+                            sock = key.fileobj  # type: ignore[assignment]
 
                             if sock == self.udp_sock:
                                 query, addr = self.udp_sock.recvfrom(512)
@@ -1036,7 +1039,7 @@ class ServerManager:
                                 future.add_done_callback(
                                     self._handle_thread_pool_errors
                                 )
-                            
+
                     except KeyboardInterrupt:
                         # Don't want the except call here to be called, I want the one outside the while loop
                         raise KeyboardInterrupt
