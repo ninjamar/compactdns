@@ -9,7 +9,7 @@ example-blocklists/lowe.txt
 INFO
 --ttl
 60
---ssl-host
+--tls-host
 127.0.0.1:3053
 --ssl-key
 key.pem

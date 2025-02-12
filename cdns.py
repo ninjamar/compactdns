@@ -109,6 +109,11 @@ from typing import Any, Hashable, NamedTuple
 # TODO: [] Support DNS over HTTPS (DOH) - https://datatracker.ietf.org/doc/html/rfc8484
 # TODO: [] Look at https://datatracker.ietf.org/doc/html/rfc8310
 
+# TODO: Update issues in github
+# TODO: Update readme
+# TODO: Make ssl_* arguments optionl
+# TODO: Change from blocklist to rules
+
 FNMATCH_CHARS = "*?[]!"
 
 
@@ -657,9 +662,9 @@ class ServerManager:
     def __init__(
         self,
         host: tuple[str, int],
-        ssl_host: tuple[str, int],
-        ssl_key_path: str,
-        ssl_cert_path: str,
+        tls_host: tuple[str, int] | None,
+        ssl_key_path: str | None,
+        ssl_cert_path: str | None,
         resolver: tuple[str, int],
         blocklist: Blocklist,
     ) -> None:
@@ -667,14 +672,14 @@ class ServerManager:
 
         Args:
             host: Host and port of server for UDP and TCP.
-            ssl_host: Host and port of server for DNS over TLS.
+            tls_host: Host and port of server for DNS over TLS.
             ssl_key_path: Path to SSL key file.
             ssl_cert_path: Path to SSL cert file.
             resolver: Host and port of resolver.
             blocklist: Blocklist of sites.
         """
         self.host = host
-        self.ssl_host = ssl_host
+        self.tls_host = tls_host
 
         # Bind in _start_threaded_udp
         self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -684,13 +689,19 @@ class ServerManager:
         self.tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.tcp_sock.setblocking(False)
 
-        self.tls_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.tls_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.tls_sock.setblocking(False)
+        # Make sure all of these are not none
+        if all([x is not None for x in [tls_host, ssl_key_path, ssl_cert_path]]):
+            self.use_tls = True
 
-        # TODO: SSL optional
-        self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        self.ssl_context.load_cert_chain(certfile=ssl_cert_path, keyfile=ssl_key_path)
+            self.tls_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.tls_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.tls_sock.setblocking(False)
+
+            # TODO: SSL optional
+            self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            self.ssl_context.load_cert_chain(certfile=ssl_cert_path, keyfile=ssl_key_path)
+        else:
+            self.use_tls = False
 
         self.resolver_udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.resolver_addr = resolver
@@ -734,9 +745,6 @@ class ServerManager:
         Returns:
             The response.
         """
-
-        logging.info("Received query")
-
         # Recieve header and questions
         header, questions, _ = unpack_all(buf)
 
@@ -775,7 +783,7 @@ class ServerManager:
             send = pack_all_compressed(new_header, new_questions)
             response = self.forward_dns_query(send)
 
-            logging.debug("Received query from DNS server")
+            logging.debug("Received query from forwarding DNS server")
 
             # Add the blocked sites to the response
             recv_header, recv_questions, recv_answers = unpack_all(response)
@@ -857,7 +865,10 @@ class ServerManager:
         """Handle destroying the sockets."""
         self.udp_sock.close()
         self.tcp_sock.close()
-        self.tls_sock.close()
+
+        if self.use_tls:
+            self.tls_sock.close()
+        
         self.resolver_udp_sock.close()
 
     def _threaded_handle_dns_query_udp(
@@ -874,8 +885,6 @@ class ServerManager:
         # Lock is unnecessary here since .sendto is thread safe (UDP is also connectionless)
         self.udp_sock.sendto(response, addr)
 
-        logging.info("Sent response")
-
     def _threaded_handle_dns_query_tcp(self, conn: socket.socket) -> None:
         """Handle a DNS query over TCP.
 
@@ -883,23 +892,49 @@ class ServerManager:
             conn: TCP connection.
         """
         # TODO: Timeout
+
+        sel = selectors.DefaultSelector()
+        sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE)
+        
+        response = None
+        has_conn = True
         try:
-            while True:
-                # 2 bytes for size of message first
-                length = conn.recv(2)
-                if not length:
-                    break
-                length = struct.unpack("!H", length)[0]
-                query = conn.recv(int(length))
-                if not query:
-                    break
+            while has_conn:
+                # Connection times out in two minutes
+                events = sel.select(timeout=60 * 2)
+                for key, mask in events:
+                    # sock = key.fileobj
+                    if conn.fileno() == -1:
+                        has_conn = False
+                        break
+                    if mask & selectors.EVENT_READ:
+                        # 2 bytes for size of message first
+                        length = conn.recv(2)
+                        if not length:
+                            has_conn = False 
+                            break
+                        length = struct.unpack("!H", length)[0]
+                        query = conn.recv(int(length))
+                        if not query:
+                            has_conn = False
 
-                response = self.handle_dns_query(query)
-                response_length = struct.pack("!H", len(response))
+                        response = self.handle_dns_query(query)
+                        response_length = struct.pack("!H", len(response))
+                    
+                    if mask & selectors.EVENT_WRITE and response is not None:
+                        try:
+                            conn.sendall(response_length + response)
 
-                conn.sendall(response_length + response)
+                            # Only send back if there is a response to be sent
+                            response = None
+                        except BrokenPipeError:
+                            has_conn = False
+                            break
+
         finally:
             conn.close()
+            sel.unregister(conn)
+            logging.debug("Closed TCP connection")
 
     def _threaded_handle_dns_query_tls(self, conn: socket.socket) -> None:
         tls = self.ssl_context.wrap_socket(
@@ -944,15 +979,19 @@ class ServerManager:
             "Threaded DNS Server running at %s:%s via UDP", self.host[0], self.host[1]
         )
 
-        self.tls_sock.bind(self.ssl_host)
-        self.tls_sock.listen(max_workers)
-        logging.info(
-            "Threaded DNS Server running at %s:%s via DNS over TLS",
-            self.ssl_host[0],
-            self.ssl_host[1],
-        )
+        if self.use_tls:
+            self.tls_sock.bind(self.tls_host)
+            self.tls_sock.listen(max_workers)
+            logging.info(
+                "Threaded DNS Server running at %s:%s via DNS over TLS",
+                self.tls_host[0],
+                self.tls_host[1],
+            )
 
-        sockets = [self.udp_sock, self.tcp_sock, self.tls_sock]
+        sockets = [self.udp_sock, self.tcp_sock]
+        if self.use_tls:
+            sockets.append(self.tls_sock)
+
         # Select a value when READ is available
         sel = selectors.DefaultSelector()
         for sock in sockets:
@@ -987,6 +1026,7 @@ class ServerManager:
                                 future.add_done_callback(
                                     self._handle_thread_pool_errors
                                 )
+                            # If self.use_tls is False, then sockets won't contain self.tls_sock
                             elif sock == self.tls_sock:
                                 conn, addr = self.tls_sock.accept()
                                 conn.setblocking(False)
@@ -996,6 +1036,7 @@ class ServerManager:
                                 future.add_done_callback(
                                     self._handle_thread_pool_errors
                                 )
+                            
                     except KeyboardInterrupt:
                         # Don't want the except call here to be called, I want the one outside the while loop
                         raise KeyboardInterrupt
@@ -1192,17 +1233,17 @@ def cli() -> None:
         help="Default TTL for blocked hosts (default = 300)",
     )
     parser.add_argument(
-        "--ssl-host",
+        "--tls-host",
         "-s",
-        required=True,  # TODO: make optional
+        default=None,  # TODO: make optional
         type=str,
         help="TLS socket address in the format of a.b.c.d:port",
     )
     parser.add_argument(
-        "--ssl-key", "-sk", required=True, type=str, help="Path to SSL key file"
+        "--ssl-key", "-sk", default=None, type=str, help="Path to SSL key file"
     )
     parser.add_argument(
-        "--ssl-cert", "-sc", required=True, type=str, help="Path to SSL cert file"
+        "--ssl-cert", "-sc", default=None, type=str, help="Path to SSL cert file"
     )
 
     args = parser.parse_args()
@@ -1215,7 +1256,7 @@ def cli() -> None:
 
     host = args.host.split(":")
     resolver = args.resolver.split(":")
-    ssl_host = args.ssl_host.split(":")
+    tls_host = args.tls_host.split(":")
 
     if args.blocklist is not None:
         blocklist = load_all_blocklists(args.blocklist, args.ttl)
@@ -1227,7 +1268,7 @@ def cli() -> None:
     manager = ServerManager(
         host=(host[0], int(host[1])),
         resolver=(resolver[0], int(resolver[1])),
-        ssl_host=(ssl_host[0], int(ssl_host[1])),
+        tls_host=(tls_host[0], int(tls_host[1])),
         ssl_key_path=args.ssl_key,
         ssl_cert_path=args.ssl_cert,
         blocklist=blocklist,
