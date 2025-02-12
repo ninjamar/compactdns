@@ -714,6 +714,9 @@ class ServerManager:
         self.resolver_udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.resolver_addr = resolver
 
+        self.execution_timeout = 5
+        self.max_workers = 10
+
         self.blocklist = blocklist
 
         self.cache = TimedCache()
@@ -976,21 +979,20 @@ class ServerManager:
         """Start a threaded server."""
         # TODO: Configure max workers
 
-        max_workers = 10
         self.udp_sock.bind(self.host)
         logging.info(
             "Threaded DNS Server running at %s:%s via TCP", self.host[0], self.host[1]
         )
 
         self.tcp_sock.bind(self.host)
-        self.tcp_sock.listen(max_workers)
+        self.tcp_sock.listen(self.max_workers)
         logging.info(
             "Threaded DNS Server running at %s:%s via UDP", self.host[0], self.host[1]
         )
 
         if self.use_tls:
             self.tls_sock.bind(self.tls_host)  # type: ignore
-            self.tls_sock.listen(max_workers)
+            self.tls_sock.listen(self.max_workers)
             logging.info(
                 "Threaded DNS Server running at %s:%s via DNS over TLS",
                 self.tls_host[0],  # type: ignore
@@ -1006,7 +1008,7 @@ class ServerManager:
         for sock in sockets:
             sel.register(sock, selectors.EVENT_READ)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             try:
                 while True:
                     try:
@@ -1022,7 +1024,7 @@ class ServerManager:
                                     self._threaded_handle_dns_query_udp, addr, query
                                 )
                                 future.add_done_callback(
-                                    self._handle_thread_pool_errors
+                                    self._handle_thread_pool_completion
                                 )
                             elif sock == self.tcp_sock:
                                 conn, addr = self.tcp_sock.accept()
@@ -1033,7 +1035,7 @@ class ServerManager:
                                     self._threaded_handle_dns_query_tcp, conn
                                 )
                                 future.add_done_callback(
-                                    self._handle_thread_pool_errors
+                                    self._handle_thread_pool_completion
                                 )
                             # If self.use_tls is False, then sockets won't contain self.tls_sock
                             elif sock == self.tls_sock:
@@ -1043,7 +1045,7 @@ class ServerManager:
                                     self._threaded_handle_dns_query_tls, conn
                                 )
                                 future.add_done_callback(
-                                    self._handle_thread_pool_errors
+                                    self._handle_thread_pool_completion
                                 )
 
                     except KeyboardInterrupt:
@@ -1056,15 +1058,16 @@ class ServerManager:
                 logging.info("KeyboardInterrupt: Server shutting down")
                 sys.exit()
 
-    def _handle_thread_pool_errors(self, future: concurrent.futures.Future) -> None:
-        """Log all errors inside a ThreadPoolExecutor.
+    def _handle_thread_pool_completion(self, future: concurrent.futures.Future) -> None:
+        """Handle the result of a ThreadPoolExecutor.
 
         Args:
             future: The future from ThreadPoolExecutor.submit()
         """
         try:
-            future.result()
-
+            future.result(timeout=self.execution_timeout)
+        except concurrent.futures.TimeoutError:
+            logging.error("Request handler timed out", exc_info=True)
         except:
             logging.error("Error", exc_info=True)
 
