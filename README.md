@@ -80,3 +80,10 @@ dig some.url
 ```
 dig @127.X.X.X -p X some.url
 ```
+
+### TLS
+
+If you want to use TLS, you need to generate a SSL key and cert file.
+```bash
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+```
