@@ -113,10 +113,12 @@ from typing import Any, Hashable, NamedTuple
 # TODO: [] Support DNS over HTTPS (DOH) - https://datatracker.ietf.org/doc/html/rfc8484
 # TODO: [] Look at https://datatracker.ietf.org/doc/html/rfc8310
 
+# TODO: Support zone files
+
 # TODO: Update issues in github
 # TODO: Update readme
 # TODO: Make ssl_* arguments optionl
-# TODO: Change from blocklist to rules
+# TODO: Change from blocklist to rules, and rulemap
 
 FNMATCH_CHARS = "*?[]!"
 
