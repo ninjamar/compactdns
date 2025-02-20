@@ -75,50 +75,7 @@ import tomllib
 from collections.abc import KeysView
 from typing import Any, Hashable, NamedTuple
 
-# TODO: Document the archictecture (comments)
-# TODO: Ensure all code is right (via tests)
-
-# TODO: Add more information about speed, since this can avoid additional network overhead.
-
-# TODO: Document this code more
-# TODO: Document and organize handle_dns_query
-
-# TODO: Max size on TimedCache
-
-# TODO: Turn this into a module in a directory
-# TODO: When this is a module, maybe allow some DNS tunneling and messaging stuff?
-
-# TODO: Benchmark via profiler.py
-
-# TODO: Configuration file format other than fromfile_prefix_chars
-
-# TODO: Verbose mode (better logging stuff)
-# TODO: Forward logging to logging process (via multiprocessing)
-
-# TODO: Add timeout to ThreadPoolExecutor
-# TODO: Make sure the threading part of the server is working
-
-# TODO: Add contributing guide to README before 1.0.0
-# TODO: Once version 1.0.0 is released, upload this project to PyPi
-
-# TODO: Support -b FILE FILE FILE and -b FILE -b FILE -b FILE
-# TODO: Support multiple packets for a single request
-
-# TODO: Async programming for speed
-
-# TODO: Review DNS specification RFC1035
-# TODO: [] Support if TC in header, than packet is longer than 512 bytes
-
-# TODO: [x] Support DNS over TLS - https://datatracker.ietf.org/doc/html/rfc7858
-# TODO: [] Support DNS over HTTPS (DOH) - https://datatracker.ietf.org/doc/html/rfc8484
-# TODO: [] Look at https://datatracker.ietf.org/doc/html/rfc8310
-
-# TODO: Support zone files
-
-# TODO: Update issues in github
-# TODO: Update readme
-# TODO: Make ssl_* arguments optionl
-# TODO: Change from blocklist to rules, and rulemap
+# The TODOLIST is located in TODO.md
 
 FNMATCH_CHARS = "*?[]!"
 
@@ -714,7 +671,7 @@ class ServerManager:
         self.resolver_udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.resolver_addr = resolver
 
-        self.execution_timeout = 5
+        self.execution_timeout = 0
         self.max_workers = 10
 
         self.blocklist = blocklist
@@ -744,6 +701,7 @@ class ServerManager:
 
     def intercept_questions(self):
         # Cached, blocked
+        # TODO: Implement
         pass
 
     def handle_dns_query(self, buf: bytes) -> bytes:
@@ -756,6 +714,7 @@ class ServerManager:
         Returns:
             The response.
         """
+        # time.sleep(1)
         # Recieve header and questions
         header, questions, _ = unpack_all(buf)
 
@@ -866,6 +825,7 @@ class ServerManager:
         Returns:
             The response from the forwarding server.
         """
+        # TODO: If TC, use either TLS or UDP with multiple packets
         self.resolver_udp_sock.sendto(query, self.resolver_addr)
 
         response, _ = self.resolver_udp_sock.recvfrom(512)
@@ -1018,6 +978,7 @@ class ServerManager:
                             sock = key.fileobj  # type: ignore[assignment]
 
                             if sock == self.udp_sock:
+                                # TODO: Should receiving data be in the thread?
                                 query, addr = self.udp_sock.recvfrom(512)
 
                                 future = executor.submit(
@@ -1067,6 +1028,7 @@ class ServerManager:
         try:
             future.result(timeout=self.execution_timeout)
         except concurrent.futures.TimeoutError:
+            # TODO: Make this work...
             logging.error("Request handler timed out", exc_info=True)
         except:
             logging.error("Error", exc_info=True)
