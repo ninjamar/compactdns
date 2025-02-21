@@ -83,9 +83,67 @@ FNMATCH_CHARS = "*?[]!"
 class TimedCache:
     """A dictionary, with expiring keys."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_size: int | None = float("inf")) -> None:
         """Create a TimedCache instance."""
         self.data: dict[Hashable, tuple[Any, float, float]] = {}
+
+        self.max_size = max_size
+        self.estimated_size = 0
+        self.item_size = None
+
+    def reinit_estimated_size(self):
+        self.estimated_size = self.estimated_size = self.item_size * len(self.data.keys())
+        
+    def calculate_actual_size(self):
+        size = sys.getsizeof(self.data)
+
+        for key, value in self.data.items():
+            size += sys.getsizeof(key)
+            size += sys.getsizeof(value)
+            for item in value:
+                size += sys.getsizeof(item)
+        return size
+    
+    def ensure_space(self, be_nice = True):
+        if be_nice:
+            # Estimate the overflow
+            if self.estimated_size + self.item_size > self.max_size:
+                print("Overflow", self.estimated_size, self.item_size)
+                # If we think their is an overflow, actually check, then purge
+                if (_size:= self.calculate_actual_size()) > self.max_size:
+                    print("Overflow for real", _size)
+                    self.purge_keys()
+                    
+                    self.reinit_estimated_size()
+                    # If we are still over, don't be nice
+                    # Pass _size, so self.calculate_actual_size is avoided on the repeat
+                    self.ensure_space(be_nice=False)
+                
+        else:
+            if self.estimated_size > self.max_size:
+                if (size:=self.calculate_actual_size()) > self.max_size:
+                    # Remove the oldest keys until no overflow, and then an additional 5%
+                    keys = sorted(self.data.keys(), key=lambda key: self.data[key][1])
+                    print(keys)
+
+                    size_to_remove = (size - self.max_size) + (self.item_size * round((0.05 * size) / self.item_size))
+                    items_to_remove = int((size_to_remove - (size_to_remove % self.item_size)) / self.item_size) # Will be int because we use mod here
+                    print(size, self.max_size, size_to_remove, items_to_remove, self.item_size)
+                    for i in range(items_to_remove):
+                        
+                        del self.data[keys[i]]
+                        i+=1
+                    
+                    self.reinit_estimated_size()
+        
+    def purge_keys(self):
+        # Use list() to create a copy, since we can't iterate and remove keys
+        for key, value in list(self.data.items()):
+            _, expiry, _ = value
+            if expiry < time.time():
+                del self.data[key]
+        
+        self.reinit_estimated_size()
 
     def set(self, key: Hashable, value: Any, ttl: float) -> None:
         """Set a key in the TimedCache.
@@ -95,7 +153,13 @@ class TimedCache:
             value: The value of the key.
             ttl: The time to expiry of the key in the future.
         """
+        if self.item_size is None:
+            self.item_size = sys.getsizeof(value)
+
+        self.ensure_space()
+
         self.data[key] = (value, time.time() + ttl, ttl)
+        self.reinit_estimated_size()
 
     def get(self, key: Hashable) -> Any:
         """Get a timed key, deleting it if it has expired.
@@ -676,7 +740,7 @@ class ServerManager:
 
         self.blocklist = blocklist
 
-        self.cache = TimedCache()
+        self.cache = TimedCache(max_size=1024)
 
         # TODO: This probably doesn't have much of an advantage
         # TODO: If we get a cached answer, should the ttl in the TimedCache be updated?
