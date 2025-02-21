@@ -49,9 +49,10 @@
 - [ ] LocalRecords vs Blocklist etc
 - [ ] Allow setup as docker container
 - [ ] implement str and repr for DNSHeader, DNSQuestion, and DNSAnswer
+- [ ] Write TimedCache to file on interval. Also command to purge this file.
 
 
-### Organizatio 
+### Organization
 - [ ] Document the archictecture (comments)
 - [ ] Ensure all code is right (via tests)
 - [ ] Document this code more
