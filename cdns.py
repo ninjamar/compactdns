@@ -31,10 +31,11 @@ blocking certain hostnames.
 
 Requires a minimum python version of 3.11.
 
-$ python cdns.py -h
+$ python cdns.py --help
 usage: cdns.py [-h] --host HOST --resolver RESOLVER [--blocklist [BLOCKLIST ...]]
                [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}] [--ttl TTL]
-               [--tls-host TLS_HOST] [--ssl-key SSL_KEY] [--ssl-cert SSL_CERT]
+               [--max-cache-length MAX_CACHE_LENGTH] [--tls-host TLS_HOST] [--ssl-key SSL_KEY]
+               [--ssl-cert SSL_CERT]
 
 A simple forwarding DNS server
 
@@ -46,10 +47,11 @@ options:
   --blocklist [BLOCKLIST ...], -b [BLOCKLIST ...]
                         Path to file containing blocklist
   --loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}, -l {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}
-                        Provide information about the logging level (default = info)
-  --ttl TTL             Default TTL for blocked hosts (default = 300)
-  --tls-host TLS_HOST, -s TLS_HOST
-                        TLS socket address in the format of a.b.c.d:port (only needed if using tls)
+                        Provide information about the logging level (default = info).
+  --ttl TTL, -t TTL     Default TTL for blocked hosts (default = 300)
+  --max-cache-length MAX_CACHE_LENGTH, -m MAX_CACHE_LENGTH
+                        Maximum length of the cache (default=infinity)
+  --tls-host TLS_HOST   TLS socket address in the format of a.b.c.d:port (only needed if using tls)
   --ssl-key SSL_KEY, -sk SSL_KEY
                         Path to SSL key file (only needed if using TLS)
   --ssl-cert SSL_CERT, -sc SSL_CERT
