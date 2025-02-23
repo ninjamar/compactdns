@@ -34,8 +34,8 @@
 
 ### Speed
 - [x] Benchmark via profiler.py
-- [ ] Forward logging to logging process (via multiprocessing)
-- [ ] Max size on TimedCache
+- [ ] Forward logging to logging process (via multiprocessing) (look at logging, because this might be default)
+- [x] Max size on TimedCache
 - [ ] Add more information about speed, since this can avoid additional network overhead.
 - [ ] Add timeout to ThreadPoolExecutor
 - [ ] Make sure the threading part of the server is working

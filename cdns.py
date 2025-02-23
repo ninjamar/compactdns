@@ -72,6 +72,7 @@ import struct
 import sys
 import time
 import tomllib
+from collections import OrderedDict
 from collections.abc import KeysView
 from typing import Any, Hashable, NamedTuple
 
@@ -83,9 +84,10 @@ FNMATCH_CHARS = "*?[]!"
 class TimedCache:
     """A dictionary, with expiring keys."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_length: int = float("inf")) -> None: # type: ignore (int != float)
         """Create a TimedCache instance."""
-        self.data: dict[Hashable, tuple[Any, float, float]] = {}
+        self.data: OrderedDict[Hashable, tuple[Any, float, float]] = OrderedDict()
+        self.max_length = max_length
 
     def set(self, key: Hashable, value: Any, ttl: float) -> None:
         """Set a key in the TimedCache.
@@ -95,6 +97,14 @@ class TimedCache:
             value: The value of the key.
             ttl: The time to expiry of the key in the future.
         """
+        # If the item already exists, move it to the end
+        if key in self.data:
+            self.data.move_to_end(key)
+
+        if len(self.data) >= self.max_length:
+            # Pare down size
+            self.data.popitem(last=False)
+
         self.data[key] = (value, time.time() + ttl, ttl)
 
     def get(self, key: Hashable) -> Any:
@@ -217,7 +227,6 @@ class Blocklist:
         Returns:
             All the keys in the blocklist.
         """
-        # TODO: IDK
         return (self.normal | self.fnmatch).keys()
 
     def __repr__(self) -> str:
@@ -227,6 +236,9 @@ class Blocklist:
             Repr format of Blocklist.
         """
         return f"Blocklist(<{len(self.normal)} normal rules>, <{len(self.fnmatch)} fnmatch rules>)"
+
+    def __len__(self) -> int:
+        return len(self.normal) + len(self.fnmatch)
 
 
 def encode_name_uncompressed(name: str) -> bytes:
@@ -630,6 +642,7 @@ class ServerManager:
         ssl_cert_path: str | None,
         resolver: tuple[str, int],
         blocklist: Blocklist,
+        max_cache_length: int,
     ) -> None:
         """Create a ServerManager instance.
 
@@ -676,9 +689,16 @@ class ServerManager:
 
         self.blocklist = blocklist
 
-        self.cache = TimedCache()
+        self.cache = TimedCache(max_length=max_cache_length)
 
-        # TODO: This probably doesn't have much of an advantage
+        if len(self.blocklist) > max_cache_length:  # FIXME: > or >=? can't decide
+            logging.warning(
+                "The blocklist has %i items, the max cache length is %i",
+                len(self.blocklist),
+                max_cache_length,
+            )
+
+        # FIXME: This probably doesn't have much of an advantage
         # TODO: If we get a cached answer, should the ttl in the TimedCache be updated?
         # Cache individual hosts that don't contain any special syntax
         # Caching is for when type_ and class_ is 1
@@ -695,7 +715,7 @@ class ServerManager:
                     # inet_aton encodes a ip address into bytes
                     rdata=socket.inet_aton(self.blocklist.normal[_host].ip),
                 ),
-                # TODO: Fix
+                # FIXME: Fix (Why is this label here?)
                 self.blocklist.normal[_host].ttl,
             )
 
@@ -968,17 +988,19 @@ class ServerManager:
         for sock in sockets:
             sel.register(sock, selectors.EVENT_READ)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=self.max_workers
+        ) as executor:
             try:
                 while True:
                     try:
-                        # TODO: TIMEOUT
+                        # FIXME: What should the timeout be? Does this fix the issue?
                         events = sel.select(timeout=0)
                         for key, mask in events:
                             sock = key.fileobj  # type: ignore[assignment]
 
                             if sock == self.udp_sock:
-                                # TODO: Should receiving data be in the thread?
+                                # TODO: Should receiving data be in the thread? (what)
                                 query, addr = self.udp_sock.recvfrom(512)
 
                                 future = executor.submit(
@@ -1115,7 +1137,7 @@ def parse_blocklist(
                 else:
                     normal_blocklist[host] = item
 
-    # TODO: Explicit return tuple?
+    # FIXME: Explicit return tuple?
     return normal_blocklist, fnmatch_blocklist
 
 
@@ -1198,26 +1220,41 @@ def cli() -> None:
         choices=list(logging.getLevelNamesMapping().keys()),
         default="INFO",
         type=str,
-        help="Provide information about the logging level (default = info)",
+        help="Provide information about the logging level (default = info).",
     )
     parser.add_argument(
         "--ttl",
+        "-t",
         default=300,
         type=int,
         help="Default TTL for blocked hosts (default = 300)",
     )
     parser.add_argument(
+        "--max-cache-length",
+        "-m",
+        default=float("inf"),
+        type=int,
+        help="Maximum length of the cache (default=infinity)",
+    )
+    parser.add_argument(
         "--tls-host",
-        "-s",
-        default=None,  # TODO: make optional
+        default=None,
         type=str,
         help="TLS socket address in the format of a.b.c.d:port (only needed if using tls)",
     )
     parser.add_argument(
-        "--ssl-key", "-sk", default=None, type=str, help="Path to SSL key file (only needed if using TLS)"
+        "--ssl-key",
+        "-sk",
+        default=None,
+        type=str,
+        help="Path to SSL key file (only needed if using TLS)",
     )
     parser.add_argument(
-        "--ssl-cert", "-sc", default=None, type=str, help="Path to SSL cert file (only needed if using TLS)"
+        "--ssl-cert",
+        "-sc",
+        default=None,
+        type=str,
+        help="Path to SSL cert file (only needed if using TLS)",
     )
 
     args = parser.parse_args()
@@ -1230,7 +1267,10 @@ def cli() -> None:
 
     host = args.host.split(":")
     resolver = args.resolver.split(":")
-    tls_host = args.tls_host.split(":")
+    if args.tls_host is not None:
+        tls_host = args.tls_host.split(":")
+    else:
+        tls_host = None
 
     if args.blocklist is not None:
         blocklist = load_all_blocklists(args.blocklist, args.ttl)
@@ -1242,10 +1282,11 @@ def cli() -> None:
     manager = ServerManager(
         host=(host[0], int(host[1])),
         resolver=(resolver[0], int(resolver[1])),
-        tls_host=(tls_host[0], int(tls_host[1])),
+        tls_host=(tls_host[0], int(tls_host[1])) if tls_host is not None else tls_host,
         ssl_key_path=args.ssl_key,
         ssl_cert_path=args.ssl_cert,
         blocklist=blocklist,
+        max_cache_length=args.max_cache_length,
     )
 
     manager.start_threaded()

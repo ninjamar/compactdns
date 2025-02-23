@@ -15,3 +15,5 @@ INFO
 key.pem
 --ssl-cert
 cert.pem
+--max-cache-length
+10000
