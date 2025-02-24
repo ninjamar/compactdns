@@ -812,7 +812,7 @@ class ServerManager:
             cache=self.cache,
             forwarder=self.forward_dns_query,
             udp_sock=self.udp_sock,
-            udp_addr=addr
+            udp_addr=addr,
         ).start(query)
 
     def _handle_dns_query_tcp(self, conn: socket.socket) -> None:
@@ -827,7 +827,7 @@ class ServerManager:
         sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE)
 
         has_conn = True
-        #try:
+        # try:
         while has_conn:
             # Connection times out in two minutes
             events = sel.select(timeout=60 * 2)
@@ -851,7 +851,7 @@ class ServerManager:
                         blocklist=self.blocklist,
                         cache=self.cache,
                         forwarder=self.forward_dns_query,
-                        tcp_conn=conn
+                        tcp_conn=conn,
                     ).start(query)
 
                     return
@@ -979,8 +979,11 @@ class ServerManager:
         except:
             logging.error("Error", exc_info=True)
 
+
 class ResponseHandlerManager:
-    def __init__(self, blocklist, cache, forwarder, udp_sock = None, udp_addr = None, tcp_conn = None) -> None:
+    def __init__(
+        self, blocklist, cache, forwarder, udp_sock=None, udp_addr=None, tcp_conn=None
+    ) -> None:
         self.udp_sock = None
         self.udp_addr = None
         self.tcp_conn = None
@@ -1003,7 +1006,7 @@ class ResponseHandlerManager:
 
         self.new_header = None
         self.new_questions = []
-        
+
         self.resp_header = None
         self.resp_questions = []
         self.resp_answers = []
@@ -1014,12 +1017,11 @@ class ResponseHandlerManager:
     def start(self, buf):
         self.receive(buf)
         self.process()
-    
+
     def receive(self, buf: bytes) -> None:
         # Receive header and questions
         self.buf_header, self.buf_questions, _ = unpack_all(buf)
         logging.debug("Received query: %s, %s", self.buf_header, self.buf_questions)
-
 
     def process(self) -> None:
         self.new_header = dataclasses.replace(self.buf_header)
@@ -1036,11 +1038,13 @@ class ResponseHandlerManager:
                 self.question_index_blocked.append((idx, question_index_match))
             else:
                 self.new_questions.append(question)
-        
+
                 # Set new qdcount for forwarded header
         self.new_header.qdcount = len(self.new_questions)
-        logging.debug("New header %s, new questions %s", self.new_header, self.new_questions)
-        
+        logging.debug(
+            "New header %s, new questions %s", self.new_header, self.new_questions
+        )
+
         if self.new_header.qdcount > 0:
             # Process header, questions
             # Repack data
@@ -1055,14 +1059,14 @@ class ResponseHandlerManager:
 
             self.post_process()
 
-
     def forwarding_done_handler(self, future):
-        self.resp_header, self.resp_questions, self.resp_answers = unpack_all(future.result())
+        self.resp_header, self.resp_questions, self.resp_answers = unpack_all(
+            future.result()
+        )
         if len(self.resp_answers) == 0:
             self.resp_answers = []
-        
-        self.post_process()
 
+        self.post_process()
 
     def post_process(self):
         # Disable the recursion flag for cached or blocked queries
@@ -1102,7 +1106,10 @@ class ResponseHandlerManager:
 
         # TODO: Go after mkve
         logging.debug(
-            "Sending query back, %s, %s, %s", self.resp_header, self.resp_questions, self.resp_answers
+            "Sending query back, %s, %s, %s",
+            self.resp_header,
+            self.resp_questions,
+            self.resp_answers,
         )
 
         # Since we have a new response, cache it, using the original question and new answer
@@ -1115,7 +1122,9 @@ class ResponseHandlerManager:
         self.send()
 
     def send(self):
-        buf = pack_all_compressed(self.resp_header, self.resp_questions, self.resp_answers)
+        buf = pack_all_compressed(
+            self.resp_header, self.resp_questions, self.resp_answers
+        )
         buf_len = struct.pack("!H", len(buf))
 
         if self.udp_sock:
