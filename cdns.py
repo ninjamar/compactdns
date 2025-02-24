@@ -75,6 +75,7 @@ import sys
 import threading
 import time
 import tomllib
+import itertools
 from collections import OrderedDict
 from collections.abc import KeysView
 from typing import Any, Hashable, NamedTuple
@@ -827,7 +828,6 @@ class ServerManager:
         sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE)
 
         has_conn = True
-        # try:
         while has_conn:
             # Connection times out in two minutes
             events = sel.select(timeout=60 * 2)
@@ -1014,7 +1014,7 @@ class ResponseHandlerManager:
         self.question_index_blocked = []
         self.question_index_cached = []
 
-    def start(self, buf):
+    def start(self, buf) -> None:
         self.receive(buf)
         self.process()
 
@@ -1059,7 +1059,7 @@ class ResponseHandlerManager:
 
             self.post_process()
 
-    def forwarding_done_handler(self, future):
+    def forwarding_done_handler(self, future: concurrent.futures.Future) -> None:
         self.resp_header, self.resp_questions, self.resp_answers = unpack_all(
             future.result()
         )
@@ -1068,7 +1068,7 @@ class ResponseHandlerManager:
 
         self.post_process()
 
-    def post_process(self):
+    def post_process(self) -> None:
         # Disable the recursion flag for cached or blocked queries
         # I'm not sure how much this actually works
         # https://serverfault.com/a/729121
@@ -1080,7 +1080,9 @@ class ResponseHandlerManager:
         for idx in self.question_index_cached:
             question = self.buf_questions[idx]
             self.resp_questions.insert(idx, question)
-            self.resp_answers.insert(idx, self.cache.get_and_renew_ttl(question))
+            
+            # https://stackoverflow.com/a/7376026/21322342
+            self.resp_answers[idx: idx] = self.cache.get_and_renew_ttl(question)
 
         # Add the blocked questions to the response, keeping the position
         for idx, match in self.question_index_blocked:
@@ -1112,16 +1114,31 @@ class ResponseHandlerManager:
             self.resp_answers,
         )
 
-        # Since we have a new response, cache it, using the original question and new answer
-        for cache_question, cache_answer in zip(self.buf_questions, self.resp_answers):
-            # if cache_questio
-            # self.cache[cache_question]
+
+        cache_questions = sorted(self.buf_questions, key=lambda q: q.decoded_name)
+
+        # Store multiple answers for a questions
+        cache_answers = {
+            decoded_name: list(groups) # Key to groups
+            for decoded_name, groups in itertools.groupby( # Group consequtive items with the same key together
+                sorted(self.resp_answers, key=lambda q: q.decoded_name), # Sort resp_answers by the decoded name
+                key=lambda q: q.decoded_name,
+            )
+        }
+
+        for cache_question in cache_questions:
             if cache_question not in self.cache:
-                self.cache.set(cache_question, cache_answer, cache_answer.ttl)
+                answers = cache_answers[cache_question.decoded_name]
+                self.cache.set(
+                    cache_question,
+                    answers,
+                    answers[0].ttl # TODO: I store one question to many answers with one ttl
+                )
+        # Since we have a new response, cache it, using the original question and new answer
 
         self.send()
 
-    def send(self):
+    def send(self) -> None:
         buf = pack_all_compressed(
             self.resp_header, self.resp_questions, self.resp_answers
         )
