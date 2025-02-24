@@ -1080,9 +1080,9 @@ class ResponseHandlerManager:
         for idx in self.question_index_cached:
             question = self.buf_questions[idx]
             self.resp_questions.insert(idx, question)
-            
+
             # https://stackoverflow.com/a/7376026/21322342
-            self.resp_answers[idx: idx] = self.cache.get_and_renew_ttl(question)
+            self.resp_answers[idx:idx] = self.cache.get_and_renew_ttl(question)
 
         # Add the blocked questions to the response, keeping the position
         for idx, match in self.question_index_blocked:
@@ -1114,14 +1114,15 @@ class ResponseHandlerManager:
             self.resp_answers,
         )
 
-
         cache_questions = sorted(self.buf_questions, key=lambda q: q.decoded_name)
 
         # Store multiple answers for a questions
         cache_answers = {
-            decoded_name: list(groups) # Key to groups
-            for decoded_name, groups in itertools.groupby( # Group consequtive items with the same key together
-                sorted(self.resp_answers, key=lambda q: q.decoded_name), # Sort resp_answers by the decoded name
+            decoded_name: list(groups)  # Key to groups
+            for decoded_name, groups in itertools.groupby(  # Group consequtive items with the same key together
+                sorted(
+                    self.resp_answers, key=lambda q: q.decoded_name
+                ),  # Sort resp_answers by the decoded name
                 key=lambda q: q.decoded_name,
             )
         }
@@ -1132,7 +1133,9 @@ class ResponseHandlerManager:
                 self.cache.set(
                     cache_question,
                     answers,
-                    answers[0].ttl # TODO: I store one question to many answers with one ttl
+                    answers[
+                        0
+                    ].ttl,  # TODO: I store one question to many answers with one ttl
                 )
         # Since we have a new response, cache it, using the original question and new answer
 
