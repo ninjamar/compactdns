@@ -72,9 +72,9 @@ import socket
 import ssl
 import struct
 import sys
+import threading
 import time
 import tomllib
-import threading
 from collections import OrderedDict
 from collections.abc import KeysView
 from typing import Any, Hashable, NamedTuple
@@ -89,7 +89,7 @@ MAX_WORKERS = 1000
 class TimedCache:
     """A dictionary, with expiring keys."""
 
-    def __init__(self, max_length: int = float("inf")) -> None: # type: ignore (int != float)
+    def __init__(self, max_length: int = float("inf")) -> None:  # type: ignore
         """Create a TimedCache instance."""
         self.data: OrderedDict[Hashable, tuple[Any, float, float]] = OrderedDict()
         self.max_length = max_length
@@ -686,13 +686,15 @@ class ServerManager:
         else:
             self.use_tls = False
 
-        #self.resolver_udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        #self.resolver_udp_sock.setblocking(False)
+        # self.resolver_udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # self.resolver_udp_sock.setblocking(False)
 
         self.resolver_addr = resolver
 
         self.forwarder_sel = selectors.DefaultSelector()
-        self.forwarder_pending_requests = {}
+        self.forwarder_pending_requests: dict[
+            socket.socket, concurrent.futures.Future
+        ] = {}
 
         self.forwarder_thread = threading.Thread(target=self.forwarder_daemon)
         self.forwarder_thread.start()
@@ -732,15 +734,19 @@ class ServerManager:
                 # FIXME: Fix (Why is this label here?)
                 self.blocklist.normal[_host].ttl,
             )
-    
-    def forwarder_daemon(self):
+
+    def forwarder_daemon(self) -> None:
+        """
+        Handler for the thread that handles the response for forwarded queries
+        """
         while True:
-            events = self.forwarder_sel.select(timeout=0) # TODO: Timeout
+            events = self.forwarder_sel.select(timeout=0)  # TODO: Timeout
             with self.forwarder_lock:
                 for key, mask in events:
                     # TODO: Try except
                     sock = key.fileobj
-                    future = self.forwarder_pending_requests.pop(sock, None) # Don't error if no key
+                    # Don't error if no key
+                    future = self.forwarder_pending_requests.pop(sock, None)
                     if future:
                         try:
                             response, _ = sock.recvfrom(512)
@@ -753,7 +759,7 @@ class ServerManager:
                             self.forwarder_sel.unregister(sock)
                             sock.close()
 
-    def forward_dns_query(self, query: bytes) -> bytes:
+    def forward_dns_query(self, query: bytes) -> concurrent.futures.Future[bytes]:
         """Forward a DNS query to an address.
 
         Args:
@@ -764,6 +770,7 @@ class ServerManager:
         """
         # TODO: If using TCP, use a different socket (can be same, even though overhead -- much less tcp requests)
         # TODO: If TC, use either TLS or UDP with multiple packets
+        # TODO: TC flag?
 
         # new socket for each request
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -783,10 +790,6 @@ class ServerManager:
             future.set_exception(e)
             sock.close()
         return future
-
-        response, _ = self.resolver_udp_sock.recvfrom(512)
-        # TODO: TC flag?
-        return response
 
     def intercept_questions(self):
         # Cached, blocked
@@ -914,11 +917,10 @@ class ServerManager:
         if self.use_tls:
             self.tls_sock.close()
 
-        self.resolver_udp_sock.close()
+        for sock in self.forwarder_pending_requests.keys():
+            sock.close()
 
-    def _handle_dns_query_udp(
-        self, addr: tuple[str, int], query: bytes
-    ) -> None:
+    def _handle_dns_query_udp(self, addr: tuple[str, int], query: bytes) -> None:
         """Handle a DNS query over UDP.
 
         Args:
@@ -1014,15 +1016,11 @@ class ServerManager:
         # TODO: Configure max workers
 
         self.udp_sock.bind(self.host)
-        logging.info(
-            "DNS Server running at %s:%s via TCP", self.host[0], self.host[1]
-        )
+        logging.info("DNS Server running at %s:%s via TCP", self.host[0], self.host[1])
 
         self.tcp_sock.bind(self.host)
         self.tcp_sock.listen(self.max_workers)
-        logging.info(
-            "DNS Server running at %s:%s via UDP", self.host[0], self.host[1]
-        )
+        logging.info("DNS Server running at %s:%s via UDP", self.host[0], self.host[1])
 
         if self.use_tls:
             self.tls_sock.bind(self.tls_host)  # type: ignore
