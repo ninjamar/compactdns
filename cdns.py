@@ -74,6 +74,7 @@ import struct
 import sys
 import time
 import tomllib
+import threading
 from collections import OrderedDict
 from collections.abc import KeysView
 from typing import Any, Hashable, NamedTuple
@@ -81,6 +82,8 @@ from typing import Any, Hashable, NamedTuple
 # The TODOLIST is located in TODO.md
 
 FNMATCH_CHARS = "*?[]!"
+
+MAX_WORKERS = 1000
 
 
 class TimedCache:
@@ -687,7 +690,7 @@ class ServerManager:
         self.resolver_addr = resolver
 
         self.execution_timeout = 0
-        self.max_workers = 10
+        self.max_workers = MAX_WORKERS
 
         self.blocklist = blocklist
 
@@ -720,6 +723,27 @@ class ServerManager:
                 # FIXME: Fix (Why is this label here?)
                 self.blocklist.normal[_host].ttl,
             )
+    
+    def forwarder_daemon(self):
+        pass
+
+    def forward_dns_query(self, query: bytes) -> bytes:
+        """Forward a DNS query to an address.
+
+        Args:
+            query: The DNS query to forward.
+
+        Returns:
+            The response from the forwarding server.
+        """
+        # TODO: The bottleneck
+
+        # TODO: If TC, use either TLS or UDP with multiple packets
+        self.resolver_udp_sock.sendto(query, self.resolver_addr)
+
+        response, _ = self.resolver_udp_sock.recvfrom(512)
+        # TODO: TC flag?
+        return response
 
     def intercept_questions(self):
         # Cached, blocked
@@ -838,22 +862,6 @@ class ServerManager:
         # Pack and compress header, questions, answers
         return pack_all_compressed(recv_header, recv_questions, recv_answers)
 
-    def forward_dns_query(self, query: bytes) -> bytes:
-        """Forward a DNS query to an address.
-
-        Args:
-            query: The DNS query to forward.
-
-        Returns:
-            The response from the forwarding server.
-        """
-        # TODO: If TC, use either TLS or UDP with multiple packets
-        self.resolver_udp_sock.sendto(query, self.resolver_addr)
-
-        response, _ = self.resolver_udp_sock.recvfrom(512)
-        # TODO: TC flag?
-        return response
-
     def done(self) -> None:
         """Handle destroying the sockets."""
         self.udp_sock.close()
@@ -864,7 +872,7 @@ class ServerManager:
 
         self.resolver_udp_sock.close()
 
-    def _threaded_handle_dns_query_udp(
+    def _handle_dns_query_udp(
         self, addr: tuple[str, int], query: bytes
     ) -> None:
         """Handle a DNS query over UDP.
@@ -878,7 +886,7 @@ class ServerManager:
         # Lock is unnecessary here since .sendto is thread safe (UDP is also connectionless)
         self.udp_sock.sendto(response, addr)
 
-    def _threaded_handle_dns_query_tcp(self, conn: socket.socket) -> None:
+    def _handle_dns_query_tcp(self, conn: socket.socket) -> None:
         """Handle a DNS query over TCP.
 
         Args:
@@ -930,7 +938,7 @@ class ServerManager:
             sel.unregister(conn)
             logging.debug("Closed TCP connection")
 
-    def _threaded_handle_dns_query_tls(self, conn: socket.socket) -> None:
+    def _handle_dns_query_tls(self, conn: socket.socket) -> None:
         tls = self.ssl_context.wrap_socket(
             conn, server_side=True, do_handshake_on_connect=False
         )  # handshake on connect is false because this socket is non-blocking
@@ -955,28 +963,28 @@ class ServerManager:
                     # Wait for more data
                     pass
 
-        return self._threaded_handle_dns_query_tcp(tls)
+        return self._handle_dns_query_tcp(tls)
 
-    def start_threaded(self) -> None:
-        """Start a threaded server."""
+    def start(self) -> None:
+        """Start the server."""
         # TODO: Configure max workers
 
         self.udp_sock.bind(self.host)
         logging.info(
-            "Threaded DNS Server running at %s:%s via TCP", self.host[0], self.host[1]
+            "DNS Server running at %s:%s via TCP", self.host[0], self.host[1]
         )
 
         self.tcp_sock.bind(self.host)
         self.tcp_sock.listen(self.max_workers)
         logging.info(
-            "Threaded DNS Server running at %s:%s via UDP", self.host[0], self.host[1]
+            "DNS Server running at %s:%s via UDP", self.host[0], self.host[1]
         )
 
         if self.use_tls:
             self.tls_sock.bind(self.tls_host)  # type: ignore
             self.tls_sock.listen(self.max_workers)
             logging.info(
-                "Threaded DNS Server running at %s:%s via DNS over TLS",
+                "DNS Server running at %s:%s via DNS over TLS",
                 self.tls_host[0],  # type: ignore
                 self.tls_host[1],  # type: ignore
             )
@@ -1006,7 +1014,7 @@ class ServerManager:
                                 query, addr = self.udp_sock.recvfrom(512)
 
                                 future = executor.submit(
-                                    self._threaded_handle_dns_query_udp, addr, query
+                                    self._handle_dns_query_udp, addr, query
                                 )
                                 future.add_done_callback(
                                     self._handle_thread_pool_completion
@@ -1017,7 +1025,7 @@ class ServerManager:
                                 conn.setblocking(False)
 
                                 future = executor.submit(
-                                    self._threaded_handle_dns_query_tcp, conn
+                                    self._handle_dns_query_tcp, conn
                                 )
                                 future.add_done_callback(
                                     self._handle_thread_pool_completion
@@ -1027,7 +1035,7 @@ class ServerManager:
                                 conn, addr = self.tls_sock.accept()
                                 conn.setblocking(False)
                                 future = executor.submit(
-                                    self._threaded_handle_dns_query_tls, conn
+                                    self._handle_dns_query_tls, conn
                                 )
                                 future.add_done_callback(
                                     self._handle_thread_pool_completion
@@ -1291,7 +1299,7 @@ def cli() -> None:
         max_cache_length=args.max_cache_length,
     )
 
-    manager.start_threaded()
+    manager.start()
 
 
 if __name__ == "__main__":
