@@ -10,7 +10,7 @@
 - [ ] Remember to set appropriate flags
 - [ ] Support multiple packets for a single request
 - [ ] When request times out, kill connection
-- [ ] Support multiple questions stored in database
+- [x] Support multiple questions stored in database
 
 
 
