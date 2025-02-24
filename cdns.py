@@ -754,8 +754,6 @@ class ServerManager:
                         except Exception as e:
                             future.set_exception(e)
                         finally:
-                            del self.forwarder_pending_requests[sock]
-
                             self.forwarder_sel.unregister(sock)
                             sock.close()
 
@@ -791,124 +789,6 @@ class ServerManager:
             sock.close()
         return future
 
-    def intercept_questions(self):
-        # Cached, blocked
-        # TODO: Implement
-        pass
-
-    def handle_dns_query(self, buf: bytes) -> bytes:
-        """Handle an incoming DNS query. Block IP addresses on the blocklist,
-        and forward those not to the resolver.
-
-        Args:
-            buf: The buffer containing a DNS query.
-
-        Returns:
-            The response.
-        """
-        # time.sleep(1)
-        # Recieve header and questions
-        header, questions, _ = unpack_all(buf)
-
-        logging.debug("Received query: %s, %s", header, questions)
-
-        # check cache for all
-
-        # Copy header
-        new_header = dataclasses.replace(header)
-        new_questions = []
-        question_index_blocked = []
-        question_index_cached = []
-
-        # Remove blocked sites, so it doesn't get forwarded
-        # Remove cached sites, so it doesn't get forwarded
-        for idx, question in enumerate(questions):
-            if question in self.cache:
-                question_index_cached.append(idx)
-            # Use file matching syntax to detect block
-            elif question_index_match := self.blocklist.get_name_block(
-                question.decoded_name
-            ):
-                question_index_blocked.append((idx, question_index_match))
-            else:
-                new_questions.append(question)
-
-        # Set new qdcount for forwarded header
-        new_header.qdcount = len(new_questions)
-
-        logging.debug("New header %s, new questions %s", new_header, new_questions)
-
-        # Only forward query if there is something to forward
-        if new_header.qdcount > 0:
-            # Process header, questions
-            # Repack data
-            send = pack_all_compressed(new_header, new_questions)
-            future = self.forward_dns_query(send)
-
-            response = future.result(timeout=2.0)
-            logging.debug("Received query from forwarding DNS server")
-
-            # Add the blocked sites to the response
-            recv_header, recv_questions, recv_answers = unpack_all(response)
-
-            if len(recv_answers) == 0:
-                recv_answers = []
-        else:
-            recv_header = new_header
-            # QR = 0 for queries, QR = 1 for responses
-            recv_header.qr = 1
-            recv_questions = new_questions
-            recv_answers = []
-
-        # Disable the recursion flag for cached or blocked queries
-        # I'm not sure how much this actually works
-        # https://serverfault.com/a/729121
-        if len(question_index_cached) > 0 or len(question_index_blocked) > 0:
-            recv_header.rd = 0
-            recv_header.ra = 0
-
-        # Add the cached questions to the response, keeping the position
-        for idx in question_index_cached:
-            question = questions[idx]
-            recv_questions.insert(idx, question)
-            recv_answers.insert(idx, self.cache.get_and_renew_ttl(question))
-
-        # Add the blocked questions to the response, keeping the position
-        for idx, match in question_index_blocked:
-            question = questions[idx]
-            # Fake answer
-            answer = DNSAnswer(
-                decoded_name=question.decoded_name,
-                type_=question.type_,
-                class_=question.type_,
-                ttl=int(self.blocklist[match].ttl),
-                rdlength=4,
-                # inet_aton encodes a ip address into bytes
-                rdata=socket.inet_aton(self.blocklist[match].ip),
-            )
-
-            # Insert the questions and answer to the correct spot
-            recv_questions.insert(idx, question)
-            recv_answers.insert(idx, answer)
-
-        # Update the header's question and answer count
-        recv_header.qdcount = len(recv_questions)
-        recv_header.ancount = len(recv_answers)
-
-        logging.debug(
-            "Sending query back, %s, %s, %s", recv_header, recv_questions, recv_answers
-        )
-
-        # Since we have a new response, cache it, using the original question and new answer
-        for cache_question, cache_answer in zip(questions, recv_answers):
-            # if cache_questio
-            # self.cache[cache_question]
-            if cache_question not in self.cache:
-                self.cache.set(cache_question, cache_answer, cache_answer.ttl)
-
-        # Pack and compress header, questions, answers
-        return pack_all_compressed(recv_header, recv_questions, recv_answers)
-
     def done(self) -> None:
         """Handle destroying the sockets."""
         self.udp_sock.close()
@@ -927,10 +807,13 @@ class ServerManager:
             addr: Address of client.
             query: Incoming DNS query.
         """
-        response = self.handle_dns_query(query)
-
-        # Lock is unnecessary here since .sendto is thread safe (UDP is also connectionless)
-        self.udp_sock.sendto(response, addr)
+        ResponseHandlerManager(
+            blocklist=self.blocklist,
+            cache=self.cache,
+            forwarder=self.forward_dns_query,
+            udp_sock=self.udp_sock,
+            udp_addr=addr
+        ).start(query)
 
     def _handle_dns_query_tcp(self, conn: socket.socket) -> None:
         """Handle a DNS query over TCP.
@@ -943,46 +826,35 @@ class ServerManager:
         sel = selectors.DefaultSelector()
         sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE)
 
-        response = None
         has_conn = True
-        try:
-            while has_conn:
-                # Connection times out in two minutes
-                events = sel.select(timeout=60 * 2)
-                for key, mask in events:
-                    # sock = key.fileobj
-                    if conn.fileno() == -1:
+        #try:
+        while has_conn:
+            # Connection times out in two minutes
+            events = sel.select(timeout=60 * 2)
+            for key, mask in events:
+                # sock = key.fileobj
+                if conn.fileno() == -1:
+                    has_conn = False
+                    break
+                if mask & selectors.EVENT_READ:
+                    # 2 bytes for size of message first
+                    length = conn.recv(2)
+                    if not length:
                         has_conn = False
                         break
-                    if mask & selectors.EVENT_READ:
-                        # 2 bytes for size of message first
-                        length = conn.recv(2)
-                        if not length:
-                            has_conn = False
-                            break
-                        length = struct.unpack("!H", length)[0]
-                        query = conn.recv(int(length))
+                    length = struct.unpack("!H", length)[0]
+                    query = conn.recv(int(length))
 
-                        if not query:
-                            has_conn = False
+                    if not query:
+                        has_conn = False
+                    ResponseHandlerManager(
+                        blocklist=self.blocklist,
+                        cache=self.cache,
+                        forwarder=self.forward_dns_query,
+                        tcp_conn=conn
+                    ).start(query)
 
-                        response = self.handle_dns_query(query)
-                        response_length = struct.pack("!H", len(response))
-
-                    if mask & selectors.EVENT_WRITE and response is not None:
-                        try:
-                            conn.sendall(response_length + response)
-
-                            # Only send back if there is a response to be sent
-                            response = None
-                        except BrokenPipeError:
-                            has_conn = False
-                            break
-
-        finally:
-            conn.close()
-            sel.unregister(conn)
-            logging.debug("Closed TCP connection")
+                    return
 
     def _handle_dns_query_tls(self, conn: socket.socket) -> None:
         tls = self.ssl_context.wrap_socket(
@@ -1106,6 +978,162 @@ class ServerManager:
             logging.error("Request handler timed out", exc_info=True)
         except:
             logging.error("Error", exc_info=True)
+
+class ResponseHandlerManager:
+    def __init__(self, blocklist, cache, forwarder, udp_sock = None, udp_addr = None, tcp_conn = None) -> None:
+        self.udp_sock = None
+        self.udp_addr = None
+        self.tcp_conn = None
+
+        if udp_sock and udp_addr:
+            self.udp_sock = udp_sock
+            self.udp_addr = udp_addr
+        elif tcp_conn:
+            self.tcp_conn = tcp_conn
+        else:
+            raise TypeError("Must pass either UDP socket or TCP connection")
+
+        self.blocklist = blocklist
+        self.cache = cache
+        self.forwarder = forwarder
+
+        # Header and qustions from the initial buffer
+        self.buf_header = None
+        self.buf_questions = []
+
+        self.new_header = None
+        self.new_questions = []
+        
+        self.resp_header = None
+        self.resp_questions = []
+        self.resp_answers = []
+
+        self.question_index_blocked = []
+        self.question_index_cached = []
+
+    def start(self, buf):
+        self.receive(buf)
+        self.process()
+    
+    def receive(self, buf: bytes) -> None:
+        # Receive header and questions
+        self.buf_header, self.buf_questions, _ = unpack_all(buf)
+        logging.debug("Received query: %s, %s", self.buf_header, self.buf_questions)
+
+
+    def process(self) -> None:
+        self.new_header = dataclasses.replace(self.buf_header)
+
+        # Remove blocked sites, so it doesn't get forwarded
+        # Remove cached sites, so it doesn't get forwarded
+        for idx, question in enumerate(self.buf_questions):
+            if question in self.cache:
+                self.question_index_cached.append(idx)
+            # Use file matching syntax to detect block
+            elif question_index_match := self.blocklist.get_name_block(
+                question.decoded_name
+            ):
+                self.question_index_blocked.append((idx, question_index_match))
+            else:
+                self.new_questions.append(question)
+        
+                # Set new qdcount for forwarded header
+        self.new_header.qdcount = len(self.new_questions)
+        logging.debug("New header %s, new questions %s", self.new_header, self.new_questions)
+        
+        if self.new_header.qdcount > 0:
+            # Process header, questions
+            # Repack data
+            send = pack_all_compressed(self.new_header, self.new_questions)
+            future = self.forwarder(send)
+            future.add_done_callback(self.forwarding_done_handler)
+        else:
+            self.resp_header = self.new_header
+            self.resp_header.qr = 1
+            self.resp_questions = self.new_questions
+            self.resp_answers = []
+
+            self.post_process()
+
+
+    def forwarding_done_handler(self, future):
+        self.resp_header, self.resp_questions, self.resp_answers = unpack_all(future.result())
+        if len(self.resp_answers) == 0:
+            self.resp_answers = []
+        
+        self.post_process()
+
+
+    def post_process(self):
+        # Disable the recursion flag for cached or blocked queries
+        # I'm not sure how much this actually works
+        # https://serverfault.com/a/729121
+        if len(self.question_index_cached) > 0 or len(self.question_index_blocked) > 0:
+            self.resp_header.rd = 0
+            self.resp_header.ra = 0
+
+        # Add the cached questions to the response, keeping the position
+        for idx in self.question_index_cached:
+            question = self.buf_questions[idx]
+            self.resp_questions.insert(idx, question)
+            self.resp_answers.insert(idx, self.cache.get_and_renew_ttl(question))
+
+        # Add the blocked questions to the response, keeping the position
+        for idx, match in self.question_index_blocked:
+            question = self.buf_questions[idx]
+            # Fake answer
+            answer = DNSAnswer(
+                decoded_name=question.decoded_name,
+                type_=question.type_,
+                class_=question.type_,
+                ttl=int(self.blocklist[match].ttl),
+                rdlength=4,
+                # inet_aton encodes a ip address into bytes
+                rdata=socket.inet_aton(self.blocklist[match].ip),
+            )
+
+            # Insert the questions and answer to the correct spot
+            self.resp_questions.insert(idx, question)
+            self.resp_answers.insert(idx, answer)
+
+        # Update the header's question and answer count
+        self.resp_header.qdcount = len(self.resp_questions)
+        self.resp_header.ancount = len(self.resp_answers)
+
+        # TODO: Go after mkve
+        logging.debug(
+            "Sending query back, %s, %s, %s", self.resp_header, self.resp_questions, self.resp_answers
+        )
+
+        # Since we have a new response, cache it, using the original question and new answer
+        for cache_question, cache_answer in zip(self.buf_questions, self.resp_answers):
+            # if cache_questio
+            # self.cache[cache_question]
+            if cache_question not in self.cache:
+                self.cache.set(cache_question, cache_answer, cache_answer.ttl)
+
+        self.send()
+
+    def send(self):
+        buf = pack_all_compressed(self.resp_header, self.resp_questions, self.resp_answers)
+        buf_len = struct.pack("!H", len(buf))
+
+        if self.udp_sock:
+            # Lock is unnecessary here since .sendto is thread safe (UDP is also connectionless)
+
+            self.udp_sock.sendto(buf, self.udp_addr)
+        elif self.tcp_conn:
+            sel = selectors.DefaultSelector()
+            sel.register(self.tcp_conn, selectors.EVENT_WRITE)
+
+            # Block and wait for the socket to be ready (only happens once)
+            sel.select(timeout=0.1)
+            try:
+                self.tcp_conn.sendall(buf_len + buf)
+            finally:
+                self.tcp_conn.close()
+                sel.unregister(self.tcp_conn)
+                logging.debug("Closed TCP connection")
 
 
 @functools.cache
