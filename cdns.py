@@ -686,8 +686,17 @@ class ServerManager:
         else:
             self.use_tls = False
 
-        self.resolver_udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        #self.resolver_udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        #self.resolver_udp_sock.setblocking(False)
+
         self.resolver_addr = resolver
+
+        self.forwarder_sel = selectors.DefaultSelector()
+        self.forwarder_pending_requests = {}
+
+        self.forwarder_thread = threading.Thread(target=self.forwarder_daemon)
+        self.forwarder_thread.start()
+        self.forwarder_lock = threading.Lock()
 
         self.execution_timeout = 0
         self.max_workers = MAX_WORKERS
@@ -725,7 +734,24 @@ class ServerManager:
             )
     
     def forwarder_daemon(self):
-        pass
+        while True:
+            events = self.forwarder_sel.select(timeout=0) # TODO: Timeout
+            with self.forwarder_lock:
+                for key, mask in events:
+                    # TODO: Try except
+                    sock = key.fileobj
+                    future = self.forwarder_pending_requests.pop(sock, None) # Don't error if no key
+                    if future:
+                        try:
+                            response, _ = sock.recvfrom(512)
+                            future.set_result(response)
+                        except Exception as e:
+                            future.set_exception(e)
+                        finally:
+                            del self.forwarder_pending_requests[sock]
+
+                            self.forwarder_sel.unregister(sock)
+                            sock.close()
 
     def forward_dns_query(self, query: bytes) -> bytes:
         """Forward a DNS query to an address.
@@ -736,10 +762,27 @@ class ServerManager:
         Returns:
             The response from the forwarding server.
         """
+        # TODO: If using TCP, use a different socket (can be same, even though overhead -- much less tcp requests)
+        # TODO: If TC, use either TLS or UDP with multiple packets
+
+        # new socket for each request
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setblocking(False)
+        future = concurrent.futures.Future()
+
         # TODO: The bottleneck
 
-        # TODO: If TC, use either TLS or UDP with multiple packets
-        self.resolver_udp_sock.sendto(query, self.resolver_addr)
+        try:
+            sock.sendto(query, self.resolver_addr)
+            with self.forwarder_lock:
+                # Add a selector, and when it is ready, read from pending_requests
+                self.forwarder_sel.register(sock, selectors.EVENT_READ)
+                self.forwarder_pending_requests[sock] = future
+
+        except Exception as e:
+            future.set_exception(e)
+            sock.close()
+        return future
 
         response, _ = self.resolver_udp_sock.recvfrom(512)
         # TODO: TC flag?
@@ -797,8 +840,9 @@ class ServerManager:
             # Process header, questions
             # Repack data
             send = pack_all_compressed(new_header, new_questions)
-            response = self.forward_dns_query(send)
+            future = self.forward_dns_query(send)
 
+            response = future.result(timeout=2.0)
             logging.debug("Received query from forwarding DNS server")
 
             # Add the blocked sites to the response

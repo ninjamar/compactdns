@@ -10,6 +10,7 @@
 - [ ] Remember to set appropriate flags
 - [ ] Support multiple packets for a single request
 - [ ] When request times out, kill connection
+- [ ] Support multiple questions stored in database
 
 
 
@@ -40,7 +41,7 @@
 - [ ] Add timeout to ThreadPoolExecutor
 - [ ] Make sure the threading part of the server is working
 - [ ] Async programming for speed
-
+- [x] Remove bottleneck when forwarding dns query
 
 
 
