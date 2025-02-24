@@ -51,6 +51,7 @@
 - [ ] Allow setup as docker container
 - [ ] implement str and repr for DNSHeader, DNSQuestion, and DNSAnswer
 - [ ] Write TimedCache to file on interval. Also command to purge this file.
+- [ ] Allow multiple IP addresses in blocklist
 
 
 ### Organization
