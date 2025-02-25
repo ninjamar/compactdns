@@ -25,6 +25,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+
+"""
+The usage of "records" means DNS records...
+"""
+
 import fnmatch
 import json
 import os.path
@@ -116,33 +121,33 @@ class TimedCache:
         return self.get(key) is not None
 
 
-class BlocklistRuleItem(NamedTuple):
+class RecordsItem(NamedTuple):
     """IP address and ttl for a host."""
 
     ip: str
     ttl: float
 
 
-class Blocklist:
-    """A class to store blocklist rules."""
+class Records:
+    """A class to store records."""
 
     def __init__(
         self,
-        normal_blocklist: dict[str, BlocklistRuleItem],
-        fnmatch_blocklist: dict[str, BlocklistRuleItem],
+        normal_records: dict[str, RecordsItem],
+        fnmatch_records: dict[str, RecordsItem],
     ) -> None:
-        """Create an instance of Blocklist.
+        """Create an instance of Records.
 
         Args:
-            normal_blocklist: Blocklist using host to ip address syntax.
-            fnmatch_blocklist: Blocklist using host to IP address syntax
+            normal_records: Records using host to ip address syntax.
+            fnmatch_records: Records using host to IP address syntax
             where host supports fnmatch syntax.
         """
-        self.normal = normal_blocklist
-        self.fnmatch = fnmatch_blocklist
+        self.normal = normal_records
+        self.fnmatch = fnmatch_records
 
-    def get_name_block(self, name: str) -> str | None:
-        """Find the match for a name in the blocklist.
+    def lookup(self, name: str) -> str | None:
+        """Find the match for a name in the records.
 
         Args:
             name: The name to find the match.
@@ -159,8 +164,8 @@ class Blocklist:
             return ret
         return None
 
-    def __getitem__(self, item: str) -> BlocklistRuleItem:
-        """Get an item from the blocklist.
+    def __getitem__(self, item: str) -> RecordsItem:
+        """Get an item from the records.
 
         Args:
             item: The item to get.
@@ -178,20 +183,20 @@ class Blocklist:
         raise KeyError(item)
 
     def keys(self) -> KeysView:
-        """Get all the keys in the blocklist.
+        """Get all the keys in the records..
 
         Returns:
-            All the keys in the blocklist.
+            All the keys in the records..
         """
         return (self.normal | self.fnmatch).keys()
 
     def __repr__(self) -> str:
-        """Repr format of Blocklist.
+        """Repr format of Records.
 
         Returns:
-            Repr format of Blocklist.
+            Repr format of Records.
         """
-        return f"Blocklist(<{len(self.normal)} normal rules>, <{len(self.fnmatch)} fnmatch rules>)"
+        return f"Records(<{len(self.normal)} normal rules>, <{len(self.fnmatch)} fnmatch rules>)"
 
     def __len__(self) -> int:
         return len(self.normal) + len(self.fnmatch)
@@ -210,13 +215,13 @@ def is_fnmatch_host(host: str) -> bool:
 
 
 # I don't know how to get mypt to accept data: dict | list[bytes] so I set it to any instead
-def parse_blocklist(
+def parse_records(
     data: Any, master_ttl: int
-) -> tuple[dict[str, BlocklistRuleItem], dict[str, BlocklistRuleItem]]:
-    """Parse a blocklist.
+) -> tuple[dict[str, RecordsItem], dict[str, RecordsItem]]:
+    """Parse the records.
 
     Args:
-        data: The blocklist to parse.
+        data: The records to parse.
         master_ttl: Master TTL if TTL isn't set.
 
     Returns:
@@ -226,8 +231,8 @@ def parse_blocklist(
 
     # TODO: Validate ip
     # TODO: Check for collision
-    normal_blocklist = {}
-    fnmatch_blocklist = {}
+    normal_records = {}
+    fnmatch_records = {}
 
     # Hosts format
     if isinstance(data, list):
@@ -235,39 +240,39 @@ def parse_blocklist(
             line = line.decode()
             if not line.startswith("#"):
                 ip, host = line.strip().split()
-                item = BlocklistRuleItem(ip=ip, ttl=master_ttl)
+                item = RecordsItem(ip=ip, ttl=master_ttl)
                 if is_fnmatch_host(host):
-                    fnmatch_blocklist[host] = item
+                    fnmatch_records[host] = item
                 else:
-                    normal_blocklist[host] = item
+                    normal_records[host] = item
     else:
         # Normal format
         ttl = data.get("ttl", master_ttl)
-        for host, block_ip in data.get("blocklist", {}).items():
-            item = BlocklistRuleItem(ip=block_ip, ttl=ttl)
+        for host, target_ip in data.get("target-list", {}).items():
+            item = RecordsItem(ip=target_ip, ttl=ttl)
             if is_fnmatch_host(host):
-                fnmatch_blocklist[host] = item
+                fnmatch_records[host] = item
             else:
-                normal_blocklist[host] = item
+                normal_records[host] = item
 
         for rule in data.get("rules", []):
-            block_ip = rule["block_ip"]
+            target_ip = rule["target_ip"]
             rule_ttl = rule.get("ttl", ttl)
             for host in rule["hosts"]:
-                item = BlocklistRuleItem(ip=block_ip, ttl=rule_ttl)
+                item = RecordsItem(ip=target_ip, ttl=rule_ttl)
                 if is_fnmatch_host(host):
-                    fnmatch_blocklist[host] = item
+                    fnmatch_records[host] = item
                 else:
-                    normal_blocklist[host] = item
+                    normal_records[host] = item
 
     # FIXME: Explicit return tuple?
-    return normal_blocklist, fnmatch_blocklist
+    return normal_records, fnmatch_records
 
 
-def read_blocklist(
+def read_records(
     fpath: str, master_ttl: int
-) -> tuple[dict[str, BlocklistRuleItem], dict[str, BlocklistRuleItem]]:
-    """Read and parse blocklist from a file.
+) -> tuple[dict[str, RecordsItem], dict[str, RecordsItem]]:
+    """Read and parse records from a file.
 
     Args:
         fpath: The path to the file.
@@ -277,33 +282,33 @@ def read_blocklist(
         Exception: Unknown file extension.
 
     Returns:
-        A parsed blocklist.
+        The parsed records.
     """
     with open(fpath, "rb") as f:
         ext = os.path.splitext(fpath)[1]
         if ext == ".json":
-            return parse_blocklist(json.load(f), master_ttl)
+            return parse_records(json.load(f), master_ttl)
         elif ext == ".toml":
-            return parse_blocklist(tomllib.load(f), master_ttl)
+            return parse_records(tomllib.load(f), master_ttl)
         else:
-            return parse_blocklist(f.readlines(), master_ttl)
+            return parse_records(f.readlines(), master_ttl)
 
 
-def load_all_blocklists(paths: list[str], master_ttl: int) -> Blocklist:
-    """Load all blocklists from a list of paths.
+def load_all_records(paths: list[str], master_ttl: int) -> Records:
+    """Load all records from a list of paths.
 
     Args:
-        paths: A list containing paths to the blocklist.
+        paths: A list containing paths to the records.
         master_ttl: Master TTL if TTL isn't set.
 
 
     Returns:
-        The blocklist from those files.
+        The records from those files.
     """
-    normal_blocklist = {}
-    fnmatch_blocklist = {}
+    normal_records = {}
+    fnmatch_records = {}
     for path in paths:
-        normal_b, fnmatch_b = read_blocklist(path, master_ttl)
-        normal_blocklist.update(normal_b)
-        fnmatch_blocklist.update(fnmatch_b)
-    return Blocklist(normal_blocklist, fnmatch_blocklist)
+        normal_b, fnmatch_b = read_records(path, master_ttl)
+        normal_records.update(normal_b)
+        fnmatch_records.update(fnmatch_b)
+    return Records(normal_records, fnmatch_records)

@@ -23,7 +23,6 @@
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
 
 import concurrent.futures
 import dataclasses
@@ -37,7 +36,7 @@ import sys
 import threading
 from typing import Callable
 from .protocol import DNSAnswer, DNSHeader, DNSQuestion, pack_all_compressed, unpack_all
-from .storage import Blocklist, TimedCache
+from .records import Records, TimedCache
 
 MAX_WORKERS = 1000
 
@@ -49,7 +48,7 @@ class ServerManager:
         self,
         host: tuple[str, int],
         resolver: tuple[str, int],
-        blocklist: Blocklist,
+        records: Records,
         max_cache_length: int = float('inf'),
         tls_host: tuple[str, int] | None = None,
         ssl_key_path: str | None = None,
@@ -63,7 +62,7 @@ class ServerManager:
             ssl_key_path: Path to SSL key file.
             ssl_cert_path: Path to SSL cert file.
             resolver: Host and port of resolver.
-            blocklist: Blocklist of sites.
+            records: Records of sites.
         """
         self.host = host
         self.tls_host = tls_host
@@ -109,14 +108,14 @@ class ServerManager:
         self.execution_timeout = 0
         self.max_workers = MAX_WORKERS
 
-        self.blocklist = blocklist
+        self.records = records
 
         self.cache = TimedCache(max_length=max_cache_length)
 
-        if len(self.blocklist) > max_cache_length:  # FIXME: > or >=? can't decide
+        if len(self.records) > max_cache_length:  # FIXME: > or >=? can't decide
             logging.warning(
-                "The blocklist has %i items, the max cache length is %i",
-                len(self.blocklist),
+                "The Records has %i items, the max cache length is %i",
+                len(self.records),
                 max_cache_length,
             )
 
@@ -125,20 +124,20 @@ class ServerManager:
         # Cache individual hosts that don't contain any special syntax
         # Caching is for when type_ and class_ is 1
         # Use _host rather than host, since host is an argument to this function
-        for _host in self.blocklist.normal.keys():
+        for _host in self.records.normal.keys():
             self.cache.set(
                 DNSQuestion(decoded_name=_host, type_=1, class_=1),
                 DNSAnswer(
                     decoded_name=_host,
                     type_=1,
                     class_=1,
-                    ttl=int(self.blocklist.normal[_host].ttl),  # float to int
+                    ttl=int(self.records.normal[_host].ttl),  # float to int
                     rdlength=4,
                     # inet_aton encodes a ip address into bytes
-                    rdata=socket.inet_aton(self.blocklist.normal[_host].ip),
+                    rdata=socket.inet_aton(self.records.normal[_host].ip),
                 ),
                 # FIXME: Fix (Why is this label here?)
-                self.blocklist.normal[_host].ttl,
+                self.records.normal[_host].ttl,
             )
 
     def forwarder_daemon(self) -> None:
@@ -214,7 +213,7 @@ class ServerManager:
             query: Incoming DNS query.
         """
         ResponseHandlerManager(
-            blocklist=self.blocklist,
+            records=self.records,
             cache=self.cache,
             forwarder=self.forward_dns_query,
             udp_sock=self.udp_sock,
@@ -253,7 +252,7 @@ class ServerManager:
                     if not query:
                         has_conn = False
                     ResponseHandlerManager(
-                        blocklist=self.blocklist,
+                        records=self.records,
                         cache=self.cache,
                         forwarder=self.forward_dns_query,
                         tcp_conn=conn,
@@ -393,7 +392,7 @@ class ResponseHandlerManager:
 
     def __init__(
         self,
-        blocklist: Blocklist,
+        records: Records,
         cache: TimedCache,
         forwarder: Callable[[bytes], concurrent.futures.Future[bytes]],
         udp_sock: socket.socket = None,
@@ -405,7 +404,7 @@ class ResponseHandlerManager:
         Use with either UDP or TCP.
 
         Args:
-            blocklist: Blocklist to use
+            records: Records to use
             cache: Cache.
             forwarder: Function that forwards DNS queries.
             udp_sock: UDP socket. Defaults to None.
@@ -427,7 +426,7 @@ class ResponseHandlerManager:
         else:
             raise TypeError("Must pass either UDP socket or TCP connection")
 
-        self.blocklist = blocklist
+        self.records = records
         self.cache = cache
         self.forwarder = forwarder
 
@@ -442,7 +441,7 @@ class ResponseHandlerManager:
         self.resp_questions = []
         self.resp_answers = []
 
-        self.question_index_blocked = []
+        self.question_index_intercepted = []
         self.question_index_cached = []
 
     def start(self, buf) -> None:
@@ -472,16 +471,16 @@ class ResponseHandlerManager:
         """
         self.new_header = dataclasses.replace(self.buf_header)
 
-        # Remove blocked sites, so it doesn't get forwarded
+        # Remove intercepted sites, so it doesn't get forwarded
         # Remove cached sites, so it doesn't get forwarded
         for idx, question in enumerate(self.buf_questions):
             if question in self.cache:
                 self.question_index_cached.append(idx)
-            # Use file matching syntax to detect block
-            elif question_index_match := self.blocklist.get_name_block(
+            # Use file matching syntax to detect intercepts
+            elif question_index_match := self.records.lookup(
                 question.decoded_name
             ):
-                self.question_index_blocked.append((idx, question_index_match))
+                self.question_index_intercepted.append((idx, question_index_match))
             else:
                 self.new_questions.append(question)
 
@@ -524,10 +523,10 @@ class ResponseHandlerManager:
         """
         Automatically called after self.process.
         """
-        # Disable the recursion flag for cached or blocked queries
+        # Disable the recursion flag for cached or intercepted queries
         # I'm not sure how much this actually works
         # https://serverfault.com/a/729121
-        if len(self.question_index_cached) > 0 or len(self.question_index_blocked) > 0:
+        if len(self.question_index_cached) > 0 or len(self.question_index_intercepted) > 0:
             self.resp_header.rd = 0
             self.resp_header.ra = 0
 
@@ -539,18 +538,18 @@ class ResponseHandlerManager:
             # https://stackoverflow.com/a/7376026/21322342
             self.resp_answers[idx:idx] = self.cache.get_and_renew_ttl(question)
 
-        # Add the blocked questions to the response, keeping the position
-        for idx, match in self.question_index_blocked:
+        # Add the intercepted questions to the response, keeping the position
+        for idx, match in self.question_index_intercepted:
             question = self.buf_questions[idx]
             # Fake answer
             answer = DNSAnswer(
                 decoded_name=question.decoded_name,
                 type_=question.type_,
                 class_=question.type_,
-                ttl=int(self.blocklist[match].ttl),
+                ttl=int(self.records[match].ttl),
                 rdlength=4,
                 # inet_aton encodes a ip address into bytes
-                rdata=socket.inet_aton(self.blocklist[match].ip),
+                rdata=socket.inet_aton(self.records[match].ip),
             )
 
             # Insert the questions and answer to the correct spot

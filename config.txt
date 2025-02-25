@@ -2,9 +2,9 @@
 127.0.0.1:2053
 --resolver
 1.1.1.1:53
---blocklist
-example-blocklists/blocklist.toml
-example-blocklists/lowe.txt
+--records
+example-records/records.toml
+example-records/lowe.txt
 --loglevel
 INFO
 --ttl

@@ -1,4 +1,4 @@
-# Blocklist file syntax
+# Records file syntax
 # All hostnames use fnmatch syntax
 # TODO: Allow ip of host in future
 
@@ -6,18 +6,18 @@
 [[rules]]
 ttl = 0
 # All hosts in blocklist get $target_ip
-block_ip = "127.0.0.2"
+target_ip = "127.0.0.2"
 hosts = [
     "example.com",
 ]
 
 [[rules]]
-block_ip = "96.7.128.198" # IP address of example.com
+target_ip = "96.7.128.198" # IP address of example.com
 hosts = [
     "*.example.com", # All subdomains of example.com go to $target_ip
     "test.example.edu"
 ]
 
 # Key-value pairs of hostname to ip address 
-[blocklist]
+[target-list]
 "example.edu" = "74.125.200.139"

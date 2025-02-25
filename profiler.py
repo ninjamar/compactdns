@@ -30,7 +30,7 @@ import line_profiler as lp
 import timerit
 from cdns.manager import *
 from cdns.protocol import *
-from cdns.storage import *
+from cdns.records import *
 
 # This is what the server decodes when using dig
 # $ dig @127.0.0.1 -p 2053 google.com

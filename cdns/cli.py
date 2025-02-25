@@ -26,7 +26,7 @@
 # SOFTWARE.
 
 """
-usage: cdns [-h] --host HOST --resolver RESOLVER [--blocklist [BLOCKLIST ...]]
+usage: cdns [-h] --host HOST --resolver RESOLVER [--records [RECORDS ...]]
             [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}] [--ttl TTL]
             [--max-cache-length MAX_CACHE_LENGTH] [--tls-host TLS_HOST] [--ssl-key SSL_KEY]
             [--ssl-cert SSL_CERT]
@@ -38,8 +38,8 @@ options:
   --host HOST, -a HOST  The host address in the format of a.b.c.d:port
   --resolver RESOLVER, -r RESOLVER
                         The resolver address in the format of a.b.c.d:port
-  --blocklist [BLOCKLIST ...], -b [BLOCKLIST ...]
-                        Path to file containing blocklist
+  --records [RECORDS ...], -b [RECORDS ...]
+                        Path to file containing records
   --loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}, -l {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}
                         Provide information about the logging level (default = info).
   --ttl TTL, -t TTL     Default TTL for blocked hosts (default = 300)
@@ -54,7 +54,7 @@ options:
 import argparse
 import logging
 from .manager import ServerManager
-from .storage import Blocklist, load_all_blocklists
+from .records import Records, load_all_records
 
 
 def cli() -> None:
@@ -78,11 +78,11 @@ def cli() -> None:
         help="The resolver address in the format of a.b.c.d:port",
     )
     parser.add_argument(
-        "--blocklist",
+        "--records",
         "-b",
         # required=False
         type=str,
-        help="Path to file containing blocklist",
+        help="Path to file containing records",
         nargs="*",
     )
     parser.add_argument(
@@ -143,12 +143,12 @@ def cli() -> None:
     else:
         tls_host = None
 
-    if args.blocklist is not None:
-        blocklist = load_all_blocklists(args.blocklist, args.ttl)
+    if args.records is not None:
+        records = load_all_records(args.records, args.ttl)
     else:
-        blocklist = Blocklist({}, {})
+        records = Records({}, {})
 
-    logging.debug("Blocklist: %s", blocklist)
+    logging.debug("Records: %s", records)
 
     manager = ServerManager(
         host=(host[0], int(host[1])),
@@ -156,7 +156,7 @@ def cli() -> None:
         tls_host=(tls_host[0], int(tls_host[1])) if tls_host is not None else tls_host,
         ssl_key_path=args.ssl_key,
         ssl_cert_path=args.ssl_cert,
-        blocklist=blocklist,
+        records=records,
         max_cache_length=args.max_cache_length,
     )
 
