@@ -1,0 +1,10 @@
+[project]
+name = "compactdns"
+version = "0.0.103"
+requires-python = ">=3.11"
+
+[tool.setuptools]
+packages = ["cdns"]
+
+[project.scripts]
+cdns = "cdns.cli:cli"

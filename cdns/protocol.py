@@ -1,0 +1,419 @@
+# compactdns
+# A simple forwarding DNS server with blocking capabilities
+# https://github.com/ninjamar/compactdns
+# Copyright (c) 2025 ninjamar
+
+# MIT License
+
+# Copyright (c) 2025 ninjamar
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+import dataclasses
+import struct
+
+
+def encode_name_uncompressed(name: str) -> bytes:
+    """Encode a DNS name without using compression.
+
+    Args:
+        name: The name to encode.
+
+    Returns:
+        The encoded DNS name.
+    """
+    labels = name.split(".")
+    encoded = [bytes([len(label)]) + label.encode("ascii") for label in labels]
+    return b"".join(encoded) + b"\x00"
+
+
+def decode_name_uncompressed(buf: bytes) -> str:
+    """Decode a DNS name that is uncompressed.
+
+    Args:
+        buf: The name to decode.
+
+    Returns:
+        The decoded name.
+    """
+    labels = []
+    idx = 0
+    # Extract size, parse section, until null
+    while buf[idx] != 0x00:
+        size = buf[idx]
+        idx += 1
+        label = buf[idx : idx + size]
+        labels.append(label.decode("ascii"))
+        idx += size
+    return ".".join(labels)
+
+
+class DNSDecodeLoopError(Exception):
+    """An exception if a loop is encountered while encoding a DNS query."""
+
+    pass
+
+
+def decode_name(buf: bytes, start_idx: int) -> tuple[str, int]:
+    """Decode a compressed DNS name from a position in a buffer.
+
+    Args:
+        buf: The buffer containing the DNS name.
+        start_idx: Starting index of the DNS name.
+
+    Raises:
+        Exception: If a loop is detected.
+
+    Returns:
+        Decoded DNS name and index.
+    """
+    labels = []
+    idx = start_idx
+
+    # Prevent of going into a loop
+    visited = set()
+
+    while True:
+        if idx in visited:
+            raise DNSDecodeLoopError("Unable to decode domain: loop detected.")
+        visited.add(idx)
+
+        # Length of section
+        length = buf[idx]
+        # Null terminator
+        if length == 0:
+            idx += 1
+            break
+        # Pointer
+        elif length & 0xC0 == 0xC0:
+            # Unpack the pointer
+            pointer = struct.unpack("!H", buf[idx : idx + 2])[0] & 0x3FFF
+            # Recursively decode the pointer
+            domain, _ = decode_name(buf, pointer)
+            # Add part to domain
+            labels.append(domain)
+
+            idx += 2
+            break
+        else:
+            # Add part to domain
+            labels.append(buf[idx + 1 : idx + 1 + length].decode("ascii"))
+            idx += 1 + length
+
+    return ".".join(labels), idx
+
+
+@dataclasses.dataclass(unsafe_hash=True)
+class DNSHeader:
+    """Dataclass to store a DNS header."""
+
+    # Required fields
+    # https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.1
+    id_: int = 0
+    qr: int = 0
+    opcode: int = 0
+    aa: int = 0
+    tc: int = 0
+    rd: int = 0
+    ra: int = 0
+    z: int = 0
+    rcode: int = 0
+    qdcount: int = 0
+    ancount: int = 0
+    nscount: int = 0
+    arcount: int = 0
+
+    def pack(self) -> bytes:
+        """Pack the DNS header into bytes.
+
+        Returns:
+            The packed DNS header.
+        """
+        flags = (
+            (self.qr << 15)  # QR: 1 bit at bit 15
+            | (self.opcode << 11)  # OPCODE: 4 bits at bits 11-14
+            | (self.aa << 10)  # AA: 1 bit at bit 10
+            | (self.tc << 9)  # TC: 1 bit at bit 9
+            | (self.rd << 8)  # RD: 1 bit at bit 8
+            | (self.ra << 7)  # RA: 1 bit at bit 7
+            | (self.z << 4)  # Z: 3 bits at bits 4-6
+            | (self.rcode)  # RCODE: 4 bits at bits 0-3
+        )
+
+        return struct.pack(
+            "!HHHHHH",
+            self.id_,
+            flags,
+            self.qdcount,
+            self.ancount,
+            self.nscount,
+            self.arcount,
+        )
+
+    @classmethod
+    def from_buffer(cls, buf: bytes) -> "DNSHeader":
+        """Create a DNSHeader instance using data stored in a buffer.
+
+        Args:
+            buf: The buffer containing a DNS header.
+
+        Returns:
+            The DNSHeader instance.
+        """
+        id_, flags, qdcount, ancount, nscount, arcount = struct.unpack(
+            "!HHHHHH", buf[:12]
+        )  # Header is always 12 bytes
+
+        # Pack the flags
+        qr = (flags >> 15) & 0x1
+        opcode = (flags >> 11) & 0xF
+        aa = (flags >> 10) & 0x1
+        tc = (flags >> 9) & 0x1
+        rd = (flags >> 8) & 0x1
+        ra = (flags >> 7) & 0x1
+        z = (flags >> 4) & 0x7
+        rcode = flags & 0xF
+
+        return cls(
+            id_=id_,
+            qr=qr,
+            opcode=opcode,
+            aa=aa,
+            tc=tc,
+            rd=rd,
+            ra=ra,
+            z=z,
+            rcode=rcode,
+            qdcount=qdcount,
+            ancount=ancount,
+            nscount=nscount,
+            arcount=arcount,
+        )
+
+
+@dataclasses.dataclass(unsafe_hash=True)
+class DNSQuestion:
+    """Dataclass to store a DNS question."""
+
+    # Keep QNAME decoded, since it encoded in the message
+    decoded_name: str = ""
+
+    # Required fields
+    # https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.2
+    type_: int = 1
+    class_: int = 1
+
+    def pack(self, encoded_name: bytes) -> bytes:
+        """Pack the DNS question into bytes.
+
+        Args:
+            encoded_name: The encoded form of decoded_name.
+
+        Returns:
+            The packed DNS question.
+        """
+
+        # Require an encoded name, since compression is handled elsewhere
+        return encoded_name + struct.pack("!HH", self.type_, self.class_)
+
+
+@dataclasses.dataclass(unsafe_hash=True)
+class DNSAnswer:
+    """Dataclass to store a DNS answer."""
+
+    # Keep NAME decoded, since it encoded in the message
+    decoded_name: str = ""
+
+    # Required fields
+    # https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.3
+    type_: int = 1
+    class_: int = 1
+    ttl: int = 0
+    rdlength: int = 4
+    rdata: bytes = b""  # IPV4
+
+    def pack(self, encoded_name: bytes) -> bytes:
+        """Pack the DNS answer.
+
+        Args:
+            encoded_name: The encoded form of decoded_name.
+
+        Returns:
+            The packed DNS answer.
+        """
+        # Require an encoded name, since compression is handled elsewhere
+        return (
+            encoded_name
+            + struct.pack(
+                "!HHIH",
+                self.type_,
+                self.class_,
+                self.ttl,
+                self.rdlength,
+            )
+            + self.rdata
+        )
+
+
+def pack_all_uncompressed(
+    header: DNSHeader, questions: list[DNSQuestion] = [], answers: list[DNSAnswer] = []
+) -> bytes:
+    """Pack a DNS header, DNS questions, and DNS answers, without compression.
+
+    Args:
+        header: The DNS header to pack
+        questions: Multiple DNS questions to pack. Defaults to [].
+        answers: Multiple DNS answers to pack. Defaults to [].
+
+    Returns:
+        The packed DNS header, DNS questions, and DNS answers, without compression.
+    """
+
+    # Pack header
+    response = header.pack()
+    # Pack questions
+    for question in questions:
+        response += question.pack(encode_name_uncompressed(question.decoded_name))
+    # Pack answers
+    for answer in answers:
+        response += answer.pack(encode_name_uncompressed(answer.decoded_name))
+    return response
+
+
+def pack_all_compressed(
+    header: DNSHeader, questions: list[DNSQuestion] = [], answers: list[DNSAnswer] = []
+) -> bytes:
+    """Pack a DNS header, DNS questions, and DNS answers, with compression.
+
+    Args:
+        header: The DNSHeader to pack.
+        questions: Multiple DNS questions to pack. Defaults to [].
+        answers: Multiple DNS answers to pack. Defaults to [].
+
+    Returns:
+        The packed DNS header, DNS questions, and DNS answers, with compression.
+    """
+    # Pack header
+    response = header.pack()
+    # Store pointer locations
+    name_offset_map: dict[str, int] = {}
+
+    # Compress question + answers
+    # Pack + store names + compression
+    for question in questions:
+        # If the name is repeated
+        if question.decoded_name in name_offset_map:
+            # Starting pointer + offset of name
+            pointer = 0xC000 | name_offset_map[question.decoded_name]
+
+            encoded_name = struct.pack("!H", pointer)
+        else:
+            # Otherwise, encode the name without compression
+            encoded_name = encode_name_uncompressed(question.decoded_name)
+            # Store the name for future pointers
+            name_offset_map[question.decoded_name] = len(response)
+
+        response += question.pack(encoded_name)
+
+    for answer in answers:
+        if answer.decoded_name in name_offset_map:
+            # Starting pointer + offset of name
+            pointer = 0xC000 | name_offset_map[answer.decoded_name]
+
+            encoded_name = struct.pack("!H", pointer)
+        else:
+            encoded_name = encode_name_uncompressed(answer.decoded_name)
+            name_offset_map[answer.decoded_name] = len(response)
+
+        response += answer.pack(encoded_name)
+
+    return response
+
+
+def unpack_all(
+    buf: bytes,
+) -> tuple[DNSHeader, list[DNSQuestion], list[DNSAnswer]]:
+    """Unpack a buffer into a DNS header, DNS questions, and DNS answers.
+
+    Args:
+        buf: Buffer containing a DNS header, DNS questions, DNS answers.
+
+    Returns:
+        The DNS header, DNS answers, and DNS questions.
+    """
+
+    # Header isn't compressed
+    # Load the first 12 bytes into the header
+    header = DNSHeader.from_buffer(buf[:12])
+
+    # Start after the header
+    idx = 12
+
+    questions = []
+
+    # Use header.qdcount for # of questions
+    for _ in range(header.qdcount):
+        # Decode the name
+        decoded_name, idx = decode_name(buf, idx)
+
+        # Unpack the other fields
+        type_, class_ = struct.unpack("!HH", buf[idx : idx + 4])
+        idx += 4
+
+        questions.append(
+            DNSQuestion(decoded_name=decoded_name, type_=type_, class_=class_)
+        )
+
+    answers = []
+    # use header.ancount for # of answers
+    for _ in range(header.ancount):
+        # Decode the name
+        decoded_name, idx = decode_name(buf, idx)
+
+        # Decode required fields
+        type_, class_ = struct.unpack("!HH", buf[idx : idx + 4])
+        idx += 4
+
+        # Struct format
+        # https://docs.python.org/3/library/struct.html
+        # Big indian unsigned int, 4 bytess
+        ttl = struct.unpack("!I", buf[idx : idx + 4])[0]
+        idx += 4
+
+        # Big endian unsigned short, 2 bytes
+        rdlength = struct.unpack("!H", buf[idx : idx + 2])[0]
+        idx += 2
+
+        # Use rdlength to get rdata
+        rdata = buf[idx : idx + rdlength]
+        idx += rdlength
+
+        answers.append(
+            DNSAnswer(
+                decoded_name=decoded_name,
+                type_=type_,
+                class_=class_,
+                ttl=ttl,
+                rdlength=rdlength,
+                rdata=rdata,
+            )
+        )
+
+    # Return empty questions and answers, rather than None, due to mypy
+    return header, questions, answers

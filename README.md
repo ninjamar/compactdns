@@ -2,19 +2,22 @@
 A simple forwarding DNS server with the ability to block certain websites.
 
 > [!WARNING]
-> CDNS probably doesn't conform exactly to the [DNS specification](https://www.rfc-editor.org/rfc/rfc1035)
+> CDNS doesn't have 100% conformity to the  [DNS specification](https://www.rfc-editor.org/rfc/rfc1035) (yet)
 
 ## Installation
 
-Download this repository (or `cdns.py`). This project only depends on the Python standard library.
-
+Clone this repository, then install it locally.
+```
+pip install .
+```
+The project will install as a module and cli named `cdns`.
 
 ## Usage
 ```
-usage: cdns.py [-h] --host HOST --resolver RESOLVER [--blocklist [BLOCKLIST ...]]
-               [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}] [--ttl TTL]
-               [--max-cache-length MAX_CACHE_LENGTH] [--tls-host TLS_HOST] [--ssl-key SSL_KEY]
-               [--ssl-cert SSL_CERT]
+usage: cdns [-h] --host HOST --resolver RESOLVER [--blocklist [BLOCKLIST ...]]
+            [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}] [--ttl TTL]
+            [--max-cache-length MAX_CACHE_LENGTH] [--tls-host TLS_HOST] [--ssl-key SSL_KEY]
+            [--ssl-cert SSL_CERT]
 
 A simple forwarding DNS server
 
@@ -39,8 +42,9 @@ options:
 
 or since `fromfile_prefix_chars="@"`, store the arguments inside a file (eg `./config.txt`).
 ```
-python cdns.py @config.txt
+cdns @config.txt
 ```
+
 ### Example
 ```
 python cdns.py --host 127.0.0.1 --resolver 1.1.1.1:53 --blocklist example-blocklists/blocklist.toml --loglevel INFO --mode threaded --ttl 60
