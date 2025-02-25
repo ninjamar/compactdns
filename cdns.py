@@ -78,7 +78,7 @@ import tomllib
 import itertools
 from collections import OrderedDict
 from collections.abc import KeysView
-from typing import Any, Hashable, NamedTuple
+from typing import Any, Hashable, NamedTuple, Callable
 
 # The TODOLIST is located in TODO.md
 
@@ -980,10 +980,36 @@ class ServerManager:
             logging.error("Error", exc_info=True)
 
 
+# TODO: Better name
 class ResponseHandlerManager:
+    """
+    A class to make a DNS response.
+    """
+
     def __init__(
-        self, blocklist, cache, forwarder, udp_sock=None, udp_addr=None, tcp_conn=None
+        self,
+        blocklist: Blocklist,
+        cache: TimedCache,
+        forwarder: Callable[[bytes], concurrent.futures.Future[bytes]],
+        udp_sock: socket.socket = None,
+        udp_addr: tuple[str, int] = None,
+        tcp_conn: socket.socket = None,
     ) -> None:
+        """
+        Create a ResponseHandlerManager instance.
+        Use with either UDP or TCP.
+
+        Args:
+            blocklist: Blocklist to use
+            cache: Cache.
+            forwarder: Function that forwards DNS queries.
+            udp_sock: UDP socket. Defaults to None.
+            udp_addr: UDP address. Defaults to None.
+            tcp_conn: TCP connection.. Defaults to None.
+
+        Raises:
+            TypeError: If UDP or TCP is not specified.
+        """
         self.udp_sock = None
         self.udp_addr = None
         self.tcp_conn = None
@@ -1015,15 +1041,30 @@ class ResponseHandlerManager:
         self.question_index_cached = []
 
     def start(self, buf) -> None:
+        """
+        Unpack a buffer, then process it.
+
+        Args:
+            buf: Buffer to unpack.
+        """
         self.receive(buf)
         self.process()
 
     def receive(self, buf: bytes) -> None:
+        """
+        Receive a buffer, unpacking it.
+
+        Args:
+            buf: Buffer to unpack.
+        """
         # Receive header and questions
         self.buf_header, self.buf_questions, _ = unpack_all(buf)
         logging.debug("Received query: %s, %s", self.buf_header, self.buf_questions)
 
     def process(self) -> None:
+        """
+        Start the process.
+        """
         self.new_header = dataclasses.replace(self.buf_header)
 
         # Remove blocked sites, so it doesn't get forwarded
@@ -1059,7 +1100,13 @@ class ResponseHandlerManager:
 
             self.post_process()
 
-    def forwarding_done_handler(self, future: concurrent.futures.Future) -> None:
+    def forwarding_done_handler(self, future: concurrent.futures.Future[bytes]) -> None:
+        """
+        Callback when self.forwarder is complete.
+
+        Args:
+            future: Future from self.forwarder.
+        """
         self.resp_header, self.resp_questions, self.resp_answers = unpack_all(
             future.result()
         )
@@ -1069,6 +1116,9 @@ class ResponseHandlerManager:
         self.post_process()
 
     def post_process(self) -> None:
+        """
+        Automatically called after self.process.
+        """
         # Disable the recursion flag for cached or blocked queries
         # I'm not sure how much this actually works
         # https://serverfault.com/a/729121
@@ -1142,6 +1192,9 @@ class ResponseHandlerManager:
         self.send()
 
     def send(self) -> None:
+        """
+        Send a DNS query back.
+        """
         buf = pack_all_compressed(
             self.resp_header, self.resp_questions, self.resp_answers
         )
