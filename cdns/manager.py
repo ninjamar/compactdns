@@ -49,7 +49,7 @@ class ServerManager:
         host: tuple[str, int],
         resolver: tuple[str, int],
         records: Records,
-        max_cache_length: int = float('inf'),
+        max_cache_length: int = float("inf"),
         tls_host: tuple[str, int] | None = None,
         ssl_key_path: str | None = None,
         ssl_cert_path: str | None = None,
@@ -477,9 +477,7 @@ class ResponseHandlerManager:
             if question in self.cache:
                 self.question_index_cached.append(idx)
             # Use file matching syntax to detect intercepts
-            elif question_index_match := self.records.lookup(
-                question.decoded_name
-            ):
+            elif question_index_match := self.records.lookup(question.decoded_name):
                 self.question_index_intercepted.append((idx, question_index_match))
             else:
                 self.new_questions.append(question)
@@ -526,7 +524,10 @@ class ResponseHandlerManager:
         # Disable the recursion flag for cached or intercepted queries
         # I'm not sure how much this actually works
         # https://serverfault.com/a/729121
-        if len(self.question_index_cached) > 0 or len(self.question_index_intercepted) > 0:
+        if (
+            len(self.question_index_cached) > 0
+            or len(self.question_index_intercepted) > 0
+        ):
             self.resp_header.rd = 0
             self.resp_header.ra = 0
 
