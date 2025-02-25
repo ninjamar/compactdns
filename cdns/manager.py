@@ -48,12 +48,12 @@ class ServerManager:
     def __init__(
         self,
         host: tuple[str, int],
-        tls_host: tuple[str, int] | None,
-        ssl_key_path: str | None,
-        ssl_cert_path: str | None,
         resolver: tuple[str, int],
         blocklist: Blocklist,
-        max_cache_length: int,
+        max_cache_length: int = float('inf'),
+        tls_host: tuple[str, int] | None = None,
+        ssl_key_path: str | None = None,
+        ssl_cert_path: str | None = None,
     ) -> None:
         """Create a ServerManager instance.
 
