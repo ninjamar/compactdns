@@ -64,6 +64,7 @@ import concurrent.futures
 import dataclasses
 import fnmatch
 import functools
+import itertools
 import json
 import logging
 import os.path
@@ -75,10 +76,9 @@ import sys
 import threading
 import time
 import tomllib
-import itertools
 from collections import OrderedDict
 from collections.abc import KeysView
-from typing import Any, Hashable, NamedTuple, Callable
+from typing import Any, Callable, Hashable, NamedTuple
 
 # The TODOLIST is located in TODO.md
 
