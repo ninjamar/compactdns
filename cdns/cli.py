@@ -54,7 +54,7 @@ options:
 import argparse
 import logging
 from .manager import ServerManager
-from .records import Records, load_all_records
+from .zones import Records, load_all_records
 
 
 def cli() -> None:

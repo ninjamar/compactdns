@@ -25,27 +25,37 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""This module, CompactDNS is a small, portable DNS server with support for
-blocking certain hostnames."
+import os
+from pathlib import Path
+from .zones import DNSZone
+from .cache import TimedCache
 
-Requires a minimum python version of 3.11
-"""
+class RecordStorage:
+    def __init__(self):
+        # Store a TimedCache for upstream requests
+        # Lookup zones locally
+        self.cache = TimedCache()
+        self.zones = []
+    
+    @classmethod
+    def from_pickle(cls):
+        pass
 
-from .manager import ServerManager
-from .protocol import (
-    DNSAnswer,
-    DNSHeader,
-    DNSQuestion,
-    decode_name,
-    decode_name_uncompressed,
-    pack_all_compressed,
-    pack_all_uncompressed,
-    unpack_all,
-)
-from .zones import parse_all_zones, DNSZone
+    def add_zone(self):
+        pass
+    def load_zones_from_files(self):
+        pass
 
+    def load_cache_from_file():
+        pass
+    
+    def write_cache_to_file():
+        pass
 
-# TODO: Update pragma
-# The TODOLIST is located in TODO.md
+    @classmethod
+    def from_directory(cls, zone_dir_path: str, cache_dir_path: str):
+        zone_dir_path = Path(zone_dir_path).resolve()
+        cache_dir_path = Path(cache_dir_path).resolve()
 
-# TODO: Figure out what to import here
+        zone_paths = [zone_dir_path + "/"+ x for x in os.listdir(zone_dir_path) if x.endswith(".zone")]
+        cache_paths = [cache_dir_path + "/"+ x for x in os.listdir(cache_dir_path) if x.endswith(".zone")]

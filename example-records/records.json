@@ -1,19 +1,25 @@
 {
     "rules": [
         {
-            "target_ip": "127.0.0.2",
+            "type": "A",
+            "value": ["127.0.0.2"],
             "hosts": [
                 "example.com"
             ]
         },
         {
-            "target_ip": "96.7.128.198",
+            "type": "A",
+            "value": "96.7.128.198",
             "hosts": [
                 "*.example.com"
             ]
         }
     ],
     "target-list": {
-        "example.edu": "74.125.200.139"
+        "type": "A",
+        "data": {
+            "example.edu": "74.125.200.139",
+            "example.dev": ["74.125.200.139"]
+        }
     }
 }
