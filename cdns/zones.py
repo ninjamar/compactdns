@@ -29,6 +29,7 @@
 import dataclasses
 import io
 import re
+from pathlib import Path
 
 
 @dataclasses.dataclass
@@ -67,7 +68,9 @@ class DNSZone:
         default_factory=dict
     )  # default value
 
-    def add_record(self, name: str, record_type: str, value: int) -> None:
+    def add_record(
+        self, name: str, record_type: str, value: str, ttl: int = None
+    ) -> None:
         """
         Add a record.
 
@@ -76,6 +79,11 @@ class DNSZone:
             record_type: Type of the record (eg A, TXT, MX).
             value: Value of the record.
         """
+        if not ttl:
+            ttl = self.ttl
+
+        if name.endswith("."):
+            name = name[:-1]
         if record_type == "MX":
             priority, exchange = value.split(maxsplit=1)  # split by whitespace once
             if name not in self.mx_records:
@@ -87,7 +95,7 @@ class DNSZone:
             if record_type not in self.records[name]:
                 self.records[name][record_type] = []
 
-            self.records[name][record_type].append(value)
+            self.records[name][record_type].append((value, ttl))
 
 
 class Records:
@@ -113,7 +121,7 @@ DNSZone(
             MXRecord(priority=20, exchange="backup-mail.example.com"),
         ]
     },
-    records={"example.com": {"A": ["96.7.128.198"]}},
+    records={"example.com": {"A": [("96.7.128.198", 4600)]}},
 )
 """
 
@@ -171,6 +179,7 @@ class ZoneParser:
 
         # otherwise, normal record
         name, _, record_type, value = self.line.split(maxsplit=3)
+        # TODO: Support TTL here
         self.zone.add_record(name, record_type, value)
 
     def parse(self):
@@ -194,18 +203,20 @@ class ZoneParser:
         self.line = self.line.strip().split(";")[0].strip()
 
 
-def parse_all_zones(paths: list[str]) -> dict[str, DNSZone]:
-    zones = {}
-    for path in paths:
-        name = path.split("/")[-1][:-5]  # Filename, then extract domain.zone
-
-        stream = open(path)
-        p = ZoneParser(name, stream)
+def parse_zone(path: Path) -> DNSZone:
+    # name = path.split("/")[-1][:-5]  # Filename, then extract domain.zone
+    name = path.stem
+    with open(path) as f:
+        p = ZoneParser(name, f)
         p.parse()
+        return name, p.zone
 
-        zones[name] = p.zone
 
-        stream.close()
+def parse_all_zones(paths: list[str]) -> dict[str, DNSZone]:
+    zones: dict[str, DNSZone] = {}
+    for path in paths:
+        name, zone = parse_zone(path)
+        zones[name] = zone
     return zones
 
 

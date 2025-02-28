@@ -26,9 +26,27 @@
 # SOFTWARE.
 
 import dataclasses
+import functools
 import struct
+import socket
+from typing import Literal
+from .utils import ImmutableBiDict
+
+# Still need PTR, 12, SRV, 33, CAA, 257
+RTypes = ImmutableBiDict(
+    [
+        ("A", 1),
+        ("AAAA", 28),
+        ("CNAME", 5),
+        ("NS", 2),
+        ("SOA", 6),
+        ("MX", 15),
+        ("TXT", 16),
+    ]
+)
 
 
+@functools.lru_cache(maxsize=512)
 def encode_name_uncompressed(name: str) -> bytes:
     """Encode a DNS name without using compression.
 
@@ -43,6 +61,31 @@ def encode_name_uncompressed(name: str) -> bytes:
     return b"".join(encoded) + b"\x00"
 
 
+@functools.lru_cache(maxsize=512)
+def encode_label(
+    type_: Literal["IPV4", "IPV6", "NAME", "LABEL"], label
+) -> tuple[bytes, bytes]:
+    # data, length
+    if type_ == "IPV4":
+        return socket.inet_aton(label)
+    if type_ == "IPV6":
+        return socket.inet_pton(socket.AF_INET6, label)
+    if type_ == "NAME" or type_ == "LABEL":
+        return encode_name_uncompressed(label)
+
+
+@functools.lru_cache(maxsize=512)
+def auto_encode_label(label):
+    if all(x.isdigit() for x in label.replace(".", "")):
+        type_ = "IPV4"
+    elif ":" in label:
+        type_ = "IPV6"
+    else:
+        type_ = "LABEL"
+    return encode_label(type_, label)
+
+
+@functools.lru_cache(maxsize=512)
 def decode_name_uncompressed(buf: bytes) -> str:
     """Decode a DNS name that is uncompressed.
 
@@ -70,6 +113,7 @@ class DNSDecodeLoopError(Exception):
     pass
 
 
+@functools.lru_cache(maxsize=512)
 def decode_name(buf: bytes, start_idx: int) -> tuple[str, int]:
     """Decode a compressed DNS name from a position in a buffer.
 
@@ -257,6 +301,7 @@ class DNSAnswer:
         Returns:
             The packed DNS answer.
         """
+        # print(self.type_, self.class_, self.ttl_, self.rdlength_)
         # Require an encoded name, since compression is handled elsewhere
         return (
             encoded_name
@@ -271,6 +316,8 @@ class DNSAnswer:
         )
 
 
+# TODO: Cache these because list isn't hashable
+# @functools.lru_cache(maxsize=512)
 def pack_all_uncompressed(
     header: DNSHeader, questions: list[DNSQuestion] = [], answers: list[DNSAnswer] = []
 ) -> bytes:
@@ -296,6 +343,7 @@ def pack_all_uncompressed(
     return response
 
 
+# @functools.lru_cache(maxsize=512)
 def pack_all_compressed(
     header: DNSHeader, questions: list[DNSQuestion] = [], answers: list[DNSAnswer] = []
 ) -> bytes:
@@ -346,6 +394,7 @@ def pack_all_compressed(
     return response
 
 
+# @functools.lru_cache(maxsize=512)
 def unpack_all(
     buf: bytes,
 ) -> tuple[DNSHeader, list[DNSQuestion], list[DNSAnswer]]:

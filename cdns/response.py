@@ -6,9 +6,16 @@ import selectors
 import socket
 import struct
 from typing import Callable
-from .protocol import DNSAnswer, DNSHeader, DNSQuestion, pack_all_compressed, unpack_all
-from .zones import Records
-from .cache import TimedCache
+from .protocol import (
+    DNSAnswer,
+    DNSHeader,
+    DNSQuestion,
+    pack_all_compressed,
+    unpack_all,
+    auto_encode_label,
+    RTypes,
+)
+from .storage import RecordStorage
 
 # TODO: Send back and check TC flag
 
@@ -20,8 +27,7 @@ class ResponseHandler:
 
     def __init__(
         self,
-        records: Records,
-        cache: TimedCache,
+        storage: RecordStorage,
         forwarder: Callable[[bytes], concurrent.futures.Future[bytes]],
         udp_sock: socket.socket = None,
         udp_addr: tuple[str, int] = None,
@@ -32,8 +38,7 @@ class ResponseHandler:
         Use with either UDP or TCP.
 
         Args:
-            records: Records to use
-            cache: Cache.
+            storage: Storage.
             forwarder: Function that forwards DNS queries.
             udp_sock: UDP socket. Defaults to None.
             udp_addr: UDP address. Defaults to None.
@@ -56,8 +61,7 @@ class ResponseHandler:
 
         self.buf = b""  # Response buffer
 
-        self.records = records
-        self.cache = cache
+        self.storage = storage
         self.forwarder = forwarder
 
         # Header and qustions from the initial buffer
@@ -73,6 +77,8 @@ class ResponseHandler:
 
         self.question_index_intercepted = []
         self.question_index_cached = []
+        self.question_records = []
+        self.question_answers = []
 
     def start(self, buf) -> None:
         """
@@ -104,15 +110,46 @@ class ResponseHandler:
         # Remove intercepted sites, so it doesn't get forwarded
         # Remove cached sites, so it doesn't get forwarded
         for idx, question in enumerate(self.buf_questions):
-            if question in self.cache:
-                self.question_index_cached.append(idx)
-            # Use file matching syntax to detect intercepts
-            elif question_index_match := self.records.lookup(question.decoded_name):
-                self.question_index_intercepted.append((idx, question_index_match))
+            # TODO: Find root domain
+            type_ = question.type_
+            record_domain = question.decoded_name
+            if type_ == RTypes.SOA or type_ == RTypes.MX:
+                raise NotImplementedError("SOA and MX records aren't supported yet")
+
+            records = self.storage.get_record(type_=type_, record_domain=record_domain)
+            if len(records) > 0:
+                answers = []
+                for record in records:
+                    rdata = auto_encode_label(record.get())
+                    answers.append(
+                        DNSAnswer(
+                            decoded_name=record_domain,
+                            type_=int(type_),
+                            ttl=record.ttl,
+                            rdata=rdata,
+                            rdlength=len(rdata),
+                        )
+                    )
+
+                self.question_answers.append(*answers)
+                self.question_index_intercepted.append((idx, answers))
             else:
+                print("Adding new question", records, question)
                 self.new_questions.append(question)
 
-                # Set new qdcount for forwarded header
+            # if len(records:=self.storage.get_record(record_name=base_domain=)) > 0:
+            #    self.question_index_intercepted.append(idx)
+            # else:
+            #    self.new_questions.append(question)
+            # if question in self.cache:
+            #    self.question_index_cached.append(idx)
+            # Use file matching syntax to detect intercepts
+            # elif question_index_match := self.records.lookup(question.decoded_name):
+            #    self.question_index_intercepted.append((idx, question_index_match))
+            # else:
+            #    self.new_questions.append(question)
+
+            # Set new qdcount for forwarded header
         self.new_header.qdcount = len(self.new_questions)
         logging.debug(
             "New header %s, new questions %s", self.new_header, self.new_questions
@@ -162,14 +199,15 @@ class ResponseHandler:
             self.resp_header.ra = 0
 
         # Add the cached questions to the response, keeping the position
-        for idx in self.question_index_cached:
-            question = self.buf_questions[idx]
-            self.resp_questions.insert(idx, question)
+        # for idx in self.question_index_cached:
+        #    question = self.buf_questions[idx]
+        #    self.resp_questions.insert(idx, question)
 
-            # https://stackoverflow.com/a/7376026/21322342
-            self.resp_answers[idx:idx] = self.cache.get_and_renew_ttl(question)
+        #    # https://stackoverflow.com/a/7376026/21322342
+        #    self.resp_answers[idx:idx] = self.cache.get_and_renew_ttl(question)
 
         # Add the intercepted questions to the response, keeping the position
+        """
         for idx, match in self.question_index_intercepted:
             question = self.buf_questions[idx]
             # Fake answer
@@ -186,6 +224,11 @@ class ResponseHandler:
             # Insert the questions and answer to the correct spot
             self.resp_questions.insert(idx, question)
             self.resp_answers.insert(idx, answer)
+        """
+        for idx, answers in self.question_index_intercepted:
+            question = self.buf_questions[idx]
+            self.resp_questions.insert(idx, question)
+            self.resp_answers[idx:idx] = answers
 
         # Update the header's question and answer count
         self.resp_header.qdcount = len(self.resp_questions)
@@ -199,35 +242,34 @@ class ResponseHandler:
             self.resp_answers,
         )
 
-        cache_questions = sorted(self.buf_questions, key=lambda q: q.decoded_name)
+        if len(self.resp_answers) > 0:
+            self.question_index_intercepted
 
-        # Store multiple answers for a questions
-        cache_answers = {
-            decoded_name: list(groups)  # Key to groups
-            for decoded_name, groups in itertools.groupby(  # Group consequtive items with the same key together
-                sorted(
-                    self.resp_answers, key=lambda q: q.decoded_name
-                ),  # Sort resp_answers by the decoded name
-                key=lambda q: q.decoded_name,
-            )
-        }
-
-        for cache_question in cache_questions:
-            if cache_question not in self.cache:
-                answers = cache_answers[cache_question.decoded_name]
-                self.cache.set(
-                    cache_question,
-                    answers,
-                    answers[
-                        0
-                    ].ttl,  # TODO: I store one question to many answers with one ttl
+            cache_answers = {
+                decoded_name: list(groups)  # Key to groups
+                for decoded_name, groups in itertools.groupby(  # Group consequtive items with the same key together
+                    sorted(
+                        self.resp_answers, key=lambda q: q.decoded_name
+                    ),  # Sort resp_answers by the decoded name
+                    key=lambda q: q.decoded_name,
                 )
-        # Since we have a new response, cache it, using the original question and new answer
+            }
+            for question in self.resp_questions:
+                answers = cache_answers[question.decoded_name]
+                values = [(answer, answer.ttl) for answer in answers]
+                # base_domain = get_base_domain(question.decoded_name)
+                self.storage.cache.set_record(
+                    name=question.decoded_name,
+                    record_type=question.type_,
+                    values=values,
+                )
 
         self.buf = pack_all_compressed(
             self.resp_header, self.resp_questions, self.resp_answers
         )
 
+        # TODO: This isn't sufficient
+        # Need to also be able to receive packets of more than 512 bytes using tcp
         if self.udp_sock and len(self.buf) > 512:
             # TODO: Use array indexing to set TC rather than reconstructing the packet
             self.resp_header.tc = 1

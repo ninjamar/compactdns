@@ -53,8 +53,11 @@ options:
 """
 import argparse
 import logging
+from pathlib import Path
 from .manager import ServerManager
-from .zones import Records, load_all_records
+from .storage import RecordStorage
+
+# from .zones import
 
 
 def cli() -> None:
@@ -78,12 +81,20 @@ def cli() -> None:
         help="The resolver address in the format of a.b.c.d:port",
     )
     parser.add_argument(
-        "--records",
-        "-b",
+        "--zone-dir",
+        "-z",
         # required=False
         type=str,
-        help="Path to file containing records",
-        nargs="*",
+        help="Path to directory containing zones",
+        # nargs="*",
+    )
+    parser.add_argument(
+        "--cache-path",
+        "-c",
+        # required=False
+        type=str,
+        help="Path to file containing a cache",
+        # nargs="*",
     )
     parser.add_argument(
         "--loglevel",
@@ -143,12 +154,14 @@ def cli() -> None:
     else:
         tls_host = None
 
-    if args.records is not None:
-        records = load_all_records(args.records, args.ttl)
-    else:
-        records = Records({}, {})
+    storage = RecordStorage()
+    if args.zone_dir is not None:
+        storage.load_zones_from_dir(Path(args.zone_dir).resolve())
 
-    logging.debug("Records: %s", records)
+    if args.cache_path is not None:
+        storage.load_cache_from_file(Path(args.cache_path).resolve())
+
+    logging.debug("Records: %s", storage)
 
     manager = ServerManager(
         host=(host[0], int(host[1])),
@@ -156,8 +169,8 @@ def cli() -> None:
         tls_host=(tls_host[0], int(tls_host[1])) if tls_host is not None else tls_host,
         ssl_key_path=args.ssl_key,
         ssl_cert_path=args.ssl_cert,
-        records=records,
-        max_cache_length=args.max_cache_length,
+        storage=storage,
+        # max_cache_length=args.max_cache_length,
     )
 
     manager.start()

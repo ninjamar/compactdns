@@ -2,9 +2,8 @@
 127.0.0.1:2053
 --resolver
 1.1.1.1:53
---records
-example-records/records.toml
-example-records/lowe.txt
+--zone-dir
+example-zones
 --loglevel
 INFO
 --ttl

@@ -29,6 +29,8 @@
 import time
 from collections import OrderedDict
 from typing import Any, Hashable
+from .protocol import RTypes
+from .utils import BiInt
 
 
 # TODO: Make cache better for storing DNS records, storing the fields rather than a dataclass
@@ -113,3 +115,87 @@ class TimedCache:
         """
         return self.get(key) is not None
 
+
+{"example.com": {"foo.example.com": {"A": ["127.0.0.1"]}}}
+"""
+DNSCache(
+    DNSBaseCache(
+        "example.com",
+        DNSDomainCache(
+            "foo.example.com",
+            DNSRecordCache(
+                "A", "127.0.0.1"
+            )
+        )
+    )
+)
+"""
+"""
+"""
+
+
+class TimedItem:
+    def __init__(self, item, ttl):
+        self.item = item
+        self.expiry = time.time() + ttl
+        self.ttl = ttl
+
+    def get(self):
+        if time.time() < self.expiry:
+            return None
+        return self.item
+
+    def __repr__(self):
+        return f"TimedCache({self.item}, {self.ttl})"
+
+    def __str__(self):
+        return f"TimedCache({self.item}, {self.ttl})"
+
+
+# TODO: Max length
+class DNSCache:
+    def __init__(self):
+        self.data: dict[str, dict[str, list]] = {}
+        """{
+            "foo.example.com": {
+                "A": [("127.0.0.1", 500)]
+            }
+        }
+        """
+
+    def ensure(fn):
+        # https://stackoverflow.com/a/1263782/21322342
+        def _ensure(self, name: str, record_type: str, *args, **kwargs):
+            if not isinstance(record_type, BiInt):
+                record_type = RTypes[record_type]
+
+            if name not in self.data:
+                self.data[name] = {}
+            if record_type not in self.data[name]:
+                self.data[name][record_type] = []
+
+            return fn(self, name, record_type, *args, **kwargs)
+
+        return _ensure
+
+    @ensure
+    def add_record(self, name: str, record_type: str, value: str, ttl: int):
+        # self.data[name][record_type].append((value, ttl))
+        self.data[name][record_type].append(TimedItem(value, ttl))
+
+    @ensure
+    def set_record(
+        self, name: str, record_type: str, values: list[tuple[str, int]], delete=False
+    ):
+        if delete:
+            self.data[name][record_type] = []
+        for data, ttl in values:
+            self.add_record(name, record_type, data, ttl)
+
+    @ensure
+    def get_records(self, name: str, record_type: str):
+        return [
+            value
+            for item in self.data[name][record_type]
+            if (value := item.get()) is not None
+        ]

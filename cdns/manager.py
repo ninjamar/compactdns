@@ -35,7 +35,7 @@ import threading
 from typing import Callable
 from .protocol import DNSAnswer, DNSHeader, DNSQuestion, pack_all_compressed, unpack_all
 from .zones import Records
-from .cache import TimedCache
+from .storage import RecordStorage
 from .response import ResponseHandler
 
 MAX_WORKERS = 1000
@@ -48,11 +48,13 @@ class ServerManager:
         self,
         host: tuple[str, int],
         resolver: tuple[str, int],
-        records: Records,
-        max_cache_length: int = float("inf"),
+        storage: RecordStorage,
+        # max_cache_length: int = float("inf"),
         tls_host: tuple[str, int] | None = None,
         ssl_key_path: str | None = None,
         ssl_cert_path: str | None = None,
+        # zone_dir: str | None = None,
+        # cache_path: str | None = None,
     ) -> None:
         """Create a ServerManager instance.
 
@@ -108,17 +110,18 @@ class ServerManager:
         self.execution_timeout = 0
         self.max_workers = MAX_WORKERS
 
-        self.records = records
+        # self.cache = TimedCache(max_length=max_cache_length)
+        self.storage = storage
 
-        self.cache = TimedCache(max_length=max_cache_length)
+        # TODO: len self.storage
+        # if len(self.records) > max_cache_length:  # FIXME: > or >=? can't decide
+        #    logging.warning(
+        #        "The Records has %i items, the max cache length is %i",
+        #        len(self.records),
+        #        max_cache_length,
+        #    )
 
-        if len(self.records) > max_cache_length:  # FIXME: > or >=? can't decide
-            logging.warning(
-                "The Records has %i items, the max cache length is %i",
-                len(self.records),
-                max_cache_length,
-            )
-
+        """
         # FIXME: This probably doesn't have much of an advantage
         # TODO: If we get a cached answer, should the ttl in the TimedCache be updated?
         # Cache individual hosts that don't contain any special syntax
@@ -127,18 +130,22 @@ class ServerManager:
         for _host in self.records.normal.keys():
             self.cache.set(
                 DNSQuestion(decoded_name=_host, type_=1, class_=1),
-                DNSAnswer(
-                    decoded_name=_host,
-                    type_=1,
-                    class_=1,
-                    ttl=int(self.records.normal[_host].ttl),  # float to int
-                    rdlength=4,
-                    # inet_aton encodes a ip address into bytes
-                    rdata=socket.inet_aton(self.records.normal[_host].ip),
-                ),
+                [
+                    DNSAnswer(
+                        decoded_name=_host,
+                        type_=1,
+                        class_=1,
+                        ttl=int(self.records.normal[_host].ttl),  # float to int
+                        rdlength=4,
+                        # inet_aton encodes a ip address into bytes
+                        rdata=socket.inet_aton(self.records.normal[_host].ip),
+                    )
+                ],
                 # FIXME: Fix (Why is this label here?)
                 self.records.normal[_host].ttl,
             )
+        """
+        # TODO: preload zones into cache
 
     def forwarder_daemon(self) -> None:
         """
@@ -213,8 +220,7 @@ class ServerManager:
             query: Incoming DNS query.
         """
         return ResponseHandler(
-            records=self.records,
-            cache=self.cache,
+            storage=self.storage,
             forwarder=self.forward_dns_query,
             udp_sock=self.udp_sock,
             udp_addr=addr,
@@ -252,8 +258,7 @@ class ServerManager:
                     if not query:
                         has_conn = False
                     return ResponseHandler(
-                        records=self.records,
-                        cache=self.cache,
+                        storage=self.storage,
                         forwarder=self.forward_dns_query,
                         tcp_conn=conn,
                     ).start(query)
