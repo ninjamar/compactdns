@@ -84,11 +84,9 @@ class RecordStorage:
 
         d = tldextract.extract(record_domain)
         base_domain = d.domain + "." + d.suffix
-        print("Getting record", type_, record_domain, record_name)
 
         value = []
         if base_domain in self.zones:
-            print("Base domain in self.zones", base_domain)
             if type_ == RTypes.SOA:
                 value = [getattr(self.zones[base_domain].soa, record_name)]
             elif (
@@ -102,16 +100,13 @@ class RecordStorage:
                     if x.exchange == record_name
                 ]
             else:
-                print(record_domain, self.zones[base_domain].records)
                 if record_domain in self.zones[base_domain].records:
-                    #print("inside", self.zones[base_domain].records[record_domain])
                     if str(type_) in self.zones[base_domain].records[record_domain]:
                         value = self.zones[base_domain].records[record_domain][str(type_)] # This is why BiInt is a terrible idea
         else:
             value = self.cache.get_records(record_domain, type_)
-            # Store the
-            # return self.cache.get()
-        # TODO: BROKEN
+
+        # TODO: Does wildcard work
         if "*" not in record_domain and (value is None or len(value) == 0):
             # TODO: Make this faster
             # TODO: Make TTL cache wrapper for function

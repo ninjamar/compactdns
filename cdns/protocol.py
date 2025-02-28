@@ -42,7 +42,7 @@ RTypes = ImmutableBiDict(
         ("SOA", 6),
         ("MX", 15),
         ("TXT", 16),
-    ]
+    ],
 )
 
 

@@ -53,6 +53,7 @@ def is_ip_addr_valid(ip_addr: str) -> bool:
 # TODO: This is too overcomplicated
 class BiInt:
     def __init__(self, a, b):
+        print(type(a), type(b))
         if isinstance(a, int):
             self.i = a
             self.s = b
@@ -60,28 +61,10 @@ class BiInt:
             self.i = b
             self.s = a
 
-    """
-    def __eq__(self, x):
-        # print(dir(self))
-        if isinstance(x, BiInt):
-            # print(type(x.i), type(x.s))
-            return x.i == self.i and x.s == self.s
-        if isinstance(x, int):
-            return self.i == x
-        if isinstance(x, str):
-            return self.s == x
-        return False
-        # return x == self.i or x == self.s
 
     def __str__(self):
-        return self.s
+        return str(self.s)
     
-    def __hash__(self):
-        return hash((self.i, self.s))"
-    """
-
-    def __str__(self):
-        return self.s
     def __int__(self):
         return self.i
 
@@ -114,8 +97,10 @@ class ImmutableBiDict:
         return a in self.data
 
     def __getitem__(self, x):
-        a = self.data[x]
-        b = self.data[a]
+        # HACK: Use .get so we don't get an error for wrong ones
+        a = self.data.get(x, 0)
+        b = self.data.get(a, "")
+
         return BiInt(a, b)
 
     # TODO: Make immutable

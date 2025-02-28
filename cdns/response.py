@@ -134,22 +134,9 @@ class ResponseHandler:
                 self.question_answers.append(*answers)
                 self.question_index_intercepted.append((idx, answers))
             else:
-                print("Adding new question", records, question)
                 self.new_questions.append(question)
 
-            # if len(records:=self.storage.get_record(record_name=base_domain=)) > 0:
-            #    self.question_index_intercepted.append(idx)
-            # else:
-            #    self.new_questions.append(question)
-            # if question in self.cache:
-            #    self.question_index_cached.append(idx)
-            # Use file matching syntax to detect intercepts
-            # elif question_index_match := self.records.lookup(question.decoded_name):
-            #    self.question_index_intercepted.append((idx, question_index_match))
-            # else:
-            #    self.new_questions.append(question)
-
-            # Set new qdcount for forwarded header
+        # Set new qdcount for forwarded header
         self.new_header.qdcount = len(self.new_questions)
         logging.debug(
             "New header %s, new questions %s", self.new_header, self.new_questions
