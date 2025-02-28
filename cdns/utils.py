@@ -53,7 +53,6 @@ def is_ip_addr_valid(ip_addr: str) -> bool:
 # TODO: This is too overcomplicated
 class BiInt:
     def __init__(self, a, b):
-        print(type(a), type(b))
         if isinstance(a, int):
             self.i = a
             self.s = b
