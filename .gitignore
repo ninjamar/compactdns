@@ -182,3 +182,6 @@ ignore/
 
 ignore-*.*
 .vscode
+
+# extractor-cache/*
+# !extractor-cache/.gitignore

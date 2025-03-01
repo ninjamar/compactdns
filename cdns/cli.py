@@ -54,6 +54,7 @@ options:
 import argparse
 import logging
 from pathlib import Path
+
 from .manager import ServerManager
 from .storage import RecordStorage
 
@@ -155,10 +156,12 @@ def cli() -> None:
         tls_host = None
 
     storage = RecordStorage()
+
     if args.zone_dir is not None:
         storage.load_zones_from_dir(Path(args.zone_dir).resolve())
 
     if args.cache_path is not None:
+        # TODO: Test this out
         storage.load_cache_from_file(Path(args.cache_path).resolve())
 
     logging.debug("Records: %s", storage)

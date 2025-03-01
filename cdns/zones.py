@@ -64,12 +64,12 @@ class DNSZone:
     soa: SOARecord | None = None
     mx_records: dict[str, list[MXRecord]] = dataclasses.field(default_factory=dict)
 
-    records: dict[str, dict[str, list[str]]] = dataclasses.field(
+    records: dict[str, dict[str, list[(str, int)]]] = dataclasses.field(
         default_factory=dict
     )  # default value
 
     def add_record(
-        self, name: str, record_type: str, value: str, ttl: int = None
+        self, name: str, record_type: str, value: str, ttl: int | None = None
     ) -> None:
         """
         Add a record.
@@ -136,7 +136,7 @@ class ZoneParser:
         self.zone = DNSZone(domain=domain)
         self.line = None
 
-    def parse_instr(self):
+    def parse_instr(self) -> None:
         if self.line[0] == "$":
             matches = re.match(r"^\$(.*) (.*)$", self.line).groups()
             if matches[0] == "ORIGIN":
@@ -177,12 +177,47 @@ class ZoneParser:
             self.fetch()  # Closing parenthecies
             return
 
-        # otherwise, normal record
-        name, _, record_type, value = self.line.split(maxsplit=3)
-        # TODO: Support TTL here
-        self.zone.add_record(name, record_type, value)
+        name = None
+        ttl = None
+        record_type = None
+        value = None
 
-    def parse(self):
+        temp = ""
+        in_quotes = False
+        parts = []
+        # name, ttl (optional), _in, record_type, value
+
+        for i, char in enumerate(self.line):
+            if char == '"' and in_quotes:
+                in_quotes = False
+                parts.append(temp)
+                temp = ""
+            elif char == '"' and not in_quotes:
+                in_quotes = True
+                temp = ""
+            elif char == " " and not in_quotes:
+                if temp:
+                    parts.append(temp)
+                    temp = ""
+            else:
+                temp += char
+
+        if temp:
+            parts.append(temp)
+
+        name = parts[0]
+        if all(x.isdigit() for x in parts[1]):  # tt;
+            ttl = int(parts[1])
+            # "IN" is inbetween name and record_type
+            record_type = parts[3]
+            value = " ".join(parts[4:])  # if len(parts) > 4 else None
+        else:
+            record_type = parts[2]
+            value = " ".join(parts[3:])  # if len(parts) > 2 else None
+
+        self.zone.add_record(name, record_type, value, ttl)
+
+    def parse(self) -> None:
         # I mean I could use regex's but I already started this
         # https://regex101.com/r/7yNlJu/1
 
@@ -196,7 +231,7 @@ class ZoneParser:
             if self.line != "":
                 self.parse_instr()
 
-    def fetch(self):
+    def fetch(self) -> None:
         self.line = self.stream.readline()
         if not self.line:
             raise ZoneParsingError("Unable to parse")

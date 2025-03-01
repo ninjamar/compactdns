@@ -32,11 +32,10 @@ import ssl
 import struct
 import sys
 import threading
-from typing import Callable
+
 from .protocol import DNSAnswer, DNSHeader, DNSQuestion, pack_all_compressed, unpack_all
-from .zones import Records
-from .storage import RecordStorage
 from .response import ResponseHandler
+from .storage import RecordStorage
 
 MAX_WORKERS = 1000
 
@@ -121,30 +120,6 @@ class ServerManager:
         #        max_cache_length,
         #    )
 
-        """
-        # FIXME: This probably doesn't have much of an advantage
-        # TODO: If we get a cached answer, should the ttl in the TimedCache be updated?
-        # Cache individual hosts that don't contain any special syntax
-        # Caching is for when type_ and class_ is 1
-        # Use _host rather than host, since host is an argument to this function
-        for _host in self.records.normal.keys():
-            self.cache.set(
-                DNSQuestion(decoded_name=_host, type_=1, class_=1),
-                [
-                    DNSAnswer(
-                        decoded_name=_host,
-                        type_=1,
-                        class_=1,
-                        ttl=int(self.records.normal[_host].ttl),  # float to int
-                        rdlength=4,
-                        # inet_aton encodes a ip address into bytes
-                        rdata=socket.inet_aton(self.records.normal[_host].ip),
-                    )
-                ],
-                # FIXME: Fix (Why is this label here?)
-                self.records.normal[_host].ttl,
-            )
-        """
         # TODO: preload zones into cache
 
     def forwarder_daemon(self) -> None:
@@ -161,6 +136,7 @@ class ServerManager:
                     future = self.forwarder_pending_requests.pop(sock, None)
                     if future:
                         try:
+                            # TODO: Support responses larger longer than 512 using TCP
                             response, _ = sock.recvfrom(512)
                             future.set_result(response)
                         except Exception as e:
@@ -185,7 +161,7 @@ class ServerManager:
         # new socket for each request
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setblocking(False)
-        future = concurrent.futures.Future()
+        future = concurrent.futures.Future()[bytes]
 
         # TODO: The bottleneck
 

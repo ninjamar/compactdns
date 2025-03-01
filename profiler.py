@@ -25,12 +25,31 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import concurrent.futures
+import socket
 import sys
+from pathlib import Path
+
 import line_profiler as lp
 import timerit
-from cdns.manager import *
+
+from cdns.manager import ServerManager
 from cdns.protocol import *
-from cdns.zones import *
+from cdns.response import ResponseHandler
+from cdns.storage import RecordStorage
+
+
+def forward(query: bytes) -> concurrent.futures.Future[bytes]:
+    future = concurrent.futures.Future()
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.sendto(query, ("1.1.1.1", 53))
+    response, _ = sock.recvfrom(512)
+
+    sock.close()
+    future.set_result(response)
+    return future
+
 
 # This is what the server decodes when using dig
 # $ dig @127.0.0.1 -p 2053 google.com
@@ -50,28 +69,46 @@ query = pack_all_compressed(
         nscount=0,
         arcount=1,
     ),
-    [DNSQuestion(decoded_name="github.com", type_=1, class_=1)],
+    [DNSQuestion(decoded_name="example.com", type_=1, class_=1)],
 )
-blocklist = load_all_blocklists(["example-blocklists/lowe.txt"], 300)
-manager = ServerManager(
-    host=("127.0.0.1", 8080),  # Not needed
-    resolver=("1.1.1.1", 53),  # Needed
-    blocklist=blocklist,  # Profile with 3538 rules
+
+storage = RecordStorage()
+storage.load_zones_from_dir(Path("./example-zones").resolve())
+storage.load_extractor_from_dir(Path("./extractor-cache").resolve())
+
+manager = ResponseHandler(
+    storage=storage, forwarder=forward, tcp_conn="foo"  # No sending
 )
+
+
+def _send():
+    return None
+
+
+# We don't need send
+manager.send = _send
 
 
 def time_lines():
     p = lp.LineProfiler()
-    p.add_function(manager.handle_dns_query)
+
+    manager.receive(query)
+
+    p.add_function(manager.process)
+    p.add_function(manager.storage.get_record.__wrapped__)
+
     p.enable()
-    manager.handle_dns_query(query)
+    manager.process()
     p.disable()
+
     p.print_stats()
 
 
 def time_it():
+    manager.receive()
+
     for _ in timerit:
-        manager.handle_dns_query(query)
+        manager.process()
 
 
 def time_socket():
@@ -81,6 +118,29 @@ def time_socket():
         manager.forward_dns_query(query)
 
 
+def time_extractors():
+    from publicsuffix2 import get_sld
+    from publicsuffixlist import PublicSuffixList
+    from tldextract import TLDExtract
+
+    psl = PublicSuffixList()
+    e = TLDExtract(cache_dir="../exctractor.cache")
+
+    p = lp.LineProfiler()
+    p.add_function(get_sld)
+    p.add_function(psl.privatesuffix)
+    p.add_function(e.extract_str)
+
+    p.enable()
+
+    get_sld("foo.a.google.com")
+    psl.privatesuffix("foo.a.google.com")
+    e.extract_str("foo.a.google.com")
+
+    p.disable()
+    p.print_stats()
+
+
 if __name__ == "__main__":
     if "-l" in sys.argv:
         time_lines()
@@ -88,5 +148,7 @@ if __name__ == "__main__":
         time_it()
     elif "-s" in sys.argv:
         time_socket()
+    elif "-e" in sys.argv:
+        time_extractors()
 
-    manager.done()
+    # manager.done()

@@ -6,14 +6,16 @@ import selectors
 import socket
 import struct
 from typing import Callable
+
 from .protocol import (
     DNSAnswer,
     DNSHeader,
     DNSQuestion,
+    RTypes,
+    auto_decode_label,
+    auto_encode_label,
     pack_all_compressed,
     unpack_all,
-    auto_encode_label,
-    RTypes,
 )
 from .storage import RecordStorage
 
@@ -29,9 +31,9 @@ class ResponseHandler:
         self,
         storage: RecordStorage,
         forwarder: Callable[[bytes], concurrent.futures.Future[bytes]],
-        udp_sock: socket.socket = None,
-        udp_addr: tuple[str, int] = None,
-        tcp_conn: socket.socket = None,
+        udp_sock: socket.socket | None = None,
+        udp_addr: tuple[str, int] | None = None,
+        tcp_conn: socket.socket | None = None,
     ) -> None:
         """
         Create a ResponseHandler instance.
@@ -120,18 +122,20 @@ class ResponseHandler:
             if len(records) > 0:
                 answers = []
                 for record in records:
-                    rdata = auto_encode_label(record.get())
+                    data, ttl = record
+                    rdata = auto_encode_label(data)
                     answers.append(
                         DNSAnswer(
                             decoded_name=record_domain,
                             type_=int(type_),
-                            ttl=record.ttl,
+                            ttl=int(ttl),
                             rdata=rdata,
                             rdlength=len(rdata),
                         )
                     )
 
-                self.question_answers.append(*answers)
+                # self.question_answers.append(*answers)
+                self.question_answers.extend(answers)
                 self.question_index_intercepted.append((idx, answers))
             else:
                 self.new_questions.append(question)
@@ -230,7 +234,7 @@ class ResponseHandler:
         )
 
         if len(self.resp_answers) > 0:
-            self.question_index_intercepted
+            # self.question_index_intercepted
 
             cache_answers = {
                 decoded_name: list(groups)  # Key to groups
@@ -243,7 +247,13 @@ class ResponseHandler:
             }
             for question in self.resp_questions:
                 answers = cache_answers[question.decoded_name]
-                values = [(answer, answer.ttl) for answer in answers]
+                # Cache the rdata
+
+                # TODO: Why is publicsuffix2 faster than tldextractor
+                values = [
+                    (auto_decode_label(answer.rdata), int(answer.ttl))
+                    for answer in answers
+                ]
                 # base_domain = get_base_domain(question.decoded_name)
                 self.storage.cache.set_record(
                     name=question.decoded_name,

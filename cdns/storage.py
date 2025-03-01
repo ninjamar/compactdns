@@ -25,40 +25,36 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import os
+import functools
 import pickle
-import tldextract  # TODO: Add to requirments
 from pathlib import Path
-from typing import Literal
-from .zones import DNSZone, parse_all_zones, parse_zone
-from .cache import DNSCache, TimedCache
+from typing import Any, Callable
+
+from publicsuffixlist import PublicSuffixList
+
+from .cache import DNSCache
 from .protocol import RTypes
 from .utils import BiInt
+from .zones import DNSZone, parse_zone
 
 
 class RecordError(Exception):
     pass
 
-class _DummyTC:
-    def __init__(self, x):
-        self.x = x[0]
-        self.ttl = x[1]
-    def get(self):
-        return self.x
-    
-def _mk_tc_compat_wrap(x):
-    if not isinstance(x, TimedCache):
-        return _DummyTC(x)
-    return x
+
 class RecordStorage:
-    def __init__(self):
+    def __init__(self) -> None:
         # Store a TimedCache for upstream requests
         # Lookup zones locally
+
+        self.extractor = PublicSuffixList()
+
         self.cache = DNSCache()
         self.zones: dict[str, DNSZone] = {}
 
-    def ensure(fn):
-        def _ensure(self, *args, **kwargs):
+    def ensure(fn: Callable) -> Callable:
+        @functools.wraps(fn)
+        def _ensure(self, *args, **kwargs) -> Any:
             if "type_" in kwargs:
                 if not isinstance(kwargs["type_"], BiInt):
                     kwargs["type_"] = RTypes[kwargs["type_"]]
@@ -73,28 +69,25 @@ class RecordStorage:
         # base_domain: str,
         type_: str,  # RTypes
         record_domain: str,
-        record_name: str = None,
-    ):
-
+        record_name: str | None = None,
+    ) -> list[tuple[str, int]]:
         # Force KWARGS
         # TTL cache wrapper here
         # Record name is used for soa and mx records (exchange)
         # if type_ not in RTypes:
         #    raise RecordError(f"Invalid record type. Given {type_}")
 
-        d = tldextract.extract(record_domain)
-        base_domain = d.domain + "." + d.suffix
-
-        value = []
+        base_domain = self.extractor.privatesuffix(record_domain)
+        values = []
         if base_domain in self.zones:
             if type_ == RTypes.SOA:
-                value = [getattr(self.zones[base_domain].soa, record_name)]
+                values = [getattr(self.zones[base_domain].soa, record_name)]
             elif (
                 type_ == RTypes.MX
                 and record_domain in self.zones[base_domain].mx_records
             ):
                 # Unique exchange
-                value = [
+                values = [
                     x
                     for x in self.zones[base_domain].mx_records[record_domain]
                     if x.exchange == record_name
@@ -102,12 +95,15 @@ class RecordStorage:
             else:
                 if record_domain in self.zones[base_domain].records:
                     if str(type_) in self.zones[base_domain].records[record_domain]:
-                        value = self.zones[base_domain].records[record_domain][str(type_)] # This is why BiInt is a terrible idea
+                        values = self.zones[base_domain].records[record_domain][
+                            str(type_)
+                        ]  # This is why BiInt is a terrible idea
+
         else:
-            value = self.cache.get_records(record_domain, type_)
+            values = self.cache.get_records(record_domain, type_)
 
         # TODO: Does wildcard work
-        if "*" not in record_domain and (value is None or len(value) == 0):
+        if "*" not in record_domain and len(values) == 0:
             # TODO: Make this faster
             # TODO: Make TTL cache wrapper for function
             return self.get_record(
@@ -115,25 +111,25 @@ class RecordStorage:
                 record_domain=f"*.{base_domain}",  # Wildcard
                 record_name=record_name,
             )
-        if value is None:
-            return None
-        
-        return [_mk_tc_compat_wrap(x) for x in value]
+        if values is None:
+            return []
 
-    def load_zone_from_file(self, path: Path):
+        return values
+
+    def load_zone_from_file(self, path: Path) -> None:
         # TODO: Support reloading with latest changes
         name, zone = parse_zone(path)
         self.zones[name] = zone
 
-    def load_cache_from_file(self, path: Path):
+    def load_cache_from_file(self, path: Path) -> None:
         with open(path, "rb") as f:
             self.cache = pickle.load(f)
 
-    def write_cache_to_file(self, path: Path):
+    def write_cache_to_file(self, path: Path) -> None:
         with open(path, "wb") as f:
             pickle.dump(self.cache, f)
 
-    def load_zones_from_dir(self, zone_dir_path: Path):
+    def load_zones_from_dir(self, zone_dir_path: Path) -> None:
         zone_paths = [
             zone_dir_path / x for x in zone_dir_path.iterdir() if x.suffix == ".zone"
         ]
@@ -141,7 +137,7 @@ class RecordStorage:
         for path in zone_paths:
             self.load_zone_from_file(path)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"RecordStorage(<{len(self.zones)} zones>, <{len(self.cache.data)} cached>)"
         )

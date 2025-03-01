@@ -25,13 +25,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-
+import functools
 import time
 from collections import OrderedDict
-from typing import Any, Hashable
+from typing import Any, Callable, Hashable
+
 from .protocol import RTypes
 from .utils import BiInt
-
 
 # TODO: Make cache better for storing DNS records, storing the fields rather than a dataclass
 # TODO: Merge records and TimedCache into one class
@@ -135,26 +135,26 @@ DNSCache(
 
 
 class TimedItem:
-    def __init__(self, item, ttl):
+    def __init__(self, item, ttl) -> None:
         self.item = item
         self.expiry = time.time() + ttl
         self.ttl = ttl
 
-    def get(self):
-        if time.time() < self.expiry:
+    def get(self) -> Any:
+        if self.expiry < time.time():
             return None
         return self.item
 
-    def __repr__(self):
-        return f"TimedCache({self.item}, {self.ttl})"
+    def __repr__(self) -> str:
+        return f"TimedItem({self.item}, {self.ttl})"
 
-    def __str__(self):
-        return f"TimedCache({self.item}, {self.ttl})"
+    def __str__(self) -> str:
+        return f"TimedItem({self.item}, {self.ttl})"
 
 
 # TODO: Max length
 class DNSCache:
-    def __init__(self):
+    def __init__(self) -> None:
         self.data: dict[str, dict[str, list]] = {}
         """{
             "foo.example.com": {
@@ -163,9 +163,10 @@ class DNSCache:
         }
         """
 
-    def ensure(fn):
+    def ensure(fn: Callable) -> Callable:
         # https://stackoverflow.com/a/1263782/21322342
-        def _ensure(self, name: str, record_type: str, *args, **kwargs):
+        @functools.wraps(fn)
+        def _ensure(self, name: str, record_type: str, *args, **kwargs) -> Any:
             if not isinstance(record_type, BiInt):
                 record_type = RTypes[record_type]
 
@@ -179,21 +180,29 @@ class DNSCache:
         return _ensure
 
     @ensure
-    def add_record(self, name: str, record_type: str, value: str, ttl: int):
+    def add_record(self, name: str, record_type: str, value: str, ttl: int) -> None:
         # self.data[name][record_type].append((value, ttl))
         self.data[name][record_type].append(TimedItem(value, ttl))
 
     @ensure
     def set_record(
         self, name: str, record_type: str, values: list[tuple[str, int]], delete=False
-    ):
+    ) -> None:
         if delete:
             self.data[name][record_type] = []
         for data, ttl in values:
             self.add_record(name, record_type, data, ttl)
 
     @ensure
-    def get_records(self, name: str, record_type: str):
+    def get_records(self, name: str, record_type: str) -> list[tuple[str, int]]:
+
+        ret = []
+        for item in self.data[name][record_type]:
+            value = item.get()
+            if value is not None:
+                ret.append((value, item.ttl))
+        return ret
+
         return [
             value
             for item in self.data[name][record_type]

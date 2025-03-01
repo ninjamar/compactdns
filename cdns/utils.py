@@ -60,10 +60,9 @@ class BiInt:
             self.i = b
             self.s = a
 
-
     def __str__(self):
         return str(self.s)
-    
+
     def __int__(self):
         return self.i
 
@@ -77,11 +76,6 @@ class BiInt:
 
     def __repr__(self):
         return self.__str__()
-
-
-if __name__ == "__main__":
-    a = BiInt("hello", 1)
-    print("hello" == a)
 
 
 class ImmutableBiDict:
@@ -105,3 +99,8 @@ class ImmutableBiDict:
     # TODO: Make immutable
     def __getattr__(self, x):
         return self.__getitem__(x)
+
+
+if __name__ == "__main__":
+    a = BiInt("hello", 1)
+    print("hello" == a)

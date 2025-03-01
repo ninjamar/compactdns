@@ -27,9 +27,10 @@
 
 import dataclasses
 import functools
-import struct
 import socket
+import struct
 from typing import Literal
+
 from .utils import ImmutableBiDict
 
 # Still need PTR, 12, SRV, 33, CAA, 257
@@ -62,30 +63,6 @@ def encode_name_uncompressed(name: str) -> bytes:
 
 
 @functools.lru_cache(maxsize=512)
-def encode_label(
-    type_: Literal["IPV4", "IPV6", "NAME", "LABEL"], label
-) -> tuple[bytes, bytes]:
-    # data, length
-    if type_ == "IPV4":
-        return socket.inet_aton(label)
-    if type_ == "IPV6":
-        return socket.inet_pton(socket.AF_INET6, label)
-    if type_ == "NAME" or type_ == "LABEL":
-        return encode_name_uncompressed(label)
-
-
-@functools.lru_cache(maxsize=512)
-def auto_encode_label(label):
-    if all(x.isdigit() for x in label.replace(".", "")):
-        type_ = "IPV4"
-    elif ":" in label:
-        type_ = "IPV6"
-    else:
-        type_ = "LABEL"
-    return encode_label(type_, label)
-
-
-@functools.lru_cache(maxsize=512)
 def decode_name_uncompressed(buf: bytes) -> str:
     """Decode a DNS name that is uncompressed.
 
@@ -105,6 +82,50 @@ def decode_name_uncompressed(buf: bytes) -> str:
         labels.append(label.decode("ascii"))
         idx += size
     return ".".join(labels)
+
+
+@functools.lru_cache(maxsize=512)
+def encode_label(type_: Literal["IPV4", "IPV6", "NAME", "LABEL"], label: str) -> bytes:
+    # data, length
+    if type_ == "IPV4":
+        return socket.inet_aton(label)
+    if type_ == "IPV6":
+        return socket.inet_pton(socket.AF_INET6, label)
+    if type_ == "NAME" or type_ == "LABEL":
+        return encode_name_uncompressed(label)
+
+
+@functools.lru_cache(maxsize=512)
+def decode_label(type_: Literal["IPV4", "IPV6", "NAME", "LABEL"], label: bytes) -> str:
+    if type_ == "IPV4":
+        return socket.inet_ntoa(label)
+    if type_ == "IPV6":
+        return socket.inet_ntop(socket.AF_INET6, label)
+    if type_ == "NAME" or type_ == "LABEL":
+        return decode_name_uncompressed(label)
+
+
+@functools.lru_cache(maxsize=512)
+def auto_encode_label(label):
+    if all(x.isdigit() for x in label.replace(".", "")):
+        type_ = "IPV4"
+    elif ":" in label:
+        type_ = "IPV6"
+    else:
+        type_ = "LABEL"
+    return encode_label(type_, label)
+
+
+@functools.lru_cache(maxsize=512)
+def auto_decode_label(label):
+    try:
+        return decode_label("LABEL", label)
+    except:
+        if len(label) == 4:
+            return decode_label("IPV4", label)
+        elif len(label) == 16:
+            return decode_label("IPV6", label)
+    raise Exception("Unable to decode label")
 
 
 class DNSDecodeLoopError(Exception):

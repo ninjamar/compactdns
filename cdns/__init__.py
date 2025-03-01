@@ -42,8 +42,7 @@ from .protocol import (
     pack_all_uncompressed,
     unpack_all,
 )
-from .zones import parse_all_zones, DNSZone
-
+from .zones import DNSZone, parse_all_zones
 
 # TODO: Update pragma
 # The TODOLIST is located in TODO.md
