@@ -39,11 +39,20 @@ from .zones import DNSZone, parse_zone
 
 
 class RecordError(Exception):
+    """
+    An error for a record.
+    """
     pass
 
 
 class RecordStorage:
+    """
+    A container to store zones and the cache.
+    """
     def __init__(self) -> None:
+        """
+        Create an instance of RecordStorage.
+        """
         # Store a TimedCache for upstream requests
         # Lookup zones locally
 
@@ -52,17 +61,18 @@ class RecordStorage:
         self.cache = DNSCache()
         self.zones: dict[str, DNSZone] = {}
 
-    def ensure(fn: Callable) -> Callable:
+    def _ensure(fn: Callable) -> Callable:
+        # Ensure proper arguments
         @functools.wraps(fn)
-        def _ensure(self, *args, **kwargs) -> Any:
+        def dec_ensure(self, *args, **kwargs) -> Any:
             if "type_" in kwargs:
                 if not isinstance(kwargs["type_"], BiInt):
                     kwargs["type_"] = RTypes[kwargs["type_"]]
             return fn(self, *args, **kwargs)
 
-        return _ensure
+        return dec_ensure
 
-    @ensure
+    @_ensure
     def get_record(
         self,
         *,
@@ -71,6 +81,17 @@ class RecordStorage:
         record_domain: str,
         record_name: str | None = None,
     ) -> list[tuple[str, int]]:
+        """
+        Get a record. Prioritize zones over the cache.
+
+        Args:
+            type_: Type of record. One of RTypes.
+            record_domain: The domain (not apex) for the record.
+            record_name: Name of the record (only for SOA). Defaults to None.
+
+        Returns:
+            A list of the value of the records to the ttl.
+        """
         # Force KWARGS
         # TTL cache wrapper here
         # Record name is used for soa and mx records (exchange)
@@ -80,6 +101,7 @@ class RecordStorage:
         base_domain = self.extractor.privatesuffix(record_domain)
         values = []
         if base_domain in self.zones:
+            # TODO: use ttl here -- can be none
             if type_ == RTypes.SOA:
                 values = [getattr(self.zones[base_domain].soa, record_name)]
             elif (
@@ -117,24 +139,48 @@ class RecordStorage:
         return values
 
     def load_zone_from_file(self, path: Path) -> None:
+        """
+        Load the zone from a file. The filename must be domain.zone.
+
+        Args:
+            path: Path to file.
+        """
         # TODO: Support reloading with latest changes
         name, zone = parse_zone(path)
         self.zones[name] = zone
 
     def load_cache_from_file(self, path: Path) -> None:
+        """
+        Load the cache from a file.
+
+        Args:
+            path: Path to file.
+        """
         with open(path, "rb") as f:
             self.cache = pickle.load(f)
 
     def write_cache_to_file(self, path: Path) -> None:
+        """
+        Write the cache to a file.
+
+        Args:
+            path: Path to file.
+        """
         with open(path, "wb") as f:
             pickle.dump(self.cache, f)
 
-    def load_zones_from_dir(self, zone_dir_path: Path) -> None:
-        zone_paths = [
-            zone_dir_path / x for x in zone_dir_path.iterdir() if x.suffix == ".zone"
+    def load_zones_from_dir(self, path: Path) -> None:
+        """
+        Load all the zones from a directory. Each filename must be domain.zone.
+
+        Args:
+            zone_dir_path: Path to directory
+        """
+        paths = [
+            path / x for x in path.iterdir() if x.suffix == ".zone"
         ]
 
-        for path in zone_paths:
+        for path in paths:
             self.load_zone_from_file(path)
 
     def __str__(self) -> str:

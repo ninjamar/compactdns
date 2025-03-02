@@ -52,7 +52,19 @@ def is_ip_addr_valid(ip_addr: str) -> bool:
 # TODO: Should actually be BiInt
 # TODO: This is too overcomplicated
 class BiInt:
-    def __init__(self, a, b):
+    """
+    A container for an something that can be both an integer and a string.
+    """
+    def __init__(self, a: str | int, b: str | int) -> None:
+        """
+        Create an instance of BiInt.
+
+        Args:
+            a: str or int.
+            b: str or int.
+
+        One of `a` and `b` has to be a string, while the other one has to be an int.
+        """
         if isinstance(a, int):
             self.i = a
             self.s = b
@@ -60,26 +72,35 @@ class BiInt:
             self.i = b
             self.s = a
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.s)
 
-    def __int__(self):
+    def __int__(self) -> int:
         return self.i
 
-    def __eq__(self, x):
+    def __eq__(self, x) -> bool:
         if isinstance(x, BiInt):
             return str(self) == str(x)
         return False
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.__str__())
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
 
 class ImmutableBiDict:
+    """
+    An immutable dictionary with forward and backward keys.
+    """
     def __init__(self, values: list[tuple[Any, Any]]):
+        """
+        Create an instance of ImmutableBiDict.
+
+        Args:
+            values: A list of values with the items.
+        """
         self.data = {}
 
         for value in values:

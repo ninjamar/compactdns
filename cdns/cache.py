@@ -116,31 +116,29 @@ class TimedCache:
         return self.get(key) is not None
 
 
-{"example.com": {"foo.example.com": {"A": ["127.0.0.1"]}}}
-"""
-DNSCache(
-    DNSBaseCache(
-        "example.com",
-        DNSDomainCache(
-            "foo.example.com",
-            DNSRecordCache(
-                "A", "127.0.0.1"
-            )
-        )
-    )
-)
-"""
-"""
-"""
-
-
 class TimedItem:
-    def __init__(self, item, ttl) -> None:
+    """
+    A singular item that can expire.
+    """
+    def __init__(self, item: Any, ttl: int | float) -> None:
+        """
+        Create a TimedItem instance.
+
+        Args:
+            item: The item.
+            ttl: The TTL of the item.
+        """
         self.item = item
         self.expiry = time.time() + ttl
         self.ttl = ttl
 
     def get(self) -> Any:
+        """
+        Get the item.
+
+        Returns:
+            The item. If it's expired, return None.
+        """
         if self.expiry < time.time():
             return None
         return self.item
@@ -154,7 +152,13 @@ class TimedItem:
 
 # TODO: Max length
 class DNSCache:
+    """
+    A cache for DNS records.
+    """
     def __init__(self) -> None:
+        """
+        Create a DNSCache instance.
+        """        
         self.data: dict[str, dict[str, list]] = {}
         """{
             "foo.example.com": {
@@ -163,10 +167,11 @@ class DNSCache:
         }
         """
 
-    def ensure(fn: Callable) -> Callable:
+    def _ensure(fn: Callable) -> Callable:
+        # Ensure the type of arguments, as well as make necessary fields in self.data.
         # https://stackoverflow.com/a/1263782/21322342
         @functools.wraps(fn)
-        def _ensure(self, name: str, record_type: str, *args, **kwargs) -> Any:
+        def dec_ensure(self, name: str, record_type: str, *args, **kwargs) -> Any:
             if not isinstance(record_type, BiInt):
                 record_type = RTypes[record_type]
 
@@ -177,25 +182,52 @@ class DNSCache:
 
             return fn(self, name, record_type, *args, **kwargs)
 
-        return _ensure
+        return dec_ensure
 
-    @ensure
+    @_ensure
     def add_record(self, name: str, record_type: str, value: str, ttl: int) -> None:
+        """
+        Add a singular record to the cache.
+
+        Args:
+            name: Domain name.
+            record_type: Type of record.
+            value: Value of the record.
+            ttl: TTL of the record.
+        """
         # self.data[name][record_type].append((value, ttl))
         self.data[name][record_type].append(TimedItem(value, ttl))
 
-    @ensure
+    @_ensure
     def set_record(
-        self, name: str, record_type: str, values: list[tuple[str, int]], delete=False
+        self, name: str, record_type: str, values: list[tuple[str, int]], overwrite=False
     ) -> None:
-        if delete:
+        """
+        Set multiple records in the cache.
+
+        Args:
+            name: Domain name.
+            record_type: Type of record.
+            values: A list of tuples of a value to a TTL.
+            overwrite: Overwrite the existing values. Defaults to False.
+        """
+        if overwrite:
             self.data[name][record_type] = []
         for data, ttl in values:
             self.add_record(name, record_type, data, ttl)
 
-    @ensure
+    @_ensure
     def get_records(self, name: str, record_type: str) -> list[tuple[str, int]]:
+        """
+        Get the records from the cache.
+        
+        Args:
+            name: Domain name.
+            record_type: Type of record.
 
+        Returns:
+            A list containing tuples of a value and a TTL.
+        """
         ret = []
         for item in self.data[name][record_type]:
             value = item.get()

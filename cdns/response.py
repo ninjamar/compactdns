@@ -44,7 +44,7 @@ class ResponseHandler:
             forwarder: Function that forwards DNS queries.
             udp_sock: UDP socket. Defaults to None.
             udp_addr: UDP address. Defaults to None.
-            tcp_conn: TCP connection.. Defaults to None.
+            tcp_conn: TCP connection. Defaults to None.
 
         Raises:
             TypeError: If UDP or TCP is not specified.
@@ -189,33 +189,7 @@ class ResponseHandler:
             self.resp_header.rd = 0
             self.resp_header.ra = 0
 
-        # Add the cached questions to the response, keeping the position
-        # for idx in self.question_index_cached:
-        #    question = self.buf_questions[idx]
-        #    self.resp_questions.insert(idx, question)
-
-        #    # https://stackoverflow.com/a/7376026/21322342
-        #    self.resp_answers[idx:idx] = self.cache.get_and_renew_ttl(question)
-
         # Add the intercepted questions to the response, keeping the position
-        """
-        for idx, match in self.question_index_intercepted:
-            question = self.buf_questions[idx]
-            # Fake answer
-            answer = DNSAnswer(
-                decoded_name=question.decoded_name,
-                type_=question.type_,
-                class_=question.type_,
-                ttl=int(self.records[match].ttl),
-                rdlength=4,
-                # inet_aton encodes a ip address into bytes
-                rdata=socket.inet_aton(self.records[match].ip),
-            )
-
-            # Insert the questions and answer to the correct spot
-            self.resp_questions.insert(idx, question)
-            self.resp_answers.insert(idx, answer)
-        """
         for idx, answers in self.question_index_intercepted:
             question = self.buf_questions[idx]
             self.resp_questions.insert(idx, question)
@@ -259,6 +233,7 @@ class ResponseHandler:
                     name=question.decoded_name,
                     record_type=question.type_,
                     values=values,
+                    overwrite=True
                 )
 
         self.buf = pack_all_compressed(

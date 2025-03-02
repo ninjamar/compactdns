@@ -34,7 +34,7 @@ from pathlib import Path
 
 @dataclasses.dataclass
 class SOARecord:
-    """Start of Authority (SOA) Record"""
+    """Start of Authority (SOA) Record."""
 
     # https://www.cloudflare.com/learning/dns/dns-records/dns-soa-record/
     primary_ns: str
@@ -48,7 +48,7 @@ class SOARecord:
 
 @dataclasses.dataclass
 class MXRecord:
-    """Mail Exchange (MX) Record"""
+    """Mail Exchange (MX) Record."""
 
     # https://www.cloudflare.com/learning/dns/dns-records/dns-mx-record/
     priority: int
@@ -72,7 +72,7 @@ class DNSZone:
         self, name: str, record_type: str, value: str, ttl: int | None = None
     ) -> None:
         """
-        Add a record.
+        Add a record to the zone.
 
         Args:
             name: Name of the record.
@@ -96,10 +96,6 @@ class DNSZone:
                 self.records[name][record_type] = []
 
             self.records[name][record_type].append((value, ttl))
-
-
-class Records:
-    pass
 
 
 """
@@ -127,16 +123,34 @@ DNSZone(
 
 
 class ZoneParsingError(Exception):
+    """An error while parsing a Zone."""
     pass
 
 
 class ZoneParser:
+    """
+    A class to parse a DNS zone from a zone file.
+    """
     def __init__(self, domain: str, stream: io.TextIOWrapper) -> None:
+        """
+        Create an instance of ZoneParser.
+
+        Args:
+            domain: The base domain for the zone file.
+            stream: File stream for the zone.
+        """
         self.stream = stream
         self.zone = DNSZone(domain=domain)
         self.line = None
 
     def parse_instr(self) -> None:
+        """
+        Parse a section in the zone file.
+
+        Raises:
+            ZoneParsingError: Unable to parse zone.
+            ZoneParsingError: Incomplete SOA.
+        """
         if self.line[0] == "$":
             matches = re.match(r"^\$(.*) (.*)$", self.line).groups()
             if matches[0] == "ORIGIN":
@@ -144,8 +158,10 @@ class ZoneParser:
             elif matches[0] == "TTL":
                 self.zone.ttl = int(matches[1])
             elif matches[0] == "INCLUDE":
+                # TODO: Support
                 pass
             elif matches[0] == "GENERATE":
+                # TODO: Support
                 pass
             else:
                 raise ZoneParsingError("Unable to parse zone", self.line)
@@ -161,6 +177,7 @@ class ZoneParser:
             for i in range(5):  # serial, refresh, retry, expire, minimum (ttl)
                 self.fetch()
                 if not self.line:
+                    # TODO: Doesn't work because self.fetch already raises an error
                     raise ZoneParsingError("Incomplete SOA")
                 fields.append(int(self.line))
 
@@ -206,6 +223,9 @@ class ZoneParser:
             parts.append(temp)
 
         name = parts[0]
+        if name == "@":
+            name = self.zone.domain
+        
         if all(x.isdigit() for x in parts[1]):  # tt;
             ttl = int(parts[1])
             # "IN" is inbetween name and record_type
@@ -218,6 +238,9 @@ class ZoneParser:
         self.zone.add_record(name, record_type, value, ttl)
 
     def parse(self) -> None:
+        """
+        Parse the entire stream into the zone.
+        """
         # I mean I could use regex's but I already started this
         # https://regex101.com/r/7yNlJu/1
 
@@ -232,13 +255,30 @@ class ZoneParser:
                 self.parse_instr()
 
     def fetch(self) -> None:
+        """
+        Fetch a expected line from the stream.
+
+        Raises:
+            ZoneParsingError: If an expected
+        """
+        # TODO: Remove this function
         self.line = self.stream.readline()
         if not self.line:
             raise ZoneParsingError("Unable to parse")
+        # Remove comments and extra whitespace
         self.line = self.line.strip().split(";")[0].strip()
 
 
-def parse_zone(path: Path) -> DNSZone:
+def parse_zone(path: Path) -> tuple[str, DNSZone]:
+    """
+    Parse a zone from the file.
+
+    Args:
+        path: Path object of the file.
+
+    Returns:
+        The name of the zone, and the zone.
+    """
     # name = path.split("/")[-1][:-5]  # Filename, then extract domain.zone
     name = path.stem
     with open(path) as f:
@@ -248,6 +288,15 @@ def parse_zone(path: Path) -> DNSZone:
 
 
 def parse_all_zones(paths: list[str]) -> dict[str, DNSZone]:
+    """
+    Parse all zones from a list of paths.
+
+    Args:
+        paths: A list of paths.
+
+    Returns:
+        A dictionary of names to zones.
+    """
     zones: dict[str, DNSZone] = {}
     for path in paths:
         name, zone = parse_zone(path)

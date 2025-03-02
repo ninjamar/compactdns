@@ -55,16 +55,18 @@ class ServerManager:
         # zone_dir: str | None = None,
         # cache_path: str | None = None,
     ) -> None:
-        """Create a ServerManager instance.
+        """
+        Create a ServerManager instance.
 
         Args:
             host: Host and port of server for UDP and TCP.
-            tls_host: Host and port of server for DNS over TLS.
-            ssl_key_path: Path to SSL key file.
-            ssl_cert_path: Path to SSL cert file.
             resolver: Host and port of resolver.
-            records: Records of sites.
+            storage: Storage of zones and cache.
+            tls_host: Host and port of server for DNS over TLS.. Defaults to None.
+            ssl_key_path: Path to SSL key file. . Defaults to None.
+            ssl_cert_path: Path to SSL cert file. Defaults to None.
         """
+
         self.host = host
         self.tls_host = tls_host
 
@@ -161,7 +163,7 @@ class ServerManager:
         # new socket for each request
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setblocking(False)
-        future = concurrent.futures.Future()[bytes]
+        future = concurrent.futures.Future()
 
         # TODO: The bottleneck
 
@@ -240,6 +242,12 @@ class ServerManager:
                     ).start(query)
 
     def _handle_dns_query_tls(self, conn: socket.socket) -> None:
+        """
+        Handle a DNS query over tls.
+
+        Args:
+            conn: The TLS connection.
+        """
         tls = self.ssl_context.wrap_socket(
             conn, server_side=True, do_handshake_on_connect=False
         )  # handshake on connect is false because this socket is non-blocking
@@ -263,7 +271,8 @@ class ServerManager:
                 except ssl.SSLWantWriteError:
                     # Wait for more data
                     pass
-
+        
+        # TODO: Should I be returning here?
         return self._handle_dns_query_tcp(tls)
 
     def start(self) -> None:

@@ -86,6 +86,16 @@ def decode_name_uncompressed(buf: bytes) -> str:
 
 @functools.lru_cache(maxsize=512)
 def encode_label(type_: Literal["IPV4", "IPV6", "NAME", "LABEL"], label: str) -> bytes:
+    """
+    Encode a label according to it's type.
+
+    Args:
+        type_: Type of label.
+        label: The label to encode.
+
+    Returns:
+        The encoded label.
+    """
     # data, length
     if type_ == "IPV4":
         return socket.inet_aton(label)
@@ -97,6 +107,16 @@ def encode_label(type_: Literal["IPV4", "IPV6", "NAME", "LABEL"], label: str) ->
 
 @functools.lru_cache(maxsize=512)
 def decode_label(type_: Literal["IPV4", "IPV6", "NAME", "LABEL"], label: bytes) -> str:
+    """
+    Decode a label accordign to it's type.
+
+    Args:
+        type_: The type of the label.
+        label: The label to decode.
+
+    Returns:
+        The decoded label.
+    """
     if type_ == "IPV4":
         return socket.inet_ntoa(label)
     if type_ == "IPV6":
@@ -107,6 +127,15 @@ def decode_label(type_: Literal["IPV4", "IPV6", "NAME", "LABEL"], label: bytes) 
 
 @functools.lru_cache(maxsize=512)
 def auto_encode_label(label):
+    """
+    Encode a label, automatically detecting it's type.
+
+    Args:
+        label: The label to encode.
+
+    Returns:
+        The encoded label.
+    """
     if all(x.isdigit() for x in label.replace(".", "")):
         type_ = "IPV4"
     elif ":" in label:
@@ -118,6 +147,18 @@ def auto_encode_label(label):
 
 @functools.lru_cache(maxsize=512)
 def auto_decode_label(label):
+    """
+    Decode a label, automatically detecting it's type.
+
+    Args:
+        label: The label to decode.
+
+    Raises:
+        Exception: Unable to automatically detect the type.
+
+    Returns:
+        The decoded label.
+    """
     try:
         return decode_label("LABEL", label)
     except:
