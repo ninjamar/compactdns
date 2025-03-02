@@ -124,6 +124,7 @@ DNSZone(
 
 class ZoneParsingError(Exception):
     """An error while parsing a Zone."""
+
     pass
 
 
@@ -131,6 +132,7 @@ class ZoneParser:
     """
     A class to parse a DNS zone from a zone file.
     """
+
     def __init__(self, domain: str, stream: io.TextIOWrapper) -> None:
         """
         Create an instance of ZoneParser.
@@ -225,7 +227,7 @@ class ZoneParser:
         name = parts[0]
         if name == "@":
             name = self.zone.domain
-        
+
         if all(x.isdigit() for x in parts[1]):  # tt;
             ttl = int(parts[1])
             # "IN" is inbetween name and record_type

@@ -42,6 +42,7 @@ class RecordError(Exception):
     """
     An error for a record.
     """
+
     pass
 
 
@@ -49,6 +50,7 @@ class RecordStorage:
     """
     A container to store zones and the cache.
     """
+
     def __init__(self) -> None:
         """
         Create an instance of RecordStorage.
@@ -176,9 +178,7 @@ class RecordStorage:
         Args:
             zone_dir_path: Path to directory
         """
-        paths = [
-            path / x for x in path.iterdir() if x.suffix == ".zone"
-        ]
+        paths = [path / x for x in path.iterdir() if x.suffix == ".zone"]
 
         for path in paths:
             self.load_zone_from_file(path)

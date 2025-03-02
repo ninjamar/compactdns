@@ -55,6 +55,7 @@ class BiInt:
     """
     A container for an something that can be both an integer and a string.
     """
+
     def __init__(self, a: str | int, b: str | int) -> None:
         """
         Create an instance of BiInt.
@@ -94,6 +95,7 @@ class ImmutableBiDict:
     """
     An immutable dictionary with forward and backward keys.
     """
+
     def __init__(self, values: list[tuple[Any, Any]]):
         """
         Create an instance of ImmutableBiDict.

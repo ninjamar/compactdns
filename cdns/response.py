@@ -7,16 +7,9 @@ import socket
 import struct
 from typing import Callable
 
-from .protocol import (
-    DNSAnswer,
-    DNSHeader,
-    DNSQuestion,
-    RTypes,
-    auto_decode_label,
-    auto_encode_label,
-    pack_all_compressed,
-    unpack_all,
-)
+from .protocol import (DNSAnswer, DNSHeader, DNSQuestion, RTypes,
+                       auto_decode_label, auto_encode_label,
+                       pack_all_compressed, unpack_all)
 from .storage import RecordStorage
 
 # TODO: Send back and check TC flag
@@ -233,7 +226,7 @@ class ResponseHandler:
                     name=question.decoded_name,
                     record_type=question.type_,
                     values=values,
-                    overwrite=True
+                    overwrite=True,
                 )
 
         self.buf = pack_all_compressed(

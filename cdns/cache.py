@@ -120,6 +120,7 @@ class TimedItem:
     """
     A singular item that can expire.
     """
+
     def __init__(self, item: Any, ttl: int | float) -> None:
         """
         Create a TimedItem instance.
@@ -155,10 +156,11 @@ class DNSCache:
     """
     A cache for DNS records.
     """
+
     def __init__(self) -> None:
         """
         Create a DNSCache instance.
-        """        
+        """
         self.data: dict[str, dict[str, list]] = {}
         """{
             "foo.example.com": {
@@ -200,7 +202,11 @@ class DNSCache:
 
     @_ensure
     def set_record(
-        self, name: str, record_type: str, values: list[tuple[str, int]], overwrite=False
+        self,
+        name: str,
+        record_type: str,
+        values: list[tuple[str, int]],
+        overwrite=False,
     ) -> None:
         """
         Set multiple records in the cache.
@@ -220,7 +226,7 @@ class DNSCache:
     def get_records(self, name: str, record_type: str) -> list[tuple[str, int]]:
         """
         Get the records from the cache.
-        
+
         Args:
             name: Domain name.
             record_type: Type of record.

@@ -33,7 +33,8 @@ import struct
 import sys
 import threading
 
-from .protocol import DNSAnswer, DNSHeader, DNSQuestion, pack_all_compressed, unpack_all
+from .protocol import (DNSAnswer, DNSHeader, DNSQuestion, pack_all_compressed,
+                       unpack_all)
 from .response import ResponseHandler
 from .storage import RecordStorage
 
@@ -271,7 +272,7 @@ class ServerManager:
                 except ssl.SSLWantWriteError:
                     # Wait for more data
                     pass
-        
+
         # TODO: Should I be returning here?
         return self._handle_dns_query_tcp(tls)
 
