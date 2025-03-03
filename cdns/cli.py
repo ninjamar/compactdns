@@ -82,6 +82,13 @@ def cli() -> None:
         help="The resolver address in the format of a.b.c.d:port",
     )
     parser.add_argument(
+        "--control",
+        "-C",
+        required=True,
+        type=str,
+        help="The control server address in the format of a.b.c.d:port",
+    )
+    parser.add_argument(
         "--zone-dir",
         "-z",
         # required=False
@@ -150,6 +157,7 @@ def cli() -> None:
 
     host = args.host.split(":")
     resolver = args.resolver.split(":")
+    control = args.control.split(":")
     if args.tls_host is not None:
         tls_host = args.tls_host.split(":")
     else:
@@ -169,6 +177,7 @@ def cli() -> None:
     manager = ServerManager(
         host=(host[0], int(host[1])),
         resolver=(resolver[0], int(resolver[1])),
+        control_host=(control[0], int(control[1])),
         tls_host=(tls_host[0], int(tls_host[1])) if tls_host is not None else tls_host,
         ssl_key_path=args.ssl_key,
         ssl_cert_path=args.ssl_cert,

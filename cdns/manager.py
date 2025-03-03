@@ -29,10 +29,13 @@ import logging
 import selectors
 import socket
 import ssl
+import code
 import struct
+import secrets
+import json
 import sys
 import threading
-
+from pathlib import Path
 from .protocol import (DNSAnswer, DNSHeader, DNSQuestion, pack_all_compressed,
                        unpack_all)
 from .response import ResponseHandler
@@ -47,6 +50,7 @@ class ServerManager:
     def __init__(
         self,
         host: tuple[str, int],
+        control_host: tuple[str, int],
         resolver: tuple[str, int],
         storage: RecordStorage,
         # max_cache_length: int = float("inf"),
@@ -61,6 +65,7 @@ class ServerManager:
 
         Args:
             host: Host and port of server for UDP and TCP.
+            control_host: Host and port of the control server.
             resolver: Host and port of resolver.
             storage: Storage of zones and cache.
             tls_host: Host and port of server for DNS over TLS.. Defaults to None.
@@ -69,6 +74,7 @@ class ServerManager:
         """
 
         self.host = host
+        self.control_host = control_host
         self.tls_host = tls_host
 
         # Bind in _start_threaded_udp
@@ -94,6 +100,11 @@ class ServerManager:
             )
         else:
             self.use_tls = False
+
+        # Use UDP for control
+        self.control_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.control_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.control_secret = secrets.token_hex(10)
 
         # self.resolver_udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # self.resolver_udp_sock.setblocking(False)
@@ -276,9 +287,78 @@ class ServerManager:
         # TODO: Should I be returning here?
         return self._handle_dns_query_tcp(tls)
 
+    def command(self, cmd, **kwargs):
+        """
+        Call a command.
+
+        | Command Name | Description | Arguments |
+        | load-zones   | Load zones from pickle file | Path - path to file |
+        | dump-zones   | Dump zones to a pickle file | Path - path to file |
+        | load-zones-dir | Load zones from a directory | Path - path to file |
+        | load-cache   | Load the cache from a pickle file | Path - path to file |
+        | dump-cache   | Write the cache to a pickle file | Path - path to file |
+
+        >>> self.command("load-zones-dir", path="./foo/bar")
+
+        Args:
+            cmd: Name of the command.
+            kwargs: Arguments to the command.
+
+        Returns:
+            _description_
+        """
+        if cmd == "load-zones-dir":
+            return self.storage.load_zones_from_dir(path=Path(kwargs["path"]).resolve())
+        elif cmd == "load-zones":
+            return self.storage.load_zone_object_from_file(path=Path(kwargs["path"]).resolve())
+        elif cmd == "dump-zones":
+            return self.storage.write_zone_object_to_file(path=Path(kwargs["path"]).resolve())
+        elif cmd == "load-cache":
+            return self.storage.load_cache_from_file(path=Path(kwargs["path"]).resolve())
+        elif cmd == "dump-cache":
+            return self.storage.write_cache_to_file(path=Path(kwargs["path"]).resolve())
+
+    def _handle_control_session(self, conn: socket.socket) -> None:
+        """
+        Handle a control session. This function blocks the DNS queries,
+        and starts an interactive debugging sesion. A secret is needed
+        in order for verification. This function will wait until the,
+        secret is sent before starting the interpreter.
+
+        Running a command
+        >>> self.command("dump-cache", path="path/to/cache/dump")
+
+        Args:
+            conn: TCP connection
+        """
+
+        secret, addr = conn.recvfrom(len(self.control_secret))
+        if secret.decode() != self.control_secret:
+            conn.close()
+            return
+        
+        ctx = {**globals(), **locals()}
+        sys.stdout = sys.stderr = conn.makefile("w")
+        sys.stdin = conn.makefile("r")
+        try:
+            code.interact(local = ctx)
+        except SystemError:
+            pass
+        finally:
+            sys.stdout = sys.__stdout__
+            sys.stderr = sys.__stderr__
+            sys.stdin = sys.__stdin__
+        conn.close()
+
     def start(self) -> None:
         """Start the server."""
         # TODO: Configure max workers
+
+        self.control_sock.bind(self.control_host)
+        self.control_sock.listen(self.max_workers)
+
+        logging.info("Control server running at %s:%s via UDP.", self.control_host[0], self.control_host[1])
+        logging.info("Control secret: %s", self.control_secret)
 
         self.udp_sock.bind(self.host)
         logging.info("DNS Server running at %s:%s via TCP", self.host[0], self.host[1])
@@ -296,7 +376,7 @@ class ServerManager:
                 self.tls_host[1],  # type: ignore
             )
 
-        sockets = [self.udp_sock, self.tcp_sock]
+        sockets = [self.control_sock, self.udp_sock, self.tcp_sock]
         if self.use_tls:
             sockets.append(self.tls_sock)
 
@@ -347,6 +427,10 @@ class ServerManager:
                                 future.add_done_callback(
                                     self._handle_thread_pool_completion
                                 )
+                            elif sock == self.control_sock:
+                                conn, addr = self.control_sock.accept()
+                                future = executor.submit(self._handle_control_session, conn)
+                                future.add_done_callback(self._handle_thread_pool_completion)
 
                     except KeyboardInterrupt:
                         # Don't want the except call here to be called, I want the one outside the while loop
