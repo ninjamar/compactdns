@@ -61,6 +61,13 @@ Options:
   `--host`, `-h`: The host address of the shell server in the format of a.b.c.d:port
   `--secret`, `s`: The secret of the shell server. The secret is logged when cdns is started.
 
+### TLS
+
+A key and certificate file is needed to use TLS.
+Generate it:
+```bash
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+```
 
 ### Interactive shell
 
