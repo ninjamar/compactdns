@@ -26,8 +26,8 @@
 # SOFTWARE.
 
 import functools
-import pickle
 import lzma
+import pickle
 from pathlib import Path
 from typing import Any, Callable
 

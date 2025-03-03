@@ -24,20 +24,20 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
+import code
 import concurrent.futures
+import json
 import logging
+import secrets
 import selectors
 import socket
 import ssl
-import code
 import struct
-import secrets
-import json
 import sys
 import threading
 from pathlib import Path
-from .protocol import (DNSAnswer, DNSHeader, DNSQuestion, pack_all_compressed,
-                       unpack_all)
+
+from .protocol import DNSAnswer, DNSHeader, DNSQuestion, pack_all_compressed, unpack_all
 from .response import ResponseHandler
 from .storage import RecordStorage
 
@@ -287,7 +287,7 @@ class ServerManager:
         # TODO: Should I be returning here?
         return self._handle_dns_query_tcp(tls)
 
-    def command(self, cmd, **kwargs):
+    def command(self, cmd, **kwargs) -> None:
         """
         Call a command.
 
@@ -303,18 +303,21 @@ class ServerManager:
         Args:
             cmd: Name of the command.
             kwargs: Arguments to the command.
-
-        Returns:
-            _description_
         """
         if cmd == "load-zones-dir":
             return self.storage.load_zones_from_dir(path=Path(kwargs["path"]).resolve())
         elif cmd == "load-zones":
-            return self.storage.load_zone_object_from_file(path=Path(kwargs["path"]).resolve())
+            return self.storage.load_zone_object_from_file(
+                path=Path(kwargs["path"]).resolve()
+            )
         elif cmd == "dump-zones":
-            return self.storage.write_zone_object_to_file(path=Path(kwargs["path"]).resolve())
+            return self.storage.write_zone_object_to_file(
+                path=Path(kwargs["path"]).resolve()
+            )
         elif cmd == "load-cache":
-            return self.storage.load_cache_from_file(path=Path(kwargs["path"]).resolve())
+            return self.storage.load_cache_from_file(
+                path=Path(kwargs["path"]).resolve()
+            )
         elif cmd == "dump-cache":
             return self.storage.write_cache_to_file(path=Path(kwargs["path"]).resolve())
 
@@ -336,12 +339,12 @@ class ServerManager:
         if secret.decode() != self.shell_secret:
             conn.close()
             return
-        
+
         ctx = {**globals(), **locals()}
         sys.stdout = sys.stderr = conn.makefile("w")
         sys.stdin = conn.makefile("r")
         try:
-            code.interact(local = ctx)
+            code.interact(local=ctx)
         except SystemError:
             pass
         finally:
@@ -357,7 +360,11 @@ class ServerManager:
         self.shell_sock.bind(self.shell_host)
         self.shell_sock.listen(self.max_workers)
 
-        logging.info("Shell server running at %s:%s via UDP.", self.shell_host[0], self.shell_host[1])
+        logging.info(
+            "Shell server running at %s:%s via UDP.",
+            self.shell_host[0],
+            self.shell_host[1],
+        )
         logging.info("Shell secret: %s", self.shell_secret)
 
         self.udp_sock.bind(self.host)
@@ -429,8 +436,12 @@ class ServerManager:
                                 )
                             elif sock == self.shell_sock:
                                 conn, addr = self.shell_sock.accept()
-                                future = executor.submit(self._handle_shell_session, conn)
-                                future.add_done_callback(self._handle_thread_pool_completion)
+                                future = executor.submit(
+                                    self._handle_shell_session, conn
+                                )
+                                future.add_done_callback(
+                                    self._handle_thread_pool_completion
+                                )
 
                     except KeyboardInterrupt:
                         # Don't want the except call here to be called, I want the one outside the while loop

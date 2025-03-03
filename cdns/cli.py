@@ -57,8 +57,8 @@ import sys
 from pathlib import Path
 
 from .manager import ServerManager
-from .storage import RecordStorage
 from .shell_client import start_client as shell_start_client
+from .storage import RecordStorage
 
 # from .zones import
 
@@ -118,21 +118,8 @@ def cli() -> None:
         help="Provide information about the logging level (default = info).",
     )
     parser_run.add_argument(
-        "--ttl",
-        "-t",
-        default=300,
-        type=int,
-        help="Default TTL for blocked hosts (default = 300)",
-    )
-    parser_run.add_argument(
-        "--max-cache-length",
-        "-m",
-        default=float("inf"),
-        type=int,
-        help="Maximum length of the cache (default=infinity)",
-    )
-    parser_run.add_argument(
         "--tls-host",
+        "-th",
         default=None,
         type=str,
         help="TLS socket address in the format of a.b.c.d:port (only needed if using tls)",
@@ -153,18 +140,8 @@ def cli() -> None:
     )
 
     parser_shell = subparsers.add_parser("shell")
-    parser_shell.add_argument(
-        "--secret",
-        "-s",
-        default=None,
-        help="Shell secret"
-    )
-    parser_shell.add_argument(
-        "--host",
-        "-a",
-        required=True,
-        help="Host of server"
-    )
+    parser_shell.add_argument("--secret", "-s", default=None, help="Shell secret")
+    parser_shell.add_argument("--host", "-a", required=True, help="Host of server")
 
     args = parser.parse_args()
     if args.subcommand is None:
@@ -201,7 +178,9 @@ def cli() -> None:
             host=(host[0], int(host[1])),
             resolver=(resolver[0], int(resolver[1])),
             shell_host=(shell[0], int(shell[1])),
-            tls_host=(tls_host[0], int(tls_host[1])) if tls_host is not None else tls_host,
+            tls_host=(
+                (tls_host[0], int(tls_host[1])) if tls_host is not None else tls_host
+            ),
             ssl_key_path=args.ssl_key,
             ssl_cert_path=args.ssl_cert,
             storage=storage,

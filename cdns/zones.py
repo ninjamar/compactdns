@@ -153,6 +153,7 @@ class ZoneParser:
             ZoneParsingError: Unable to parse zone.
             ZoneParsingError: Incomplete SOA.
         """
+        # TODO: This has a mccabe complexity of 17
         if self.line[0] == "$":
             matches = re.match(r"^\$(.*) (.*)$", self.line).groups()
             if matches[0] == "ORIGIN":

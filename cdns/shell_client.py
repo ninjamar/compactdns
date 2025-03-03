@@ -25,8 +25,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import readline
 import socket
 import sys
+
 
 def start_client(addr: tuple[str, int], secret: str | None = None) -> None:
     """
@@ -37,11 +39,11 @@ def start_client(addr: tuple[str, int], secret: str | None = None) -> None:
         secret: Secret of the server. Defaults to None.
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    
+
     sock.connect(addr)
     if secret is None:
         secret = input("Secret:")
-    
+
     sock.sendall(secret.encode())
 
     try:
