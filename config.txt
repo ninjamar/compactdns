@@ -2,6 +2,8 @@
 127.0.0.1:2053
 --resolver
 1.1.1.1:53
+--shell
+127.0.0.1:2055
 --zone-dir
 example-zones
 --loglevel

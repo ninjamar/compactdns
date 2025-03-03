@@ -50,7 +50,7 @@ class ServerManager:
     def __init__(
         self,
         host: tuple[str, int],
-        control_host: tuple[str, int],
+        shell_host: tuple[str, int],
         resolver: tuple[str, int],
         storage: RecordStorage,
         # max_cache_length: int = float("inf"),
@@ -65,7 +65,7 @@ class ServerManager:
 
         Args:
             host: Host and port of server for UDP and TCP.
-            control_host: Host and port of the control server.
+            shell_host: Host and port of the shell server.
             resolver: Host and port of resolver.
             storage: Storage of zones and cache.
             tls_host: Host and port of server for DNS over TLS.. Defaults to None.
@@ -74,7 +74,7 @@ class ServerManager:
         """
 
         self.host = host
-        self.control_host = control_host
+        self.shell_host = shell_host
         self.tls_host = tls_host
 
         # Bind in _start_threaded_udp
@@ -101,10 +101,10 @@ class ServerManager:
         else:
             self.use_tls = False
 
-        # Use UDP for control
-        self.control_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.control_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.control_secret = secrets.token_hex(10)
+        # Use UDP for shell
+        self.shell_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.shell_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.shell_secret = secrets.token_hex(10)
 
         # self.resolver_udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # self.resolver_udp_sock.setblocking(False)
@@ -318,9 +318,9 @@ class ServerManager:
         elif cmd == "dump-cache":
             return self.storage.write_cache_to_file(path=Path(kwargs["path"]).resolve())
 
-    def _handle_control_session(self, conn: socket.socket) -> None:
+    def _handle_shell_session(self, conn: socket.socket) -> None:
         """
-        Handle a control session. This function blocks the DNS queries,
+        Handle a shell session. This function blocks the DNS queries,
         and starts an interactive debugging sesion. A secret is needed
         in order for verification. This function will wait until the,
         secret is sent before starting the interpreter.
@@ -332,8 +332,8 @@ class ServerManager:
             conn: TCP connection
         """
 
-        secret, addr = conn.recvfrom(len(self.control_secret))
-        if secret.decode() != self.control_secret:
+        secret, addr = conn.recvfrom(len(self.shell_secret))
+        if secret.decode() != self.shell_secret:
             conn.close()
             return
         
@@ -354,11 +354,11 @@ class ServerManager:
         """Start the server."""
         # TODO: Configure max workers
 
-        self.control_sock.bind(self.control_host)
-        self.control_sock.listen(self.max_workers)
+        self.shell_sock.bind(self.shell_host)
+        self.shell_sock.listen(self.max_workers)
 
-        logging.info("Control server running at %s:%s via UDP.", self.control_host[0], self.control_host[1])
-        logging.info("Control secret: %s", self.control_secret)
+        logging.info("Shell server running at %s:%s via UDP.", self.shell_host[0], self.shell_host[1])
+        logging.info("Shell secret: %s", self.shell_secret)
 
         self.udp_sock.bind(self.host)
         logging.info("DNS Server running at %s:%s via TCP", self.host[0], self.host[1])
@@ -376,7 +376,7 @@ class ServerManager:
                 self.tls_host[1],  # type: ignore
             )
 
-        sockets = [self.control_sock, self.udp_sock, self.tcp_sock]
+        sockets = [self.shell_sock, self.udp_sock, self.tcp_sock]
         if self.use_tls:
             sockets.append(self.tls_sock)
 
@@ -427,9 +427,9 @@ class ServerManager:
                                 future.add_done_callback(
                                     self._handle_thread_pool_completion
                                 )
-                            elif sock == self.control_sock:
-                                conn, addr = self.control_sock.accept()
-                                future = executor.submit(self._handle_control_session, conn)
+                            elif sock == self.shell_sock:
+                                conn, addr = self.shell_sock.accept()
+                                future = executor.submit(self._handle_shell_session, conn)
                                 future.add_done_callback(self._handle_thread_pool_completion)
 
                     except KeyboardInterrupt:
