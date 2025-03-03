@@ -27,6 +27,7 @@
 
 import functools
 import pickle
+import lzma
 from pathlib import Path
 from typing import Any, Callable
 
@@ -143,6 +144,7 @@ class RecordStorage:
     def load_zone_from_file(self, path: Path) -> None:
         """
         Load the zone from a file. The filename must be domain.zone.
+        The file is pickled, and uses LZMA compression.
 
         Args:
             path: Path to file.
@@ -153,23 +155,47 @@ class RecordStorage:
 
     def load_cache_from_file(self, path: Path) -> None:
         """
-        Load the cache from a file.
+        Load the cache from a file. The file is pickled,
+        and uses LZMA compression.
 
         Args:
             path: Path to file.
         """
-        with open(path, "rb") as f:
+        with lzma.open(path, "rb") as f:
             self.cache = pickle.load(f)
 
     def write_cache_to_file(self, path: Path) -> None:
         """
-        Write the cache to a file.
+        Write the cache to a file. The file is pickled,
+        and uses LZMA compression.
 
         Args:
             path: Path to file.
         """
-        with open(path, "wb") as f:
-            pickle.dump(self.cache, f)
+        with lzma.open(path, "wb") as f:
+            pickle.dump(self.cache, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def load_zone_object_from_file(self, path: Path) -> None:
+        """
+        Load self.zones from a file. The file is pickled,
+        and uses LZMA compression.
+
+        Args:
+            path: Path to file.
+        """
+        with lzma.open(path, "rb") as f:
+            self.zones = pickle.load(f)
+
+    def write_zone_object_to_file(self, path: Path) -> None:
+        """
+        Write self.zones to a file. The file is pickled,
+        and uses LZMA compression.
+
+        Args:
+            path: Path to file.
+        """
+        with lzma.open(path, "rb") as f:
+            pickle.dump(self.zones, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_zones_from_dir(self, path: Path) -> None:
         """
