@@ -1,95 +1,111 @@
 # CompactDNS (CDNS)
-A simple forwarding DNS server with the ability to block certain websites.
+CompactDNS, also known as CDNS is a authoritative and forwarding DNS server.
 
-> [!WARNING]
-> CDNS doesn't have 100% conformity to the  [DNS specification](https://www.rfc-editor.org/rfc/rfc1035) (yet)
+## Features
+- Easy to setup
+- Can be configured as an adblocker
+- Caches responses locally
+
 
 ## Installation
 
-Clone this repository, then install it locally.
-```
+Install CDNS from source
+```bash
+git clone https://github.com/ninjamar/compactdns
+cd compactdns
 pip install .
 ```
-The project will install as a module and cli named `cdns`.
+For development,
+```bash
+pip install -e .
+```
 
 ## Usage
-```
-usage: cdns [-h] --host HOST --resolver RESOLVER [--blocklist [BLOCKLIST ...]]
-            [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}] [--ttl TTL]
-            [--max-cache-length MAX_CACHE_LENGTH] [--tls-host TLS_HOST] [--ssl-key SSL_KEY]
-            [--ssl-cert SSL_CERT]
 
-A simple forwarding DNS server
-
-options:
-  -h, --help            show this help message and exit
-  --host HOST, -a HOST  The host address in the format of a.b.c.d:port
-  --resolver RESOLVER, -r RESOLVER
-                        The resolver address in the format of a.b.c.d:port
-  --blocklist [BLOCKLIST ...], -b [BLOCKLIST ...]
-                        Path to file containing blocklist
-  --loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}, -l {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}
-                        Provide information about the logging level (default = info).
-  --ttl TTL, -t TTL     Default TTL for blocked hosts (default = 300)
-  --max-cache-length MAX_CACHE_LENGTH, -m MAX_CACHE_LENGTH
-                        Maximum length of the cache (default=infinity)
-  --tls-host TLS_HOST   TLS socket address in the format of a.b.c.d:port (only needed if using tls)
-  --ssl-key SSL_KEY, -sk SSL_KEY
-                        Path to SSL key file (only needed if using TLS)
-  --ssl-cert SSL_CERT, -sc SSL_CERT
-                        Path to SSL cert file (only needed if using TLS)
-```
-
-or since `fromfile_prefix_chars="@"`, store the arguments inside a file (eg `./config.txt`).
-```
-cdns @config.txt
-```
-
-### Example
-```
-python cdns.py --host 127.0.0.1 --resolver 1.1.1.1:53 --blocklist example-blocklists/blocklist.toml --loglevel INFO --mode threaded --ttl 60
-```
-Runs the DNS server on `127.0.0.1:2053`, forwarding queries to `1.1.1.1:53`. For blocked sites, returns to `127.0.0.2`. Server is run in threaded mode and log level INFO.
-
-### Blocklist Format
-Blocklists should be either a `toml` or `json` file or in the format of Linux's `/etc/hosts`. See `example-blocklists/blocklist.toml` and `example-blocklists/blocklist.json` for an example. For convenience, [Peter Lowe's blocklist](https://pgl.yoyo.org/adservers/) has been inlcuded in `example-blocklists/lowe.txt`
-
-The file contains a list of rules (`rules`), which have a list of hosts (`hosts`)that get blocked to a certain ip address (`block_ip`). Key value pairs of host to ip address can be specified in the `blocklist` section.
-
-Multiple blocklists can be given as an input.
-### Loopback Addresses
-
-DNS servers run on port 53. If you want to run this on port 53, run this as root.
-
-If you don't want to clog up the loopback address, make a new one.
-#### MacOS
-```
-sudo ifconfig lo0 alias 127.X.X.X up
-```
-### Linux (unverified)
-```
-sudo ip addr add 127.X.X.X/8 dev lo
-```
-Make sure the new loopback address is in the correct range.
-
-### Set DNS servers
-#### MacOS
-```
-networksetup -setdnsservers Wi-Fi 127.X.X.X
-```
-### Testing
-#### DNS Server is being used on port 53 and by the computer
-```
-dig some.url
-```
-#### Otherwise
-```
-dig @127.X.X.X -p X some.url
-```
-
-### TLS
-
-If you want to use TLS, you need to generate a SSL key and cert file.
+After installation, CDNS can be used by running:
 ```bash
-openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+cdns [command] [options]
 ```
+
+### Commands
+
+#### `run`
+Starts the DNS server.
+```bash
+cdns run [options]
+```
+
+Options:
+  `--host`, `-a`: The host address in the format of a.b.c.d:port
+  `--resolver`, `-r`: The resolver address in the format of a.b.c.d:port
+  `--shell`, `-C`: The shell server address in the format of a.b.c.d:port
+  `--zone-dir`, `-z`: Path to directory containing zones
+  `--cache-path`, `-c`: Path to file containing a cache
+  `--loglevel`, `-l`: Provide information about the logging level (default = info).
+  `--tls-host`, `-th`: TLS socket address in the format of a.b.c.d:port (only needed if using tls)
+  `--ssl-key`, `-sk`: Path to SSL key file (only needed if using TLS)
+  `--ssl-cert`, `-sc`: Path to SSL cert file (only needed if using TLS)
+
+Arguments can also be stored in a file. See `config.txt` for an example configuration.
+```bash
+cdns run @config.txt
+```
+
+
+#### `shell`
+```bash
+cdns shell [options]
+```
+
+Options:
+  `--host`, `-h`: The host address of the shell server in the format of a.b.c.d:port
+  `--secret`, `s`: The secret of the shell server. The secret is logged when cdns is started.
+
+
+### Interactive shell
+
+For debugging, CDNS includes an interactive python shell. The shell can be accessed using the `shell` command.
+```bash
+Python 3.11.11 (main, Dec  3 2024, 17:20:40) [Clang 16.0.0 (clang-1600.0.26.4)] on darwin
+Type "help", "copyright", "credits" or "license" for more information.
+>>> help(self.command)
+command(self, cmd, **kwargs) -> None
+    Call a command.
+    
+    | Command Name | Description | Arguments |
+    | load-zones   | Load zones from pickle file | Path - path to file |
+    | dump-zones   | Dump zones to a pickle file | Path - path to file |
+    | load-zones-dir | Load zones from a directory | Path - path to file |
+    | load-cache   | Load the cache from a pickle file | Path - path to file |
+    | dump-cache   | Write the cache to a pickle file | Path - path to file |
+    
+    >>> self.command("load-zones-dir", path="./foo/bar")
+    
+    Args:
+        cmd: Name of the command.
+        kwargs: Arguments to the command.
+```
+
+## DNS Zones
+
+DNS zones can be stored in a folder. Make sure that each filename is in the format of `domain.zone`.
+
+## Changing the DNS server
+
+On MacOS:
+```bash
+networksetup -setdnsservers Wi-Fi A.B.C.D
+```
+
+DNS runs over port `53` for both UDP and TCP.
+
+## Testing
+
+Send test queries using dig.
+```bash
+dig @A.B.C.D -p PORT google.com
+```
+
+## License
+
+This project is licensed under the MIT License. Please see the LICENSE file for more details.
