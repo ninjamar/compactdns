@@ -167,7 +167,7 @@ def cli() -> None:
 
         if args.zone_dir is not None:
             storage.load_zones_from_dir(Path(args.zone_dir).resolve())
-
+        print(storage.zones)
         if args.cache_path is not None:
             # TODO: Test this out
             storage.load_cache_from_file(Path(args.cache_path).resolve())

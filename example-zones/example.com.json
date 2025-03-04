@@ -1,0 +1,81 @@
+{
+    "domain": "foo.com",
+    "ttl": 86400,
+    "soa": {
+        "primary_ns": "ns1.foo.com.",
+        "admin_email": "admin.foo.com.",
+        "serial": 2024022701,
+        "refresh": 3600,
+        "retry": 1800,
+        "expire": 1209600,
+        "minimum": 86400
+    },
+    "mx_records": {
+        "foo.com": [
+            {
+                "priority": 10,
+                "exchange": "mail.foo.com."
+            },
+            {
+                "priority": 20,
+                "exchange": "backupmail.foo.com."
+            }
+        ]
+    },
+    "records": {
+        "foo.com": {
+            "NS": [
+                [
+                    "ns1.foo.com.",
+                    86400
+                ],
+                [
+                    "ns2.foo.com.",
+                    86400
+                ]
+            ],
+            "A": [
+                [
+                    "192.0.2.1",
+                    86400
+                ]
+            ],
+            "AAAA": [
+                [
+                    "2001:db8::1",
+                    86400
+                ]
+            ],
+            "TXT": [
+                [
+                    "v=spf1 mx -all",
+                    86400
+                ]
+            ]
+        },
+        "www": {
+            "A": [
+                [
+                    "192.0.2.2",
+                    86400
+                ]
+            ]
+        },
+        "mail": {
+            "A": [
+                [
+                    "192.0.2.3",
+                    86400
+                ]
+            ]
+        },
+        "ftp": {
+            "CNAME": [
+                [
+                    "www.foo.com.",
+                    86400
+                ]
+            ]
+        }
+    }
+}

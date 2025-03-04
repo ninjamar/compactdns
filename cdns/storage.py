@@ -36,7 +36,7 @@ from publicsuffixlist import PublicSuffixList
 from .cache import DNSCache
 from .protocol import RTypes
 from .utils import BiInt
-from .zones import DNSZone, parse_zone
+from .zones import DNSZone, parse_zone, parse_multiple_json_zones, parse_singular_json_zone
 
 
 class RecordError(Exception):
@@ -149,9 +149,19 @@ class RecordStorage:
         Args:
             path: Path to file.
         """
+        if str(path).endswith(".all.json"):
+            self.zones.update(parse_multiple_json_zones(path))
+            return
+        if str(path).endswith(".json"):
+            zone = parse_singular_json_zone(path)
+            self.zones[zone.domain] = zone
+            return
         # TODO: Support reloading with latest changes
-        name, zone = parse_zone(path)
-        self.zones[name] = zone
+        if str(path).endswith(".zone"):
+            zone = parse_zone(path)
+            self.zones[zone.domain] = zone
+            return
+        raise Exception("Unable to load zone from file: invalid format")
 
     def load_cache_from_file(self, path: Path) -> None:
         """
@@ -204,8 +214,8 @@ class RecordStorage:
         Args:
             zone_dir_path: Path to directory
         """
-        paths = [path / x for x in path.iterdir() if x.suffix == ".zone"]
-
+        # paths = [path / x for x in path.iterdir() if x.suffix == ".zone"]
+        paths = [path / x for x in path.iterdir()]
         for path in paths:
             self.load_zone_from_file(path)
 

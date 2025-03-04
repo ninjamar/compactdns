@@ -28,6 +28,7 @@
 
 import dataclasses
 import io
+import json
 import re
 from pathlib import Path
 
@@ -84,6 +85,9 @@ class DNSZone:
 
         if name.endswith("."):
             name = name[:-1]
+        if "." not in name:
+            name = name + "." + self.domain
+
         if record_type == "MX":
             priority, exchange = value.split(maxsplit=1)  # split by whitespace once
             if name not in self.mx_records:
@@ -272,6 +276,48 @@ class ZoneParser:
         self.line = self.line.strip().split(";")[0].strip()
 
 
+def parse_singular_json_obj(j) -> DNSZone:
+    zone = DNSZone(domain=j["domain"])
+    if "ttl" in j:
+        zone.ttl = int(j["ttl"])
+    if "soa" in j:
+        soa = j["soa"]
+        zone.soa = SOARecord(
+            primary_ns=soa["primary_ns"],
+            admin_email=soa["admin_email"],
+            serial=int(soa["serial"]),
+            refresh=int(soa["refresh"]),
+            retry=int(soa["retry"]),
+            expire=int(soa["expire"]),
+            minimum=int(soa["minimum"]),
+        )
+    if "mx_records" in j:
+        for domain in j["mx_records"]:
+            zone.mx_records[domain] = [
+                MXRecord(int(x["priority"]), x["exchange"])
+                for x in j["mx_records"][domain]
+            ]
+
+    for domain in j["records"]:
+        print(domain)
+        for type_ in j["records"][domain]:
+            for v in j["records"][domain][type_]:
+                print(v)
+                zone.add_record(domain, type_, v[0], int(v[1]))
+    return zone
+
+
+def parse_multiple_json_zones(path: Path) -> dict[str, DNSZone]:
+    with open(path) as f:
+        return {
+            zone.domain: zone for zone in [parse_singular_json_obj(zone) for zone in json.load(f)]
+        }
+
+def parse_singular_json_zone(path: Path) -> DNSZone:
+    with open(path) as f:
+        return parse_singular_json_obj(json.load(f))
+
+
 def parse_zone(path: Path) -> tuple[str, DNSZone]:
     """
     Parse a zone from the file.
@@ -285,9 +331,14 @@ def parse_zone(path: Path) -> tuple[str, DNSZone]:
     # name = path.split("/")[-1][:-5]  # Filename, then extract domain.zone
     name = path.stem
     with open(path) as f:
-        p = ZoneParser(name, f)
-        p.parse()
-        return name, p.zone
+        if path.suffix == ".zone":
+            p = ZoneParser(name, f)
+            p.parse()
+            return p.zone
+        elif path.suffix == ".json":
+            # Black magic of code
+            j = json.load(f)
+            return parse_singular_json_obj(j)
 
 
 def parse_all_zones(paths: list[str]) -> dict[str, DNSZone]:
@@ -302,12 +353,15 @@ def parse_all_zones(paths: list[str]) -> dict[str, DNSZone]:
     """
     zones: dict[str, DNSZone] = {}
     for path in paths:
-        name, zone = parse_zone(path)
-        zones[name] = zone
+        if path.endswith(".all.json"):
+            with open(path) as f:
+                zones.update(parse_multiple_json_zones(json.load(f)))
+        zone = parse_zone(path)
+        zones[zone.domain] = zone
     return zones
 
 
 if __name__ == "__main__":
     path = "/".join(__file__.split("/")[:-2]) + "/example-zones/example.com.zone"
-    zones = parse_all_zones([path])
-    print(zones)
+    zones = parse_all_zones([Path(path)])
+    print(dataclasses.asdict(zones["example.com"]))

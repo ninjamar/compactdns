@@ -253,9 +253,13 @@ class DNSCache:
         """
         for domain in list(self.data.keys()):
             for record in list(self.data[domain].keys()):
-                self.data[domain][record] = [value for value in self.data[domain][record] if value.get() is not None]
+                self.data[domain][record] = [
+                    value
+                    for value in self.data[domain][record]
+                    if value.get() is not None
+                ]
                 if not self.data[domain][record]:
                     del self.data[domain][record]
-            
+
             if not self.data[domain]:
                 del self.data[domain]
