@@ -64,7 +64,7 @@ class DNSZone:
     soa: SOARecord | None = None
     mx_records: dict[str, list[MXRecord]] = dataclasses.field(default_factory=dict)
 
-    records: dict[str, dict[str, list[(str, int)]]] = dataclasses.field(
+    records: dict[str, dict[str, list[tuple[str, int]]]] = dataclasses.field(
         default_factory=dict
     )  # default value
 
