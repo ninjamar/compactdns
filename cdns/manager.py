@@ -297,6 +297,7 @@ class ServerManager:
         | load-zones-dir | Load zones from a directory | Path - path to file |
         | load-cache   | Load the cache from a pickle file | Path - path to file |
         | dump-cache   | Write the cache to a pickle file | Path - path to file |
+        | purge-cache  | Purge the cache |
 
         >>> self.command("load-zones-dir", path="./foo/bar")
 
@@ -320,6 +321,8 @@ class ServerManager:
             )
         elif cmd == "dump-cache":
             return self.storage.write_cache_to_file(path=Path(kwargs["path"]).resolve())
+        elif cmd == "purge-cache":
+            return self.storage.cache.purge()
 
     def _handle_shell_session(self, conn: socket.socket) -> None:
         """

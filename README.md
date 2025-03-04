@@ -73,24 +73,8 @@ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -node
 
 For debugging, CDNS includes an interactive python shell. The shell can be accessed using the `shell` command.
 ```bash
-Python 3.11.11 (main, Dec  3 2024, 17:20:40) [Clang 16.0.0 (clang-1600.0.26.4)] on darwin
-Type "help", "copyright", "credits" or "license" for more information.
 >>> help(self.command)
-command(self, cmd, **kwargs) -> None
-    Call a command.
-    
-    | Command Name | Description | Arguments |
-    | load-zones   | Load zones from pickle file | Path - path to file |
-    | dump-zones   | Dump zones to a pickle file | Path - path to file |
-    | load-zones-dir | Load zones from a directory | Path - path to file |
-    | load-cache   | Load the cache from a pickle file | Path - path to file |
-    | dump-cache   | Write the cache to a pickle file | Path - path to file |
-    
-    >>> self.command("load-zones-dir", path="./foo/bar")
-    
-    Args:
-        cmd: Name of the command.
-        kwargs: Arguments to the command.
+>>> help(cdns.manager.ServerManager.command)
 ```
 
 ## DNS Zones
