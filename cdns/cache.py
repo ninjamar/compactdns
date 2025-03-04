@@ -161,7 +161,7 @@ class DNSCache:
         """
         Create a DNSCache instance.
         """
-        self.data: dict[str, dict[str, list]] = {}
+        self.data: dict[str, dict[str, list[TimedItem]]] = {}
         """{
             "foo.example.com": {
                 "A": [("127.0.0.1", 500)]
@@ -246,3 +246,16 @@ class DNSCache:
             for item in self.data[name][record_type]
             if (value := item.get()) is not None
         ]
+
+    def purge(self) -> None:
+        """
+        Purge expired records.
+        """
+        for domain in list(self.data.keys()):
+            for record in list(self.data[domain].keys()):
+                self.data[domain][record] = [value for value in self.data[domain][record] if value.get() is not None]
+                if not self.data[domain][record]:
+                    del self.data[domain][record]
+            
+            if not self.data[domain]:
+                del self.data[domain]
