@@ -8,13 +8,9 @@
 example-zones
 --loglevel
 INFO
---ttl
-60
 --tls-host
 127.0.0.1:3053
 --ssl-key
 key.pem
 --ssl-cert
 cert.pem
---max-cache-length
-10000
