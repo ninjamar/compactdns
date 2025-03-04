@@ -37,7 +37,8 @@ import sys
 import threading
 from pathlib import Path
 
-from .protocol import DNSAnswer, DNSHeader, DNSQuestion, pack_all_compressed, unpack_all
+from .protocol import (DNSAnswer, DNSHeader, DNSQuestion, pack_all_compressed,
+                       unpack_all)
 from .response import ResponseHandler
 from .storage import RecordStorage
 

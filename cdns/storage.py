@@ -36,7 +36,8 @@ from publicsuffixlist import PublicSuffixList
 from .cache import DNSCache
 from .protocol import RTypes
 from .utils import BiInt
-from .zones import DNSZone, parse_zone, parse_multiple_json_zones, parse_singular_json_zone
+from .zones import (DNSZone, parse_multiple_json_zones,
+                    parse_singular_json_zone, parse_zone)
 
 
 class RecordError(Exception):
