@@ -33,6 +33,118 @@ from typing import Literal
 
 from .utils import ImmutableBiDict
 
+"""
+A module implementing RFC1035, the DNS protocol specification.
+=============
+cdns.protocol
+=============
+
+This module implements the DNS protocol as defined by RFC1035
+(https://www.rfc-editor.org/rfc/rfc1035). Note that this module hasn't
+been tested for full conformity.
+
+
+Headers, Questions, and Answers
+===============================
+These are all represented by the corresponding dataclass.
+
+>>> DNSHeader(**fields)
+>>> DNSQuestion(**fields)
+>>> DNSAnswer(**fields)
+
+Each field, except for `decoded_name`, corresponds to what RFC1035 says. Please
+note that `id`, `class`, and `type` are all represented by `id_`, `class_`, and
+`type_` respectively. Also, fields stored as bytes such as `rdata` are assumed
+to be already encoded. Each dataclass has a pack method, which packs the
+dataclass into the DNS wire format. `DNSQuestion.pack` and `DNSAnswer.pack` both
+take encoded_name as an argument. This is because the field can be compressed
+depending on other packets.
+
+>>> DNSHeader(
+...         id_=12345,
+...         qr=1,
+...         opcode=0,
+...         aa=0,
+...         tc=0,
+...         rd=1,
+...         ra=1,
+...         z=0,
+...         rcode=0,
+...         qdcount=1,
+...         ancount=1,
+...         nscount=0,
+...         arcount=0
+...     ).pack()
+b'09\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00'
+
+>>> DNSQuestion(decoded_name="google.com", type_=1, class_=1).pack(
+...     auto_encode_label("google.com"))
+b'\x06google\x03com\x00\x00\x01\x00\x01'
+
+>>> DNSAnswer(decoded_name="google.com", rdata=auto_encode_label("127.0.0.1"))
+...     .pack(auto_encode_label("google.com"))
+b'\x06google\x03com\x00\x00\x01\x00\x01\x00\x00\x00\x00\x00\x04\x7f\x00\x00\x01'
+
+Encoding/Decoding
+=================
+
+Most of these functions have the LRU cache applied.
+
+Uncompressed name encoding/decoding
+-----------------------------------
+
+>>> encode_name_uncompressed("google.com")
+b'\x06google\x03com\x00'
+>>> decode_name_uncompressed(b'\x06google\x03com\x00')
+'google.com'
+
+Uncompressed generic encoding/decoding
+--------------------------------------
+>>> encode_label("IPV4", "127.0.0.1")
+b'\x7f\x00\x00\x01'
+>>> encode_label("IPV6", "::1")
+b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01'
+>>> encode_label("LABEL", "google.com")
+b'\x06google\x03com\x00'
+
+decode_label has the same API, but takes encoded bytes instead of a string.
+
+Automatic type detection for encoding/decoding
+----------------------------------------------
+
+Use `auto_encode_label` and `auto_decode_label` to automatically detect and
+apply the correct encoding or decoding function.
+
+Compressed encoding/decoding
+----------------------------
+
+Compressed encoding requires the whole packet. Use the packing/unpacking
+functions instead. For decoding, use `decode_name`, which takes in a buffer,
+and the index of the label.
+
+>>> decode_name(b"some-really-long-buffer", 30)
+"google.com"
+
+Packing/Unpacking
+=================
+
+Packing
+-------
+
+>>> pack_all_uncompressed(DNSHeader, [DNSQuestion, ...], [DNSAnswer, ...])
+b"a long uncompressed buffer"
+>>> pack_all_compressed(DNSHeader, [DNSQuestion, ...], [DNSAnswer, ...])
+b"a long compressed buffer"
+
+Unpacking
+---------
+
+The function unpack_all handles both compressed and uncompressed buffers.
+>>> unpack_all(b"a long buffer")
+(DNSHeader, [DNSQuestion, ...], [DNSAnswer, ...])
+
+"""
+
 # Still need PTR, 12, SRV, 33, CAA, 257
 RTypes = ImmutableBiDict(
     [
@@ -86,8 +198,7 @@ def decode_name_uncompressed(buf: bytes) -> str:
 
 @functools.lru_cache(maxsize=512)
 def encode_label(type_: Literal["IPV4", "IPV6", "NAME", "LABEL"], label: str) -> bytes:
-    """
-    Encode a label according to it's type.
+    """Encode a label according to it's type.
 
     Args:
         type_: Type of label.
@@ -107,8 +218,7 @@ def encode_label(type_: Literal["IPV4", "IPV6", "NAME", "LABEL"], label: str) ->
 
 @functools.lru_cache(maxsize=512)
 def decode_label(type_: Literal["IPV4", "IPV6", "NAME", "LABEL"], label: bytes) -> str:
-    """
-    Decode a label accordign to it's type.
+    """Decode a label according to it's type.
 
     Args:
         type_: The type of the label.
@@ -127,8 +237,7 @@ def decode_label(type_: Literal["IPV4", "IPV6", "NAME", "LABEL"], label: bytes) 
 
 @functools.lru_cache(maxsize=512)
 def auto_encode_label(label):
-    """
-    Encode a label, automatically detecting it's type.
+    """Encode a label, automatically detecting it's type.
 
     Args:
         label: The label to encode.
@@ -147,8 +256,7 @@ def auto_encode_label(label):
 
 @functools.lru_cache(maxsize=512)
 def auto_decode_label(label):
-    """
-    Decode a label, automatically detecting it's type.
+    """Decode a label, automatically detecting it's type.
 
     Args:
         label: The label to decode.
@@ -175,7 +283,8 @@ class DNSDecodeLoopError(Exception):
     pass
 
 
-@functools.lru_cache(maxsize=512)
+# No cache here since it will size up really fast
+# @functools.lru_cache(maxsize=512)
 def decode_name(buf: bytes, start_idx: int) -> tuple[str, int]:
     """Decode a compressed DNS name from a position in a buffer.
 
