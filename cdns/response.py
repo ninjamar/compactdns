@@ -170,12 +170,21 @@ class ResponseHandler:
         """
         Automatically called after self.process.
         """
-        # Disable the recursion flag for cached or intercepted queries
-        # I'm not sure how much this actually works
-        # https://serverfault.com/a/729121
-        if len(self.question_index_intercepted) > 0:
-            self.resp_header.rd = 0
-            self.resp_header.ra = 0
+
+        # We could also make a copy of self.resp_header, but it doesn't matter
+        # Make a new header
+        self.resp_header = DNSHeader(
+            id_=self.buf_header.id_, # Same id
+            qr=1, # Response
+            # These flags are all 0
+            opcode=0,
+            aa=0,
+            tc=0,
+            # No recursion
+            rd=0,
+            ra=0,
+            z=0, # TODO: Make constant
+        )
 
         # Add the intercepted questions to the response, keeping the position
         for idx, answers in self.question_index_intercepted:
