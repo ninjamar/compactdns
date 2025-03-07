@@ -80,10 +80,11 @@ class ResponseHandler:
         Args:
             buf: Buffer to unpack.
         """
-        self.receive(buf)
-        self.process()
+        success = self.receive(buf)
+        if success:
+            self.process()
 
-    def receive(self, buf: bytes) -> None:
+    def receive(self, buf: bytes) -> bool:
         """
         Receive a buffer, unpacking it.
 
@@ -91,8 +92,14 @@ class ResponseHandler:
             buf: Buffer to unpack.
         """
         # Receive header and questions
-        self.buf_header, self.buf_questions, _ = unpack_all(buf)
-        logging.debug("Received query: %s, %s", self.buf_header, self.buf_questions)
+        try:
+            self.buf_header, self.buf_questions, _ = unpack_all(buf)
+            logging.debug("Received query: %s, %s", self.buf_header, self.buf_questions)
+            return True
+        except (struct.error, IndexError) as e:
+            # raise e
+            logging.error("Unable to unpack DNS query")
+            return False
 
     def process(self) -> None:
         """
@@ -174,8 +181,8 @@ class ResponseHandler:
         # We could also make a copy of self.resp_header, but it doesn't matter
         # Make a new header
         self.resp_header = DNSHeader(
-            id_=self.buf_header.id_, # Same id
-            qr=1, # Response
+            id_=self.buf_header.id_,  # Same id
+            qr=1,  # Response
             # These flags are all 0
             opcode=0,
             aa=0,
@@ -183,7 +190,7 @@ class ResponseHandler:
             # No recursion
             rd=0,
             ra=0,
-            z=0, # TODO: Make constant
+            z=0,  # TODO: Make constant
         )
 
         # Add the intercepted questions to the response, keeping the position
