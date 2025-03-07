@@ -25,14 +25,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import dataclasses
-import functools
-import socket
-import struct
-from typing import Literal
-
-from .utils import ImmutableBiDict
-
 """
 A module implementing RFC1035, the DNS protocol specification.
 =============
@@ -144,6 +136,15 @@ The function unpack_all handles both compressed and uncompressed buffers.
 (DNSHeader, [DNSQuestion, ...], [DNSAnswer, ...])
 
 """
+
+import dataclasses
+import functools
+import socket
+import struct
+from typing import Literal
+
+from .utils import ImmutableBiDict
+
 
 # Still need PTR, 12, SRV, 33, CAA, 257
 RTypes = ImmutableBiDict(
