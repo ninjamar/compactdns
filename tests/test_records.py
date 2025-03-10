@@ -1,8 +1,7 @@
 import dataclasses
 import unittest
 
-from cdns.zones import (DNSZone, MXRecord, SOARecord, ZoneParser,
-                        parse_all_zones)
+from cdns.zones import DNSZone, MXRecord, SOARecord, ZoneParser, parse_all_zones
 
 # import cdns.records
 

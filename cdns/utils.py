@@ -25,27 +25,37 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import functools
-import socket
+import os
+import copy
+import re
 from typing import Any
 
+def get_dns_servers() -> list[str]:
+    if os.name == "Windows":
+        raise OSError("Unable to find DNS server on Windows")
 
-@functools.cache
-def is_ip_addr_valid(ip_addr: str) -> bool:
-    """Check if an IP address is valid. This function caches the validity of an
-    IP address.
+    with open("/etc/resolv.conf") as f:
+        data = f.read()
+        return re.findall(r"nameserver (.*)", data, re.M)
 
-    Args:
-        ip_addr: The IP address to check validity.
 
-    Returns:
-        Is the IP address valid?
-    """
-    try:
-        socket.inet_aton(ip_addr)
-        return True
-    except socket.error:
-        return False
+def merge_defaults(defaults: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    merged = copy.deepcopy(defaults)
+    for key, value in override.items():
+        if isinstance(value, dict):
+            merged[key] = merge_defaults(defaults[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+def flatten_dict(d: dict[str, Any], sep="0", base="") -> dict[str, Any]:
+    new = {}
+    for key, value in d.items():
+        if isinstance(value, dict):
+            new.update(flatten_dict(value, sep, base + key + sep))
+        else:
+            new[base + key] = value
+    return new
 
 
 # TODO: Don't use this class. Just use strings instead. Actual waste of time.

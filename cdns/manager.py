@@ -24,26 +24,24 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
+import sys
+
+
 import code
 import concurrent.futures
-import json
 import logging
 import secrets
 import selectors
 import socket
 import ssl
 import struct
-import sys
 import threading
 from pathlib import Path
-
-from .protocol import (DNSAnswer, DNSHeader, DNSQuestion, pack_all_compressed,
-                       unpack_all)
+from multiprocessing import Queue
+from .daemon import GetResolverDaemon
 from .response import ResponseHandler
 from .storage import RecordStorage
-
 MAX_WORKERS = 1000
-
 
 class ServerManager:
     """A class to store a server session."""
@@ -52,12 +50,14 @@ class ServerManager:
         self,
         host: tuple[str, int],
         shell_host: tuple[str, int],
-        resolver: tuple[str, int],
+        resolvers: list[tuple[str, int]],
         storage: RecordStorage,
         # max_cache_length: int = float("inf"),
         tls_host: tuple[str, int] | None = None,
         ssl_key_path: str | None = None,
         ssl_cert_path: str | None = None,
+        use_fastest_resolver: bool = True,
+        resolver_interval: int | None = None,
         # zone_dir: str | None = None,
         # cache_path: str | None = None,
     ) -> None:
@@ -67,13 +67,15 @@ class ServerManager:
         Args:
             host: Host and port of server for UDP and TCP.
             shell_host: Host and port of the shell server.
-            resolver: Host and port of resolver.
+            resolvers: Host and port of resolver.
             storage: Storage of zones and cache.
             tls_host: Host and port of server for DNS over TLS.. Defaults to None.
             ssl_key_path: Path to SSL key file. . Defaults to None.
             ssl_cert_path: Path to SSL cert file. Defaults to None.
         """
 
+        # TODO: Make this better
+                
         self.host = host
         self.shell_host = shell_host
         self.tls_host = tls_host
@@ -87,7 +89,7 @@ class ServerManager:
         self.tcp_sock.setblocking(False)
 
         # Make sure all of these are not none
-        if all([x is not None for x in [tls_host, ssl_key_path, ssl_cert_path]]):
+        if all([x is not None for x in [self.tls_host, ssl_key_path, ssl_cert_path]]):
             self.use_tls = True
 
             self.tls_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -107,10 +109,24 @@ class ServerManager:
         self.shell_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.shell_secret = secrets.token_hex(10)
 
-        # self.resolver_udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # self.resolver_udp_sock.setblocking(False)
 
-        self.resolver_addr = resolver
+        self.resolver_q = Queue()
+
+        if use_fastest_resolver:
+            if resolver_interval is None:
+                raise ValueError("Unable to use fastest resolver when resolver_interval is None")
+            # Start the resolver daemon
+            self.resolver_daemon = GetResolverDaemon(resolvers, resolver_interval, self.resolver_q)
+            self.resolver_daemon.start()
+        else:
+            if len(resolvers) > 1:
+                raise ValueError("Unable to have more than one resolver when use_fastest is False")
+            
+            self.resolver_q.put(resolvers[0])
+
+        # Get the address
+        self.resolver_addr = self.resolver_q.get()
+        logging.info("Resolver address: %s", self.resolver_addr)
 
         self.forwarder_sel = selectors.DefaultSelector()
         self.forwarder_pending_requests: dict[
@@ -124,19 +140,42 @@ class ServerManager:
         self.execution_timeout = 0
         self.max_workers = MAX_WORKERS
 
-        # self.cache = TimedCache(max_length=max_cache_length)
         self.storage = storage
 
-        # TODO: len self.storage
-        # if len(self.records) > max_cache_length:  # FIXME: > or >=? can't decide
-        #    logging.warning(
-        #        "The Records has %i items, the max cache length is %i",
-        #        len(self.records),
-        #        max_cache_length,
-        #    )
+    @classmethod
+    def from_config(cls, **kwargs):
+        """
+        Create an instance of ServerManager from a configuration.
 
-        # TODO: preload zones into cache
+        Returns:
+            An instance of ServerManager
+        """
+        storage = RecordStorage()
+        if kwargs["storage0zone_dirs"] is not None:
+            for dir in kwargs["storage0zone_dirs"]:
+                storage.load_zones_from_dir(Path(dir).resolve())
+        if kwargs["storage0zone_pickle_path"] is not None:
+            storage.load_zone_object_from_file(Path(kwargs["storage0zone_pickle_path"]).resolve())
+        if kwargs["storage0cache_pickle_path"] is not None:
+            # TODO: Test this out
+            storage.load_cache_from_file(Path(kwargs["storage0cache_pickle_path"]).resolve())
 
+        logging.debug("Records: %s", storage)
+
+        return cls(
+            storage=storage,
+            host=(kwargs["servers0host0host"], int(kwargs["servers0host0port"])),
+            shell_host=(kwargs["servers0shell0host"], int(kwargs["servers0shell0port"])),
+
+            resolvers=[(addr, 53) for addr in kwargs["resolver0resolvers"]], # Use port 53 for resolvers
+            use_fastest_resolver=kwargs["resolver0use_fastest"],
+            resolver_interval=kwargs["resolver0interval"],
+
+            tls_host=(kwargs["servers0tls0host"], int(kwargs["servers0tls0port"])),
+            ssl_key_path=kwargs["servers0tls0ssl_key"],
+            ssl_cert_path=kwargs["servers0tls0ssl_cert"]
+        )
+    
     def forwarder_daemon(self) -> None:
         """
         Handler for the thread that handles the response for forwarded queries
@@ -387,7 +426,8 @@ class ServerManager:
                 self.tls_host[1],  # type: ignore
             )
 
-        sockets = [self.shell_sock, self.udp_sock, self.tcp_sock]
+        # Update these devices when it's readable
+        sockets = [self.resolver_q._reader, self.udp_sock, self.tcp_sock, self.shell_sock,]
         if self.use_tls:
             sockets.append(self.tls_sock)
 
@@ -405,9 +445,9 @@ class ServerManager:
                         # FIXME: What should the timeout be? Does this fix the issue?
                         events = sel.select(timeout=0)
                         for key, mask in events:
-                            sock = key.fileobj  # type: ignore[assignment]
+                            obj = key.fileobj  # type: ignore[assignment]
 
-                            if sock == self.udp_sock:
+                            if obj == self.udp_sock:
                                 # TODO: Should receiving data be in the thread? (what)
                                 query, addr = self.udp_sock.recvfrom(512)
 
@@ -417,7 +457,7 @@ class ServerManager:
                                 future.add_done_callback(
                                     self._handle_thread_pool_completion
                                 )
-                            elif sock == self.tcp_sock:
+                            elif obj == self.tcp_sock:
                                 conn, addr = self.tcp_sock.accept()
                                 # Make connection non-blocking
                                 conn.setblocking(False)
@@ -429,7 +469,7 @@ class ServerManager:
                                     self._handle_thread_pool_completion
                                 )
                             # If self.use_tls is False, then sockets won't contain self.tls_sock
-                            elif sock == self.tls_sock:
+                            elif obj == self.tls_sock:
                                 conn, addr = self.tls_sock.accept()
                                 conn.setblocking(False)
                                 future = executor.submit(
@@ -438,7 +478,7 @@ class ServerManager:
                                 future.add_done_callback(
                                     self._handle_thread_pool_completion
                                 )
-                            elif sock == self.shell_sock:
+                            elif obj == self.shell_sock:
                                 conn, addr = self.shell_sock.accept()
                                 future = executor.submit(
                                     self._handle_shell_session, conn
@@ -446,6 +486,10 @@ class ServerManager:
                                 future.add_done_callback(
                                     self._handle_thread_pool_completion
                                 )
+                            
+                            elif obj == self.resolver_q:
+                                self.resolver_addr = self.resolver_q.get()
+                                logging.info("Resolver address: %s", self.resolver_addr)
 
                     except KeyboardInterrupt:
                         # Don't want the except call here to be called, I want the one outside the while loop

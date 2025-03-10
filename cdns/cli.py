@@ -54,13 +54,42 @@ options:
 import argparse
 import logging
 import sys
-from pathlib import Path
+import json
+
+if sys.version_info < (3, 11):
+    import tomli as tomllib
+else:
+    import tomllib
 
 from .manager import ServerManager
 from .shell_client import start_client as shell_start_client
-from .storage import RecordStorage
+from .utils import merge_defaults, flatten_dict
 
-# from .zones import
+
+kwargs_defaults = {
+    "loglevel": "INFO",
+    "servers": {
+        "host": {"addr": "127.0.0.1", "port": 2053},
+        "tls": {
+            "host": None,
+            "port": None,
+            "ssl_key": None,
+            "ssl_cert": None,
+        },
+        "shell": {"host": "127.0.0.1", "port": 2055},
+    },
+    "resolver": {
+        "resolvers": [],
+        "use_fastest": True,
+        "add_system": True,
+        "interval": 120,
+    },
+    "storage": {
+        "zone_dirs": None,
+        "zone_pickle_path": None,
+        "cache_pickle_path": None,
+    },
+}
 
 
 def cli() -> None:
@@ -71,122 +100,66 @@ def cli() -> None:
     )
     subparsers = parser.add_subparsers(help="Functions", dest="subcommand")
 
-    parser_run = subparsers.add_parser("run")
-    parser_run.add_argument(
-        "--host",
-        "-a",
-        required=True,
-        type=str,
-        help="The host address in the format of a.b.c.d:port",
-    )
-    parser_run.add_argument(
-        "--resolver",
-        "-r",
-        required=True,
-        type=str,
-        help="The resolver address in the format of a.b.c.d:port",
-    )
-    parser_run.add_argument(
-        "--shell",
-        "-C",
-        required=True,
-        type=str,
-        help="The shell server address in the format of a.b.c.d:port",
-    )
-    parser_run.add_argument(
-        "--zone-dir",
-        "-z",
-        # required=False
-        type=str,
-        help="Path to directory containing zones",
-        # nargs="*",
-    )
-    parser_run.add_argument(
-        "--cache-path",
-        "-c",
-        # required=False
-        type=str,
-        help="Path to file containing a cache",
-        # nargs="*",
-    )
-    parser_run.add_argument(
-        "--loglevel",
-        "-l",
-        choices=list(logging.getLevelNamesMapping().keys()),
-        default="INFO",
-        type=str,
-        help="Provide information about the logging level (default = info).",
-    )
-    parser_run.add_argument(
-        "--tls-host",
-        "-th",
-        default=None,
-        type=str,
-        help="TLS socket address in the format of a.b.c.d:port (only needed if using tls)",
-    )
-    parser_run.add_argument(
-        "--ssl-key",
-        "-sk",
-        default=None,
-        type=str,
-        help="Path to SSL key file (only needed if using TLS)",
-    )
-    parser_run.add_argument(
-        "--ssl-cert",
-        "-sc",
-        default=None,
-        type=str,
-        help="Path to SSL cert file (only needed if using TLS)",
-    )
-
     parser_shell = subparsers.add_parser("shell")
     parser_shell.add_argument("--secret", "-s", default=None, help="Shell secret")
     parser_shell.add_argument("--host", "-a", required=True, help="Host of server")
 
-    args = parser.parse_args()
+    parser_run = subparsers.add_parser("run")
+    parser_run.add_argument(
+        "--config",
+        "-c",
+        type=str,
+        help="Path to configuration file (json or toml)",
+    )
+
+    for key, value in flatten_dict(kwargs_defaults).items():
+        parser_run.add_argument(
+            f"--{key}",
+            help="Auto generated option",
+            type=str if isinstance(value, str) else (int if isinstance(value, int) else None),
+            nargs="+" if isinstance(value, list) else None
+        )
+
+
+    # TODO: Help message for kwargs
+
+    args, unknown = parser.parse_known_args()
+
     if args.subcommand is None:
         parser.print_help()
         sys.exit(1)
 
     elif args.subcommand == "run":
+        kwargs = {}
+        # TODO: Parse using argparse
+        # if len(unknown) > 0:
+        #    parser = argparse.ArgumentParser()
+
+        # kwargs.update(dict(zip(unknown[:-1:2], unknown[1::2])))
+        if args.config is not None:
+            if args.config.endswith(".json"):
+                with open(args.config) as f:
+                    kwargs.update(json.load(f))
+            elif args.config.endswith(".toml"):
+                with open(args.config, "rb") as f:
+                    kwargs.update(tomllib.load(f))
+            else:
+                raise ValueError("Unable to load configuration: unknown file format")
+
+        # kwargs.update(vars(args))
+        kwargs.update({k:v for k, v in vars(args).items() if v is not None})
+        kwargs = merge_defaults(kwargs_defaults, kwargs)
+        kwargs = flatten_dict(kwargs)
+
         logging.basicConfig(
-            level=args.loglevel.upper(),
+            level=logging.getLevelNamesMapping()[kwargs["loglevel"]],
             format="%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
-        host = args.host.split(":")
-        resolver = args.resolver.split(":")
-        shell = args.shell.split(":")
-        if args.tls_host is not None:
-            tls_host = args.tls_host.split(":")
-        else:
-            tls_host = None
-
-        storage = RecordStorage()
-
-        if args.zone_dir is not None:
-            storage.load_zones_from_dir(Path(args.zone_dir).resolve())
-        if args.cache_path is not None:
-            # TODO: Test this out
-            storage.load_cache_from_file(Path(args.cache_path).resolve())
-
-        logging.debug("Records: %s", storage)
-
-        manager = ServerManager(
-            host=(host[0], int(host[1])),
-            resolver=(resolver[0], int(resolver[1])),
-            shell_host=(shell[0], int(shell[1])),
-            tls_host=(
-                (tls_host[0], int(tls_host[1])) if tls_host is not None else tls_host
-            ),
-            ssl_key_path=args.ssl_key,
-            ssl_cert_path=args.ssl_cert,
-            storage=storage,
-            # max_cache_length=args.max_cache_length,
-        )
-
+        manager = ServerManager.from_config(**kwargs)
         manager.start()
+
     elif args.subcommand == "shell":
         host = args.host.split(":")
         shell_start_client(secret=args.secret, addr=(host[0], int(host[1])))

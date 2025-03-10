@@ -308,8 +308,10 @@ def parse_singular_json_obj(j) -> DNSZone:
 def parse_multiple_json_zones(path: Path) -> dict[str, DNSZone]:
     with open(path) as f:
         return {
-            zone.domain: zone for zone in [parse_singular_json_obj(zone) for zone in json.load(f)]
+            zone.domain: zone
+            for zone in [parse_singular_json_obj(zone) for zone in json.load(f)]
         }
+
 
 def parse_singular_json_zone(path: Path) -> DNSZone:
     with open(path) as f:

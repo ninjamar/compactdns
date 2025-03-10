@@ -1,0 +1,30 @@
+[servers.host]
+host = "127.0.0.1"
+port = 2053
+
+[servers.tls]
+host = "127.0.0.1"
+port = 2054
+ssl_key = "key.pem"
+ssl_cert = "cert.pem"
+
+
+[servers.shell]
+host = "127.0.0.1"
+port = 2055
+
+[resolver]
+resolvers = [
+    "1.1.1.1",
+    "1.0.0.1",
+]
+use_fastest = true
+add_system = false
+interval = 120
+
+[storage]
+zone_dirs = [
+    "example-zones"
+]
+# zone_pickle_path = "zone.pickle.lzma"
+# cache_pickle_path = "cache.pickle.lzma"

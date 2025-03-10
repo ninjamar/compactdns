@@ -34,21 +34,9 @@ Starts the DNS server.
 ```bash
 cdns run [options]
 ```
-
-Options:
-  - `--host`, `-a`: The host address in the format of a.b.c.d:port
-  - `--resolver`, `-r`: The resolver address in the format of a.b.c.d:port
-  - `--shell`, `-C`: The shell server address in the format of a.b.c.d:port
-  - `--zone-dir`, `-z`: Path to directory containing zones
-  - `--cache-path`, `-c`: Path to file containing a cache
-  - `--loglevel`, `-l`: Provide information about the logging level (default = info).
-  - `--tls-host`, `-th`: TLS socket address in the format of a.b.c.d:port (only needed if using tls)
-  - `--ssl-key`, `-sk`: Path to SSL key file (only needed if using TLS)
-  - `--ssl-cert`, `-sc`: Path to SSL cert file (only needed if using TLS)
-
-Arguments can also be stored in a file. See `config.txt` for an example configuration.
+Configuration is stored in a `toml` or `json` file. See `config.toml` for an example configuration.
 ```bash
-cdns run @config.txt
+cdns run --config config.toml
 ```
 
 
