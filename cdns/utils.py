@@ -52,7 +52,7 @@ def merge_defaults(
     return merged
 
 
-def flatten_dict(d: dict[str, Any], sep="0", base="") -> dict[str, Any]:
+def flatten_dict(d: dict[str, Any], sep="-", base="") -> dict[str, Any]:
     new = {}
     for key, value in d.items():
         if isinstance(value, dict):

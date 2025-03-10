@@ -157,36 +157,36 @@ class ServerManager:
             An instance of ServerManager
         """
         storage = RecordStorage()
-        if kwargs["storage0zone_dirs"] is not None:
-            for dir in kwargs["storage0zone_dirs"]:
+        if kwargs["storage-zone_dirs"] is not None:
+            for dir in kwargs["storage-zone_dirs"]:
                 storage.load_zones_from_dir(Path(dir).resolve())
-        if kwargs["storage0zone_pickle_path"] is not None:
+        if kwargs["storage-zone_pickle_path"] is not None:
             storage.load_zone_object_from_file(
-                Path(kwargs["storage0zone_pickle_path"]).resolve()
+                Path(kwargs["storage-zone_pickle_path"]).resolve()
             )
-        if kwargs["storage0cache_pickle_path"] is not None:
+        if kwargs["storage-cache_pickle_path"] is not None:
             # TODO: Test this out
             storage.load_cache_from_file(
-                Path(kwargs["storage0cache_pickle_path"]).resolve()
+                Path(kwargs["storage-cache_pickle_path"]).resolve()
             )
 
         logging.debug("Records: %s", storage)
 
         return cls(
             storage=storage,
-            host=(kwargs["servers0host0host"], int(kwargs["servers0host0port"])),
+            host=(kwargs["servers-host-host"], int(kwargs["servers-host-port"])),
             shell_host=(
-                kwargs["servers0shell0host"],
-                int(kwargs["servers0shell0port"]),
+                kwargs["servers-shell-host"],
+                int(kwargs["servers-shell-port"]),
             ),
             resolvers=[
-                (addr, 53) for addr in kwargs["resolver0resolvers"]
+                (addr, 53) for addr in kwargs["resolver-resolvers"]
             ],  # Use port 53 for resolvers
-            use_fastest_resolver=kwargs["resolver0use_fastest"],
-            resolver_interval=kwargs["resolver0interval"],
-            tls_host=(kwargs["servers0tls0host"], int(kwargs["servers0tls0port"])),
-            ssl_key_path=kwargs["servers0tls0ssl_key"],
-            ssl_cert_path=kwargs["servers0tls0ssl_cert"],
+            use_fastest_resolver=kwargs["resolver-use_fastest"],
+            resolver_interval=kwargs["resolver-interval"],
+            tls_host=(kwargs["servers-tls-host"], int(kwargs["servers-tls-port"])),
+            ssl_key_path=kwargs["servers-tls-ssl_key"],
+            ssl_cert_path=kwargs["servers-tls-ssl_cert"],
         )
 
     def forwarder_daemon(self) -> None:
