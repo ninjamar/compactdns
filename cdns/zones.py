@@ -301,7 +301,10 @@ def parse_singular_json_obj(j) -> DNSZone:
     for domain in j["records"]:
         for type_ in j["records"][domain]:
             for v in j["records"][domain][type_]:
-                zone.add_record(domain, type_, v[0], int(v[1]))
+                if len(v) == 1:
+                    zone.add_record(domain, type_, v[0])
+                else:
+                    zone.add_record(domain, type_, v[0], int(v[1]))
     return zone
 
 
