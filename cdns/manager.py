@@ -24,9 +24,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
-import sys
-
-
 import code
 import concurrent.futures
 import logging
@@ -35,13 +32,17 @@ import selectors
 import socket
 import ssl
 import struct
+import sys
 import threading
-from pathlib import Path
 from multiprocessing import Queue
+from pathlib import Path
+
 from .daemon import GetResolverDaemon
 from .response import ResponseHandler
 from .storage import RecordStorage
+
 MAX_WORKERS = 1000
+
 
 class ServerManager:
     """A class to store a server session."""
@@ -75,7 +76,7 @@ class ServerManager:
         """
 
         # TODO: Make this better
-                
+
         self.host = host
         self.shell_host = shell_host
         self.tls_host = tls_host
@@ -109,19 +110,24 @@ class ServerManager:
         self.shell_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.shell_secret = secrets.token_hex(10)
 
-
         self.resolver_q = Queue()
 
         if use_fastest_resolver:
             if resolver_interval is None:
-                raise ValueError("Unable to use fastest resolver when resolver_interval is None")
+                raise ValueError(
+                    "Unable to use fastest resolver when resolver_interval is None"
+                )
             # Start the resolver daemon
-            self.resolver_daemon = GetResolverDaemon(resolvers, resolver_interval, self.resolver_q)
+            self.resolver_daemon = GetResolverDaemon(
+                resolvers, resolver_interval, self.resolver_q
+            )
             self.resolver_daemon.start()
         else:
             if len(resolvers) > 1:
-                raise ValueError("Unable to have more than one resolver when use_fastest is False")
-            
+                raise ValueError(
+                    "Unable to have more than one resolver when use_fastest is False"
+                )
+
             self.resolver_q.put(resolvers[0])
 
         # Get the address
@@ -155,27 +161,34 @@ class ServerManager:
             for dir in kwargs["storage0zone_dirs"]:
                 storage.load_zones_from_dir(Path(dir).resolve())
         if kwargs["storage0zone_pickle_path"] is not None:
-            storage.load_zone_object_from_file(Path(kwargs["storage0zone_pickle_path"]).resolve())
+            storage.load_zone_object_from_file(
+                Path(kwargs["storage0zone_pickle_path"]).resolve()
+            )
         if kwargs["storage0cache_pickle_path"] is not None:
             # TODO: Test this out
-            storage.load_cache_from_file(Path(kwargs["storage0cache_pickle_path"]).resolve())
+            storage.load_cache_from_file(
+                Path(kwargs["storage0cache_pickle_path"]).resolve()
+            )
 
         logging.debug("Records: %s", storage)
 
         return cls(
             storage=storage,
             host=(kwargs["servers0host0host"], int(kwargs["servers0host0port"])),
-            shell_host=(kwargs["servers0shell0host"], int(kwargs["servers0shell0port"])),
-
-            resolvers=[(addr, 53) for addr in kwargs["resolver0resolvers"]], # Use port 53 for resolvers
+            shell_host=(
+                kwargs["servers0shell0host"],
+                int(kwargs["servers0shell0port"]),
+            ),
+            resolvers=[
+                (addr, 53) for addr in kwargs["resolver0resolvers"]
+            ],  # Use port 53 for resolvers
             use_fastest_resolver=kwargs["resolver0use_fastest"],
             resolver_interval=kwargs["resolver0interval"],
-
             tls_host=(kwargs["servers0tls0host"], int(kwargs["servers0tls0port"])),
             ssl_key_path=kwargs["servers0tls0ssl_key"],
-            ssl_cert_path=kwargs["servers0tls0ssl_cert"]
+            ssl_cert_path=kwargs["servers0tls0ssl_cert"],
         )
-    
+
     def forwarder_daemon(self) -> None:
         """
         Handler for the thread that handles the response for forwarded queries
@@ -427,7 +440,12 @@ class ServerManager:
             )
 
         # Update these devices when it's readable
-        sockets = [self.resolver_q._reader, self.udp_sock, self.tcp_sock, self.shell_sock,]
+        sockets = [
+            self.resolver_q._reader,
+            self.udp_sock,
+            self.tcp_sock,
+            self.shell_sock,
+        ]
         if self.use_tls:
             sockets.append(self.tls_sock)
 
@@ -486,7 +504,7 @@ class ServerManager:
                                 future.add_done_callback(
                                     self._handle_thread_pool_completion
                                 )
-                            
+
                             elif obj == self.resolver_q:
                                 self.resolver_addr = self.resolver_q.get()
                                 logging.info("Resolver address: %s", self.resolver_addr)

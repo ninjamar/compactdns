@@ -52,9 +52,9 @@ options:
                         Path to SSL cert file (only needed if using TLS)
 """
 import argparse
+import json
 import logging
 import sys
-import json
 
 if sys.version_info < (3, 11):
     import tomli as tomllib
@@ -63,8 +63,7 @@ else:
 
 from .manager import ServerManager
 from .shell_client import start_client as shell_start_client
-from .utils import merge_defaults, flatten_dict
-
+from .utils import flatten_dict, merge_defaults
 
 kwargs_defaults = {
     "loglevel": "INFO",
@@ -116,10 +115,13 @@ def cli() -> None:
         parser_run.add_argument(
             f"--{key}",
             help="Auto generated option",
-            type=str if isinstance(value, str) else (int if isinstance(value, int) else None),
-            nargs="+" if isinstance(value, list) else None
+            type=(
+                str
+                if isinstance(value, str)
+                else (int if isinstance(value, int) else None)
+            ),
+            nargs="+" if isinstance(value, list) else None,
         )
-
 
     # TODO: Help message for kwargs
 
@@ -147,7 +149,7 @@ def cli() -> None:
                 raise ValueError("Unable to load configuration: unknown file format")
 
         # kwargs.update(vars(args))
-        kwargs.update({k:v for k, v in vars(args).items() if v is not None})
+        kwargs.update({k: v for k, v in vars(args).items() if v is not None})
         kwargs = merge_defaults(kwargs_defaults, kwargs)
         kwargs = flatten_dict(kwargs)
 

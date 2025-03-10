@@ -145,7 +145,6 @@ from typing import Literal
 
 from .utils import ImmutableBiDict
 
-
 # Still need PTR, 12, SRV, 33, CAA, 257
 RTypes = ImmutableBiDict(
     [

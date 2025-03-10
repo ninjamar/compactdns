@@ -25,10 +25,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import os
 import copy
+import os
 import re
 from typing import Any
+
 
 def get_dns_servers() -> list[str]:
     if os.name == "Windows":
@@ -39,7 +40,9 @@ def get_dns_servers() -> list[str]:
         return re.findall(r"nameserver (.*)", data, re.M)
 
 
-def merge_defaults(defaults: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+def merge_defaults(
+    defaults: dict[str, Any], override: dict[str, Any]
+) -> dict[str, Any]:
     merged = copy.deepcopy(defaults)
     for key, value in override.items():
         if isinstance(value, dict):
@@ -47,6 +50,7 @@ def merge_defaults(defaults: dict[str, Any], override: dict[str, Any]) -> dict[s
         else:
             merged[key] = value
     return merged
+
 
 def flatten_dict(d: dict[str, Any], sep="0", base="") -> dict[str, Any]:
     new = {}
