@@ -149,13 +149,16 @@ class ServerManager:
         self.storage = storage
 
     @classmethod
-    def from_config(cls, **kwargs):
+    def from_config(cls, kwargs):
         """
         Create an instance of ServerManager from a configuration.
 
         Returns:
             An instance of ServerManager
         """
+        
+        # kwargs isn't **kwargs because '-' isn't a valid variable name
+
         storage = RecordStorage()
         if kwargs["storage-zone_dirs"] is not None:
             for dir in kwargs["storage-zone_dirs"]:

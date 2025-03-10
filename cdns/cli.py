@@ -159,7 +159,7 @@ def cli() -> None:
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
-        manager = ServerManager.from_config(**kwargs)
+        manager = ServerManager.from_config(kwargs)
         manager.start()
 
     elif args.subcommand == "shell":
