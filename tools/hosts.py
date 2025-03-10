@@ -32,16 +32,19 @@ Convert a hosts file to a blocklist file
 Usage: python hosts.py path/to/host path/to/target.all.json
 """
 
-import sys
 import json
+import sys
+
 from publicsuffixlist import PublicSuffixList
 
 extractor = PublicSuffixList()
+
+
 def main(host, target):
     with open(host) as f:
         rules = f.readlines()
-    
-    rules = [v for rule in rules if (v:= rule.strip().split("#")[0].strip().split())]
+
+    rules = [v for rule in rules if (v := rule.strip().split("#")[0].strip().split())]
 
     dump = []
     for ip, name in rules:
@@ -49,17 +52,15 @@ def main(host, target):
             {
                 "domain": name,
                 "records": {
-                    name: {
-                        "A": [[ip]]
-                    },
-                    "*." + extractor.privatesuffix(name): {
-                        "A": [[ip]]
-                    }
-                }
+                    name: {"A": [[ip]]},
+                    "*." + extractor.privatesuffix(name): {"A": [[ip]]},
+                },
             }
         )
 
     with open(target, "w") as f:
         json.dump(dump, f)
+
+
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
