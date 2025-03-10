@@ -241,12 +241,6 @@ class DNSCache:
                 ret.append((value, item.ttl))
         return ret
 
-        return [
-            value
-            for item in self.data[name][record_type]
-            if (value := item.get()) is not None
-        ]
-
     def purge(self) -> None:
         """
         Purge expired records.
