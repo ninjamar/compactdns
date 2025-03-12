@@ -156,7 +156,7 @@ class ServerManager:
         Returns:
             An instance of ServerManager
         """
-        
+
         # kwargs isn't **kwargs because '-' isn't a valid variable name
 
         storage = RecordStorage()

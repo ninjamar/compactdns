@@ -1,5 +1,6 @@
 import dataclasses
 import unittest
+from pathlib import Path
 
 from cdns.zones import (DNSZone, MXRecord, SOARecord, ZoneParser,
                         parse_all_zones)
@@ -10,7 +11,7 @@ from cdns.zones import (DNSZone, MXRecord, SOARecord, ZoneParser,
 class TestZoneParserRecords(unittest.TestCase):
     def test_parse(self):
         path = "/".join(__file__.split("/")[:-2]) + "/example-zones/example.com.zone"
-        zones = parse_all_zones([path])
+        zones = parse_all_zones(path)
 
         zones["example.com"] = dataclasses.asdict(zones["example.com"])
 
