@@ -62,7 +62,7 @@ else:
     import tomllib
 
 from .manager import ServerManager
-from .shell_client import start_client as shell_start_client
+from .tools.shell_client import start_client as shell_start_client
 from .utils import flatten_dict, merge_defaults
 
 kwargs_defaults = {
