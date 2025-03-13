@@ -59,6 +59,7 @@ class ServerManager:
         ssl_cert_path: str | None = None,
         use_fastest_resolver: bool = True,
         resolver_interval: int | None = None,
+        max_workers: int = MAX_WORKERS,
         # zone_dir: str | None = None,
         # cache_path: str | None = None,
     ) -> None:
@@ -144,7 +145,7 @@ class ServerManager:
         self.forwarder_lock = threading.Lock()
 
         self.execution_timeout = 0
-        self.max_workers = MAX_WORKERS
+        self.max_workers = max_workers
 
         self.storage = storage
 
@@ -190,6 +191,7 @@ class ServerManager:
             tls_host=(kwargs["servers.tls.host"], int(kwargs["servers.tls.port"])),
             ssl_key_path=kwargs["servers.tls.ssl_key"],
             ssl_cert_path=kwargs["servers.tls.ssl_cert"],
+            max_workers=kwargs["max_workers"]
         )
 
     def forwarder_daemon(self) -> None:

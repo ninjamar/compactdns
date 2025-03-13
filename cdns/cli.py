@@ -66,6 +66,7 @@ from .manager import ServerManager
 from .utils import flatten_dict, merge_defaults
 
 kwargs_defaults = {
+    "max_workers": 50,
     "loglevel": "INFO",
     "servers": {
         "host": {"host": "127.0.0.1", "port": 2053},
@@ -90,6 +91,7 @@ kwargs_defaults = {
     },
 }
 kwargs_defaults_help = {
+    "max_workers": "Max number of workers for the DNS server",
     "loglevel": f"Log level to use. One of {{CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET'}}",
     "servers": {
         "host": {"host": "Address of the host (a.b.c.d)", "port": "Port of server"},
@@ -200,7 +202,6 @@ def cli() -> None:
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
-        print(kwargs)
         manager = ServerManager.from_config(kwargs)
         manager.start()
 

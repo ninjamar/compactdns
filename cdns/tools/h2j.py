@@ -29,7 +29,7 @@
 """
 Hosts to JSON blocklist
 
-Usage: python -m cdns.tools.h2j path/to/host path/to/target.all.json
+Usage: cdns tools h2j path/to/host path/to/target.all.json
 """
 
 import json
