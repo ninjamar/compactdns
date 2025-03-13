@@ -101,7 +101,10 @@ kwargs_defaults_help = {
             "ssl_key": "Path to SSL key for DNS over TLS",
             "ssl_cert": "Path to SSL certificate for DNS over TL",
         },
-        "shell": {"host": "Address of shell server (a.b.c.d)", "port": "Port of shell server"},
+        "shell": {
+            "host": "Address of shell server (a.b.c.d)",
+            "port": "Port of shell server",
+        },
     },
     "resolver": {
         "resolvers": "A list of resolvers to use.",
@@ -124,21 +127,21 @@ def cli() -> None:
         description="A simple forwarding DNS server", fromfile_prefix_chars="@"
     )
     subparsers = parser.add_subparsers(help="Functions", dest="subcommand")
-    
+
     tools_parser = subparsers.add_parser("tools", help="Run a tool")
-    tools_subparser = tools_parser.add_subparsers(help="Tools", dest="subcommand", required=True)
-
-    h2j_parser = tools_subparser.add_parser("h2j", help="Convert a host file to a json zone.")
-    h2j_parser.add_argument(
-        "source",
-        help="Source of host file (/etc/hosts)"
-    )
-    h2j_parser.add_argument(
-        "dest",
-        help="Destination file (.all.json)"
+    tools_subparser = tools_parser.add_subparsers(
+        help="Tools", dest="subcommand", required=True
     )
 
-    parser_shell = tools_subparser.add_parser("shell", help="Open the interactive shell")
+    h2j_parser = tools_subparser.add_parser(
+        "h2j", help="Convert a host file to a json zone."
+    )
+    h2j_parser.add_argument("source", help="Source of host file (/etc/hosts)")
+    h2j_parser.add_argument("dest", help="Destination file (.all.json)")
+
+    parser_shell = tools_subparser.add_parser(
+        "shell", help="Open the interactive shell"
+    )
     parser_shell.add_argument("--secret", "-s", default=None, help="Shell secret")
     parser_shell.add_argument("--host", "-a", required=True, help="Host of server")
 
@@ -150,7 +153,10 @@ def cli() -> None:
         help="Path to configuration file (json or toml)",
     )
 
-    for (key, value), msg in zip(flatten_dict(kwargs_defaults).items(), flatten_dict(kwargs_defaults_help).values()):
+    for (key, value), msg in zip(
+        flatten_dict(kwargs_defaults).items(),
+        flatten_dict(kwargs_defaults_help).values(),
+    ):
         parser_run.add_argument(
             f"--{key}",
             help=msg,
@@ -188,7 +194,9 @@ def cli() -> None:
                 raise ValueError("Unable to load configuration: unknown file format")
 
         # kwargs.update(vars(args))
-        kwargs.update({k: v for k, v in vars(args).items() if v is not None and k != "subcommand"})
+        kwargs.update(
+            {k: v for k, v in vars(args).items() if v is not None and k != "subcommand"}
+        )
         if len(kwargs.keys()) == 0:
             parser_run.print_help()
             sys.exit(1)

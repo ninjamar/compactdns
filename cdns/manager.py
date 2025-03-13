@@ -191,7 +191,7 @@ class ServerManager:
             tls_host=(kwargs["servers.tls.host"], int(kwargs["servers.tls.port"])),
             ssl_key_path=kwargs["servers.tls.ssl_key"],
             ssl_cert_path=kwargs["servers.tls.ssl_cert"],
-            max_workers=kwargs["max_workers"]
+            max_workers=kwargs["max_workers"],
         )
 
     def forwarder_daemon(self) -> None:

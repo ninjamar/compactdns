@@ -231,9 +231,12 @@ class ResponseHandler:
                 # print([answer for answer in answers])
                 values = [
                     (auto_decode_label(answer.rdata), int(answer.ttl))
-                    for answer in answers if answer.type_ == RTypes.A or answer.type_ == RTypes.AAAA # HACK: This is a CRITICAL temporary fix
+                    for answer in answers
+                    if answer.type_ == RTypes.A
+                    or answer.type_
+                    == RTypes.AAAA  # HACK: This is a CRITICAL temporary fix
                 ]
-                
+
                 # HACK: This fix only caches A and AAAA records. Apparently CNAME records
                 # have some encoded labels. This would require some large changes to be made.
 
