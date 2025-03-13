@@ -107,7 +107,7 @@ class ResponseHandler:
         """
         if self.buf_header is None:
             raise Exception("Buffer header can't be empty")
-        
+
         self.new_header = dataclasses.replace(self.buf_header)
 
         # Remove intercepted sites, so it doesn't get forwarded
@@ -161,7 +161,9 @@ class ResponseHandler:
 
             self._post_process()
 
-    def _forwarding_done_handler(self, future: concurrent.futures.Future[bytes]) -> None:
+    def _forwarding_done_handler(
+        self, future: concurrent.futures.Future[bytes]
+    ) -> None:
         """
         Callback when self.forwarder is complete.
 

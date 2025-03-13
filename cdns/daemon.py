@@ -28,7 +28,7 @@ import socket
 import time
 from multiprocessing import Process, Queue
 
-from .protocol import DNSHeader, DNSQuestion, pack_all_compressed, unpack_all
+from .protocol import DNSHeader, DNSQuestion, pack_all_compressed
 
 test_query = pack_all_compressed(
     DNSHeader(id_=1, qdcount=1), [DNSQuestion(decoded_name="github.com")]
@@ -104,6 +104,7 @@ class GetResolverDaemon(Process):
 
             server = self.find_fastest_server()
             self.queue.put(server)
+
 
 """
 if __name__ == "__main__":

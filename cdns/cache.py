@@ -29,12 +29,10 @@ import functools
 import time
 from collections import OrderedDict
 from typing import Any, Callable, Hashable
+from typing import cast
 
 from .protocol import RTypes
 from .utils import BiInt
-from typing import SupportsFloat as Numeric
-from typing import cast
-
 
 # TODO: Make cache better for storing DNS records, storing the fields rather than a dataclass
 # TODO: Merge records and TimedCache into one class
@@ -172,7 +170,7 @@ class DNSCache:
         }
         """
 
-    def _ensure(fn: Callable) -> Callable: # type: ignore
+    def _ensure(fn: Callable) -> Callable:  # type: ignore
         # YAIMBA
         # Ensure the type of arguments, as well as make necessary fields in self.data.
         # https://stackoverflow.com/a/1263782/21322342

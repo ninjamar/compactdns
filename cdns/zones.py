@@ -164,7 +164,7 @@ class ZoneParser:
             matches = re.match(r"^\$(.*) (.*)$", self.line)
             if matches is None:
                 raise ZoneParsingError()
-            
+
             groups = matches.groups()
 
             if groups[0] == "ORIGIN":

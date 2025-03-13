@@ -31,7 +31,7 @@ import pickle
 from pathlib import Path
 from typing import Any, Callable
 
-from publicsuffixlist import PublicSuffixList # type: ignore
+from publicsuffixlist import PublicSuffixList  # type: ignore
 
 from .cache import DNSCache
 from .protocol import RTypes
@@ -65,7 +65,7 @@ class RecordStorage:
         self.cache = DNSCache()
         self.zones: dict[str, DNSZone] = {}
 
-    def _ensure(fn: Callable) -> Callable: # type: ignore
+    def _ensure(fn: Callable) -> Callable:  # type: ignore
         # Yet another instance of mypy being annoying (YAIMBA) -- see https://github.com/python/mypy/issues/7778
         # Ensure proper arguments
         @functools.wraps(fn)
@@ -157,12 +157,12 @@ class RecordStorage:
             self.zones.update(parse_multiple_json_zones(path))
             return
         if str(path).endswith(".json"):
-            zone = parse_singular_json_zone(path) # type: ignore
+            zone = parse_singular_json_zone(path)  # type: ignore
             self.zones[zone.domain] = zone
             return
         # TODO: Support reloading with latest changes
         if str(path).endswith(".zone"):
-            zone = parse_zone(path) # type: ignore
+            zone = parse_zone(path)  # type: ignore
             self.zones[zone.domain] = zone
             return
         raise Exception("Unable to load zone from file: invalid format")

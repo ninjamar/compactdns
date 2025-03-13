@@ -36,12 +36,11 @@ import sys
 import threading
 from multiprocessing import Queue
 from pathlib import Path
+from typing import cast
 
 from .daemon import GetResolverDaemon
 from .response import ResponseHandler
 from .storage import RecordStorage
-
-from typing import cast
 
 MAX_WORKERS = 1000
 
@@ -376,9 +375,7 @@ class ServerManager:
                 path=Path(kwargs["path"]).resolve()
             )
         elif cmd == "load-cache":
-            return self.storage.load_cache_from_file(
-                path=Path(kwargs["path"])
-            )
+            return self.storage.load_cache_from_file(path=Path(kwargs["path"]))
         elif cmd == "dump-cache":
             return self.storage.write_cache_to_file(path=Path(kwargs["path"]).resolve())
         elif cmd == "purge-cache":
@@ -449,7 +446,7 @@ class ServerManager:
         # Update these devices when it's readable
         sockets = [
             # HACK-TYPING: Queue._reader is an implementation detail
-            self.resolver_q._reader, # type: ignore[attr-defined]
+            self.resolver_q._reader,  # type: ignore[attr-defined]
             self.udp_sock,
             self.tcp_sock,
             self.shell_sock,
@@ -520,7 +517,7 @@ class ServerManager:
                     except KeyboardInterrupt:
                         # Don't want the except call here to be called, I want the one outside the while loop
                         raise KeyboardInterrupt
-                    except:
+                    except Exception as e:
                         logging.error("Error", exc_info=True)
 
             except KeyboardInterrupt:
@@ -538,5 +535,5 @@ class ServerManager:
         except concurrent.futures.TimeoutError:
             # TODO: Make this work...
             logging.error("Request handler timed out", exc_info=True)
-        except:
+        except Exception as e:
             logging.error("Error", exc_info=True)

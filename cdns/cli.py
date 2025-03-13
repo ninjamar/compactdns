@@ -92,7 +92,7 @@ kwargs_defaults = {
 }
 kwargs_defaults_help = {
     "max_workers": "Max number of workers for the DNS server",
-    "loglevel": f"Log level to use. One of {{CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET'}}",
+    "loglevel": "Log level to use. One of {{CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET'}}",
     "servers": {
         "host": {"host": "Address of the host (a.b.c.d)", "port": "Port of server"},
         "tls": {
@@ -157,17 +157,17 @@ def cli() -> None:
         flatten_dict(kwargs_defaults).items(),
         flatten_dict(kwargs_defaults_help).values(),
     ):
-        
+
         # HACK-TYPING: I don't know how to get mypy to not complain here
         parser_run.add_argument(
             f"--{key}",
             help=msg,
             type=(
-                str # type: ignore[arg-type]
+                str  # type: ignore[arg-type]
                 if isinstance(value, str)
                 else (int if isinstance(value, int) else None)
             ),
-            nargs="+" if isinstance(value, list) else None, # type: ignore[arg-type]
+            nargs="+" if isinstance(value, list) else None,  # type: ignore[arg-type]
         )
 
     # TODO: Help message for kwargs
