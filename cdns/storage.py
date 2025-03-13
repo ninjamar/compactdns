@@ -31,7 +31,7 @@ import pickle
 from pathlib import Path
 from typing import Any, Callable
 
-from publicsuffixlist import PublicSuffixList
+from publicsuffixlist import PublicSuffixList # type: ignore
 
 from .cache import DNSCache
 from .protocol import RTypes
@@ -65,7 +65,8 @@ class RecordStorage:
         self.cache = DNSCache()
         self.zones: dict[str, DNSZone] = {}
 
-    def _ensure(fn: Callable) -> Callable:
+    def _ensure(fn: Callable) -> Callable: # type: ignore
+        # Yet another instance of mypy being annoying (YAIMBA) -- see https://github.com/python/mypy/issues/7778
         # Ensure proper arguments
         @functools.wraps(fn)
         def dec_ensure(self, *args, **kwargs) -> Any:
@@ -107,6 +108,8 @@ class RecordStorage:
         if base_domain in self.zones:
             # TODO: use ttl here -- can be none
             if type_ == RTypes.SOA:
+                if not record_name:
+                    raise ValueError("Need a record name for SOA")
                 values = [getattr(self.zones[base_domain].soa, record_name)]
             elif (
                 type_ == RTypes.MX
@@ -142,7 +145,7 @@ class RecordStorage:
 
         return values
 
-    def load_zone_from_file(self, path: Path) -> None:
+    def load_zone_from_file(self, path: Path | str) -> None:
         """
         Load the zone from a file. The filename must be domain.zone.
         The file is pickled, and uses LZMA compression.
@@ -154,17 +157,17 @@ class RecordStorage:
             self.zones.update(parse_multiple_json_zones(path))
             return
         if str(path).endswith(".json"):
-            zone = parse_singular_json_zone(path)
+            zone = parse_singular_json_zone(path) # type: ignore
             self.zones[zone.domain] = zone
             return
         # TODO: Support reloading with latest changes
         if str(path).endswith(".zone"):
-            zone = parse_zone(path)
+            zone = parse_zone(path) # type: ignore
             self.zones[zone.domain] = zone
             return
         raise Exception("Unable to load zone from file: invalid format")
 
-    def load_cache_from_file(self, path: Path) -> None:
+    def load_cache_from_file(self, path: Path | str) -> None:
         """
         Load the cache from a file. The file is pickled,
         and uses LZMA compression.
@@ -175,7 +178,7 @@ class RecordStorage:
         with lzma.open(path, "rb") as f:
             self.cache = pickle.load(f)
 
-    def write_cache_to_file(self, path: Path) -> None:
+    def write_cache_to_file(self, path: Path | str) -> None:
         """
         Write the cache to a file. The file is pickled,
         and uses LZMA compression.
@@ -186,7 +189,7 @@ class RecordStorage:
         with lzma.open(path, "wb") as f:
             pickle.dump(self.cache, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    def load_zone_object_from_file(self, path: Path) -> None:
+    def load_zone_object_from_file(self, path: Path | str) -> None:
         """
         Load self.zones from a file. The file is pickled,
         and uses LZMA compression.
@@ -197,7 +200,7 @@ class RecordStorage:
         with lzma.open(path, "rb") as f:
             self.zones = pickle.load(f)
 
-    def write_zone_object_to_file(self, path: Path) -> None:
+    def write_zone_object_to_file(self, path: Path | str) -> None:
         """
         Write self.zones to a file. The file is pickled,
         and uses LZMA compression.
@@ -208,7 +211,7 @@ class RecordStorage:
         with lzma.open(path, "rb") as f:
             pickle.dump(self.zones, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    def load_zones_from_dir(self, path: Path) -> None:
+    def load_zones_from_dir(self, path: Path | str) -> None:
         """
         Load all the zones from a directory. Each filename must be domain.zone.
 
@@ -216,6 +219,7 @@ class RecordStorage:
             zone_dir_path: Path to directory
         """
         # paths = [path / x for x in path.iterdir() if x.suffix == ".zone"]
+        path = Path(path)
         paths = [path / x for x in path.iterdir()]
         for path in paths:
             self.load_zone_from_file(path)
@@ -224,9 +228,3 @@ class RecordStorage:
         return (
             f"RecordStorage(<{len(self.zones)} zones>, <{len(self.cache.data)} cached>)"
         )
-
-
-if __name__ == "__main__":
-    r = RecordStorage()
-    r.cache.set("foo", 100, 12)
-    r.write_cache_to_file("t.cache")

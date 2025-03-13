@@ -42,9 +42,9 @@ class ResponseHandler:
         Raises:
             TypeError: If UDP or TCP is not specified.
         """
-        self.udp_sock = None
-        self.udp_addr = None
-        self.tcp_conn = None
+        self.udp_sock: socket.socket | None = None
+        self.udp_addr: tuple[str, int] | None = None
+        self.tcp_conn: socket.socket | None = None
 
         if udp_sock and udp_addr:
             self.udp_sock = udp_sock
@@ -60,18 +60,18 @@ class ResponseHandler:
         self.forwarder = forwarder
 
         # Header and qustions from the initial buffer
-        self.buf_header = None
-        self.buf_questions = []
+        self.buf_header: DNSHeader | None = None
+        self.buf_questions: list[DNSQuestion] = []
 
-        self.new_header = None
-        self.new_questions = []
+        self.new_header: DNSHeader | None = None
+        self.new_questions: list[DNSQuestion] = []
 
-        self.resp_header = None
-        self.resp_questions = []
-        self.resp_answers = []
+        self.resp_header: DNSHeader | None = None
+        self.resp_questions: list[DNSQuestion] = []
+        self.resp_answers: list[DNSAnswer] = []
 
-        self.question_index_intercepted = []
-        self.question_answers = []
+        self.question_index_intercepted: list[tuple[int, list[DNSAnswer]]] = []
+        self.question_answers: list[DNSAnswer] = []
 
     def start(self, buf) -> None:
         """
@@ -80,11 +80,11 @@ class ResponseHandler:
         Args:
             buf: Buffer to unpack.
         """
-        success = self.receive(buf)
+        success = self._receive(buf)
         if success:
-            self.process()
+            self._process()
 
-    def receive(self, buf: bytes) -> bool:
+    def _receive(self, buf: bytes) -> bool:
         """
         Receive a buffer, unpacking it.
 
@@ -101,10 +101,13 @@ class ResponseHandler:
             logging.error("Unable to unpack DNS query")
             return False
 
-    def process(self) -> None:
+    def _process(self) -> None:
         """
         Start the process.
         """
+        if self.buf_header is None:
+            raise Exception("Buffer header can't be empty")
+        
         self.new_header = dataclasses.replace(self.buf_header)
 
         # Remove intercepted sites, so it doesn't get forwarded
@@ -149,16 +152,16 @@ class ResponseHandler:
             # Repack data
             send = pack_all_compressed(self.new_header, self.new_questions)
             future = self.forwarder(send)
-            future.add_done_callback(self.forwarding_done_handler)
+            future.add_done_callback(self._forwarding_done_handler)
         else:
             self.resp_header = self.new_header
             self.resp_header.qr = 1
             self.resp_questions = self.new_questions
             self.resp_answers = []
 
-            self.post_process()
+            self._post_process()
 
-    def forwarding_done_handler(self, future: concurrent.futures.Future[bytes]) -> None:
+    def _forwarding_done_handler(self, future: concurrent.futures.Future[bytes]) -> None:
         """
         Callback when self.forwarder is complete.
 
@@ -171,13 +174,14 @@ class ResponseHandler:
         if len(self.resp_answers) == 0:
             self.resp_answers = []
 
-        self.post_process()
+        self._post_process()
 
-    def post_process(self) -> None:
+    def _post_process(self) -> None:
         """
         Automatically called after self.process.
         """
-
+        if self.buf_header is None:
+            raise Exception
         # We could also make a copy of self.resp_header, but it doesn't matter
         # Make a new header
         self.resp_header = DNSHeader(
@@ -262,9 +266,9 @@ class ResponseHandler:
                 self.resp_header, self.resp_questions, self.resp_answers
             )[:512]
 
-        self.send()
+        self._send()
 
-    def send(self) -> None:
+    def _send(self) -> None:
         """
         Send a DNS query back.
         """
@@ -272,7 +276,7 @@ class ResponseHandler:
         #     self.resp_header, self.resp_questions, self.resp_answers
         # )
 
-        if self.udp_sock:
+        if self.udp_sock and self.udp_addr:
             # Lock is unnecessary here since .sendto is thread safe (UDP is also connectionless)
 
             self.udp_sock.sendto(self.buf, self.udp_addr)

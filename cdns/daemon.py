@@ -34,19 +34,6 @@ test_query = pack_all_compressed(
     DNSHeader(id_=1, qdcount=1), [DNSQuestion(decoded_name="github.com")]
 )
 
-servers = [
-    "1.1.1.1",
-    "1.0.0.1",
-    "9.9.9.9",
-    "149.112.112.112",
-    "8.8.8.8",
-    "8.8.4.4",
-    "208.67.222.222",
-    "208.67.220.220",
-]
-
-servers = [(ip, 53) for ip in servers]
-
 
 class GetResolverDaemon(Process):
     def __init__(
@@ -118,8 +105,22 @@ class GetResolverDaemon(Process):
             server = self.find_fastest_server()
             self.queue.put(server)
 
-
+"""
 if __name__ == "__main__":
+    
+    servers = [
+        "1.1.1.1",
+        "1.0.0.1",
+        "9.9.9.9",
+        "149.112.112.112",
+        "8.8.8.8",
+        "8.8.4.4",
+        "208.67.222.222",
+        "208.67.220.220",
+    ]
+
+    servers = [(ip, 53) for ip in servers]
+
     q = Queue()
     d = GetResolverDaemon(servers, 1, q)
     d.start()
@@ -127,3 +128,5 @@ if __name__ == "__main__":
         if not q.empty():
             print(q.get())
     #  print(GetResolverDaemon(Queue()).latency(("1.1.1.1", 53)))
+
+"""

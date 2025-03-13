@@ -41,6 +41,8 @@ from .daemon import GetResolverDaemon
 from .response import ResponseHandler
 from .storage import RecordStorage
 
+from typing import cast
+
 MAX_WORKERS = 1000
 
 
@@ -111,7 +113,7 @@ class ServerManager:
         self.shell_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.shell_secret = secrets.token_hex(10)
 
-        self.resolver_q = Queue()
+        self.resolver_q: Queue = Queue()
 
         if use_fastest_resolver:
             if resolver_interval is None:
@@ -203,7 +205,7 @@ class ServerManager:
             with self.forwarder_lock:
                 for key, mask in events:
                     # TODO: Try except
-                    sock = key.fileobj
+                    sock = cast(socket.socket, key.fileobj)
                     # Don't error if no key
                     future = self.forwarder_pending_requests.pop(sock, None)
                     if future:
@@ -233,7 +235,7 @@ class ServerManager:
         # new socket for each request
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setblocking(False)
-        future = concurrent.futures.Future()
+        future: concurrent.futures.Future = concurrent.futures.Future()
 
         # TODO: The bottleneck
 
@@ -375,7 +377,7 @@ class ServerManager:
             )
         elif cmd == "load-cache":
             return self.storage.load_cache_from_file(
-                path=Path(kwargs["path"]).resolve()
+                path=Path(kwargs["path"])
             )
         elif cmd == "dump-cache":
             return self.storage.write_cache_to_file(path=Path(kwargs["path"]).resolve())
@@ -446,7 +448,8 @@ class ServerManager:
 
         # Update these devices when it's readable
         sockets = [
-            self.resolver_q._reader,
+            # HACK-TYPING: Queue._reader is an implementation detail
+            self.resolver_q._reader, # type: ignore[attr-defined]
             self.udp_sock,
             self.tcp_sock,
             self.shell_sock,

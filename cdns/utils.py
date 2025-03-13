@@ -28,7 +28,7 @@
 import copy
 import os
 import re
-from typing import Any
+from typing import Any, overload
 
 
 def get_dns_servers() -> list[str]:
@@ -70,7 +70,11 @@ class BiInt:
     A container for an something that can be both an integer and a string.
     """
 
-    def __init__(self, a: str | int, b: str | int) -> None:
+    @overload
+    def __init__(self, a: str, b: int) -> None: ...
+    @overload
+    def __init__(self, a: int, b: str) -> None: ...
+    def __init__(self, a, b) -> None:
         """
         Create an instance of BiInt.
 

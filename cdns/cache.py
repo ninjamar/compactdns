@@ -32,6 +32,9 @@ from typing import Any, Callable, Hashable
 
 from .protocol import RTypes
 from .utils import BiInt
+from typing import SupportsFloat as Numeric
+from typing import cast
+
 
 # TODO: Make cache better for storing DNS records, storing the fields rather than a dataclass
 # TODO: Merge records and TimedCache into one class
@@ -169,7 +172,8 @@ class DNSCache:
         }
         """
 
-    def _ensure(fn: Callable) -> Callable:
+    def _ensure(fn: Callable) -> Callable: # type: ignore
+        # YAIMBA
         # Ensure the type of arguments, as well as make necessary fields in self.data.
         # https://stackoverflow.com/a/1263782/21322342
         @functools.wraps(fn)
@@ -239,7 +243,9 @@ class DNSCache:
             value = item.get()
             if value is not None:
                 ret.append((value, item.ttl))
-        return ret
+        # HACK-TYPING: Why did I think mypy was a good idea -- just look at this mess
+        # Just because (int | float) isn't the same as int
+        return cast(list[tuple[str, int]], ret)
 
     def purge(self) -> None:
         """

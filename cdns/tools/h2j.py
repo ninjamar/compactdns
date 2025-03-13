@@ -35,7 +35,7 @@ Usage: cdns tools h2j path/to/host path/to/target.all.json
 import json
 import sys
 
-from publicsuffixlist import PublicSuffixList
+from publicsuffixlist import PublicSuffixList # type: ignore
 
 extractor = PublicSuffixList()
 

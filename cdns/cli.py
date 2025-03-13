@@ -157,15 +157,17 @@ def cli() -> None:
         flatten_dict(kwargs_defaults).items(),
         flatten_dict(kwargs_defaults_help).values(),
     ):
+        
+        # HACK-TYPING: I don't know how to get mypy to not complain here
         parser_run.add_argument(
             f"--{key}",
             help=msg,
             type=(
-                str
+                str # type: ignore[arg-type]
                 if isinstance(value, str)
                 else (int if isinstance(value, int) else None)
             ),
-            nargs="+" if isinstance(value, list) else None,
+            nargs="+" if isinstance(value, list) else None, # type: ignore[arg-type]
         )
 
     # TODO: Help message for kwargs
@@ -218,4 +220,4 @@ def cli() -> None:
             host = args.host.split(":")
             tools.shell_client.main(secret=args.secret, addr=(host[0], int(host[1])))
         elif args.tool == "h2j":
-            tools.h2j.main()
+            tools.h2j.main(args.source, args.dest)

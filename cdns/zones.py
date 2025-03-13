@@ -147,7 +147,7 @@ class ZoneParser:
         """
         self.stream = stream
         self.zone = DNSZone(domain=domain)
-        self.line = None
+        self.line: str | None = None
 
     def parse_instr(self) -> None:
         """
@@ -157,17 +157,24 @@ class ZoneParser:
             ZoneParsingError: Unable to parse zone.
             ZoneParsingError: Incomplete SOA.
         """
+        if not self.line:
+            return
         # TODO: This has a mccabe complexity of 17
         if self.line[0] == "$":
-            matches = re.match(r"^\$(.*) (.*)$", self.line).groups()
-            if matches[0] == "ORIGIN":
-                self.zone.domain = matches[1]
-            elif matches[0] == "TTL":
-                self.zone.ttl = int(matches[1])
-            elif matches[0] == "INCLUDE":
+            matches = re.match(r"^\$(.*) (.*)$", self.line)
+            if matches is None:
+                raise ZoneParsingError()
+            
+            groups = matches.groups()
+
+            if groups[0] == "ORIGIN":
+                self.zone.domain = groups[1]
+            elif groups[0] == "TTL":
+                self.zone.ttl = int(groups[1])
+            elif groups[0] == "INCLUDE":
                 # TODO: Support
                 pass
-            elif matches[0] == "GENERATE":
+            elif groups[0] == "GENERATE":
                 # TODO: Support
                 pass
             else:
@@ -308,7 +315,7 @@ def parse_singular_json_obj(j) -> DNSZone:
     return zone
 
 
-def parse_multiple_json_zones(path: Path) -> dict[str, DNSZone]:
+def parse_multiple_json_zones(path: Path | str) -> dict[str, DNSZone]:
     with open(path) as f:
         return {
             zone.domain: zone
@@ -316,22 +323,23 @@ def parse_multiple_json_zones(path: Path) -> dict[str, DNSZone]:
         }
 
 
-def parse_singular_json_zone(path: Path) -> DNSZone:
+def parse_singular_json_zone(path: Path | str) -> DNSZone:
     with open(path) as f:
         return parse_singular_json_obj(json.load(f))
 
 
-def parse_zone(path: Path) -> tuple[str, DNSZone]:
+def parse_zone(path: Path | str) -> DNSZone:
     """
     Parse a zone from the file.
 
     Args:
-        path: Path object of the file.
+        path: Path to file
 
     Returns:
         The name of the zone, and the zone.
     """
     # name = path.split("/")[-1][:-5]  # Filename, then extract domain.zone
+    path = Path(path)
     name = path.stem
     with open(path) as f:
         if path.suffix == ".zone":
@@ -342,6 +350,8 @@ def parse_zone(path: Path) -> tuple[str, DNSZone]:
             # Black magic of code
             j = json.load(f)
             return parse_singular_json_obj(j)
+        else:
+            raise ZoneParsingError("Unknown file type")
 
 
 def parse_all_zones(paths: list[str]) -> dict[str, DNSZone]:
@@ -366,5 +376,5 @@ def parse_all_zones(paths: list[str]) -> dict[str, DNSZone]:
 
 if __name__ == "__main__":
     path = "/".join(__file__.split("/")[:-2]) + "/example-zones/example.com.zone"
-    zones = parse_all_zones([Path(path)])
+    zones = parse_all_zones([path])
     print(dataclasses.asdict(zones["example.com"]))
