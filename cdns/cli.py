@@ -61,14 +61,14 @@ if sys.version_info < (3, 11):
 else:
     import tomllib
 
+from . import tools
 from .manager import ServerManager
-from .tools.shell_client import start_client as shell_start_client
 from .utils import flatten_dict, merge_defaults
 
 kwargs_defaults = {
     "loglevel": "INFO",
     "servers": {
-        "host": {"addr": "127.0.0.1", "port": 2053},
+        "host": {"host": "127.0.0.1", "port": 2053},
         "tls": {
             "host": None,
             "port": None,
@@ -84,9 +84,33 @@ kwargs_defaults = {
         "interval": 120,
     },
     "storage": {
-        "zone_dirs": None,
+        "zone_dirs": [],
         "zone_pickle_path": None,
         "cache_pickle_path": None,
+    },
+}
+kwargs_defaults_help = {
+    "loglevel": f"Log level to use. One of {{CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET'}}",
+    "servers": {
+        "host": {"host": "Address of the host (a.b.c.d)", "port": "Port of server"},
+        "tls": {
+            "host": "Host of DNS over TLS host (a.b.c.d)",
+            "port": "Port of DNS over TLS",
+            "ssl_key": "Path to SSL key for DNS over TLS",
+            "ssl_cert": "Path to SSL certificate for DNS over TL",
+        },
+        "shell": {"host": "Address of shell server (a.b.c.d)", "port": "Port of shell server"},
+    },
+    "resolver": {
+        "resolvers": "A list of resolvers to use.",
+        "use_fastest": "Should the fastest resolver be used?",
+        "add_system": "Add the system resolvers to the resolvers",
+        "interval": "How often should the fastest resolver be updated?",
+    },
+    "storage": {
+        "zone_dirs": "A list of paths to directories containing zones. (*.zone, *.json, *.all.json)",
+        "zone_pickle_path": "Path to a pickled zone",
+        "cache_pickle_path": "Path to a pickled cache",
     },
 }
 
@@ -98,12 +122,25 @@ def cli() -> None:
         description="A simple forwarding DNS server", fromfile_prefix_chars="@"
     )
     subparsers = parser.add_subparsers(help="Functions", dest="subcommand")
+    
+    tools_parser = subparsers.add_parser("tools", help="Run a tool")
+    tools_subparser = tools_parser.add_subparsers(help="Tools", dest="subcommand", required=True)
 
-    parser_shell = subparsers.add_parser("shell")
+    h2j_parser = tools_subparser.add_parser("h2j", help="Convert a host file to a json zone.")
+    h2j_parser.add_argument(
+        "source",
+        help="Source of host file (/etc/hosts)"
+    )
+    h2j_parser.add_argument(
+        "dest",
+        help="Destination file (.all.json)"
+    )
+
+    parser_shell = tools_subparser.add_parser("shell", help="Open the interactive shell")
     parser_shell.add_argument("--secret", "-s", default=None, help="Shell secret")
     parser_shell.add_argument("--host", "-a", required=True, help="Host of server")
 
-    parser_run = subparsers.add_parser("run")
+    parser_run = subparsers.add_parser("run", help="Run the DNS server")
     parser_run.add_argument(
         "--config",
         "-c",
@@ -111,10 +148,10 @@ def cli() -> None:
         help="Path to configuration file (json or toml)",
     )
 
-    for key, value in flatten_dict(kwargs_defaults).items():
+    for (key, value), msg in zip(flatten_dict(kwargs_defaults).items(), flatten_dict(kwargs_defaults_help).values()):
         parser_run.add_argument(
             f"--{key}",
-            help="Auto generated option",
+            help=msg,
             type=(
                 str
                 if isinstance(value, str)
@@ -149,7 +186,11 @@ def cli() -> None:
                 raise ValueError("Unable to load configuration: unknown file format")
 
         # kwargs.update(vars(args))
-        kwargs.update({k: v for k, v in vars(args).items() if v is not None})
+        kwargs.update({k: v for k, v in vars(args).items() if v is not None and k != "subcommand"})
+        if len(kwargs.keys()) == 0:
+            parser_run.print_help()
+            sys.exit(1)
+
         kwargs = merge_defaults(kwargs_defaults, kwargs)
         kwargs = flatten_dict(kwargs)
 
@@ -159,9 +200,13 @@ def cli() -> None:
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
+        print(kwargs)
         manager = ServerManager.from_config(kwargs)
         manager.start()
 
-    elif args.subcommand == "shell":
-        host = args.host.split(":")
-        shell_start_client(secret=args.secret, addr=(host[0], int(host[1])))
+    elif args.subcommand == "tools":
+        if args.tool == "shell":
+            host = args.host.split(":")
+            tools.shell_client.main(secret=args.secret, addr=(host[0], int(host[1])))
+        elif args.tool == "h2j":
+            tools.h2j.main()

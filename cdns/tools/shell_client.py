@@ -30,7 +30,7 @@ import socket
 import sys
 
 
-def start_client(addr: tuple[str, int], secret: str | None = None) -> None:
+def main(addr: tuple[str, int], secret: str | None = None) -> None:
     """
     Start a shell client with cdns.
 
