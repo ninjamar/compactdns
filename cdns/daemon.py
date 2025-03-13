@@ -29,34 +29,64 @@ import time
 from multiprocessing import Process, Queue
 
 from .protocol import DNSHeader, DNSQuestion, pack_all_compressed
+from typing import Optional
 
-test_query = pack_all_compressed(
-    DNSHeader(id_=1, qdcount=1), [DNSQuestion(decoded_name="github.com")]
-)
+class BaseDaemon(Process):
+    """All daemons inherit from this class."""
+    def __init__(self, queue: Optional[Queue] = None, *p_args, **p_kwargs):
+        # wtf. Queue | None fails, but Optional[Queue] works
+        #     def foo(q: Queue | None):
+        #       ~~~~~~^~~~~~
+        # TypeError: unsupported operand type(s) for |: 'method' and 'NoneType'
 
+        """
+        Create an instance of BaseDaemon.
 
-class GetResolverDaemon(Process):
+        Args:
+            queue: The Queue to use. If there is no queue, make one. Defaults to None.
+            *p_args: Args to the Process.
+            *p_kwargs: Kwargs to the Process.
+        """
+        super().__init__(*p_args, **p_kwargs)
+        if not queue:
+            self.queue: Queue = Queue()
+        else:
+            self.queue = queue
+
+    def run(self):
+        """
+        Not implemented.
+        """
+        raise NotImplementedError
+
+class FastestResolverDaemon(BaseDaemon):
     def __init__(
         self,
         servers: list[tuple[str, int]],
         interval: int,
-        queue: Queue,
-        *args,
-        **kwargs,
+        test_name = "github.com",
+        **kwargs
     ):
-        super().__init__(*args, **kwargs)
+        """
+        Daemon to find the fastest resolver.
+
+        Args:
+            servers: A list of DNS servers to find.
+            interval: Interval to check DNS servers.
+            test_name: Test name for the query. Defaults to "github.com".
+            **kwargs: Passed to BaseDaemon.
+        """
+        super().__init__(**kwargs) # TODO: Create Queue inside BaseDaemon
 
         # self.servers = servers
         # self.latencies = [0] * len(servers)s
         self.servers = {k: 0 for k in servers}
         self.total_agg = 0
 
-        self.queue = queue
-
         self.interval = interval
         self.last_time = None
 
-        self.test_query = test_query
+        self.test_query = pack_all_compressed(DNSHeader(id_=1, qdcount=1), [DNSQuestion(decoded_name=test_name)])
 
     def latency(self, addr, iterations=3):
         latencies = []
@@ -103,6 +133,7 @@ class GetResolverDaemon(Process):
             self.last_time = now
 
             server = self.find_fastest_server()
+            # print("Fastest server", server)
             self.queue.put(server)
 
 
@@ -123,11 +154,11 @@ if __name__ == "__main__":
     servers = [(ip, 53) for ip in servers]
 
     q = Queue()
-    d = GetResolverDaemon(servers, 1, q)
+    d = FastestResolverDaemon(servers, 1, q)
     d.start()
     while True:
         if not q.empty():
             print(q.get())
-    #  print(GetResolverDaemon(Queue()).latency(("1.1.1.1", 53)))
+    #  print(FastestResolverDaemon(Queue()).latency(("1.1.1.1", 53)))
 
 """

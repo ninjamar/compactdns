@@ -38,7 +38,7 @@ from multiprocessing import Queue
 from pathlib import Path
 from typing import cast
 
-from .daemon import GetResolverDaemon
+from .daemon import FastestResolverDaemon
 from .response import ResponseHandler
 from .storage import RecordStorage
 
@@ -120,8 +120,8 @@ class ServerManager:
                     "Unable to use fastest resolver when resolver_interval is None"
                 )
             # Start the resolver daemon
-            self.resolver_daemon = GetResolverDaemon(
-                resolvers, resolver_interval, self.resolver_q
+            self.resolver_daemon = FastestResolverDaemon(
+                resolvers, resolver_interval, queue=self.resolver_q
             )
             self.resolver_daemon.start()
         else:

@@ -23,7 +23,7 @@ resolvers = [
 ]
 use_fastest = true
 add_system = false
-interval = 120
+interval = 100
 
 [storage]
 zone_dirs = [

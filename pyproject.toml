@@ -6,7 +6,8 @@ name = "compactdns"
 version = "0.0.103"
 requires-python = ">=3.11"
 dependencies = [
-    "publicsuffixlist",
+    "publicsuffixlist>=1.0",
+    "tomli>=1.0; python_version < '3.11'"
 ]
 
 [project.scripts]
