@@ -228,10 +228,16 @@ class ResponseHandler:
                 # Cache the rdata
 
                 # TODO: Why is publicsuffix2 faster than tldextractor
+                print([answer for answer in answers])
                 values = [
                     (auto_decode_label(answer.rdata), int(answer.ttl))
-                    for answer in answers
+                    for answer in answers if answer.type_ == RTypes.A or answer.type_ == RTypes.AAAA # HACK: This is a CRITICAL temporary fix
                 ]
+                
+                # HACK: This fix only caches A and AAAA records. Aparently CNAME records
+                # have some encoded labels. This would require some large changes to be made.
+
+                # TODO: help messages -- macos system service/daemon -- use processes -- configure cores and workers -- figure out what to do with RTYPES (maybe enum or smtn)
                 # base_domain = get_base_domain(question.decoded_name)
                 self.storage.cache.set_record(
                     name=question.decoded_name,

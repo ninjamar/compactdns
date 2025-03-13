@@ -269,12 +269,13 @@ def auto_decode_label(label):
     """
     try:
         return decode_label("LABEL", label)
-    except:
+    except Exception as e:
         if len(label) == 4:
             return decode_label("IPV4", label)
         elif len(label) == 16:
             return decode_label("IPV6", label)
-    raise Exception("Unable to decode label")
+        # raise e
+        raise Exception("Unable to decode label", e)
 
 
 class DNSDecodeLoopError(Exception):
