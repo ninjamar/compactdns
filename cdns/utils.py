@@ -99,8 +99,13 @@ class BiInt:
 
     def __eq__(self, x) -> bool:
         if isinstance(x, BiInt):
-            return str(self) == str(x)
-        return False
+            return self.i == getattr(x, "i") or self.s == getattr(x, "s")
+
+        return self.i == x or self.s == x
+        # TODO: This function was wrong for a while... How did this get caught?
+        # if isinstance(x, BiInt):
+        #     return str(self) == str(x)
+        # return False
 
     def __hash__(self) -> int:
         return hash(self.__str__())

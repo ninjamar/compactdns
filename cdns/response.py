@@ -234,7 +234,6 @@ class ResponseHandler:
                 # Cache the rdata
 
                 # TODO: Why is publicsuffix2 faster than tldextractor
-                # print([answer for answer in answers])
                 values = [
                     (auto_decode_label(answer.rdata), int(answer.ttl))
                     for answer in answers
@@ -242,18 +241,19 @@ class ResponseHandler:
                     or answer.type_
                     == RTypes.AAAA  # HACK: This is a CRITICAL temporary fix
                 ]
+                if len(values) > 0:
+                    # print("setting", values, RTypes.A.i)
+                    # HACK: This fix only caches A and AAAA records. Apparently CNAME records
+                    # have some encoded labels. This would require some large changes to be made.
 
-                # HACK: This fix only caches A and AAAA records. Apparently CNAME records
-                # have some encoded labels. This would require some large changes to be made.
-
-                # TODO:  macos system service/daemon -- use processes -- configure cores and workers -- figure out what to do with RTYPES (maybe enum or smtn)
-                # base_domain = get_base_domain(question.decoded_name)
-                self.storage.cache.set_record(
-                    name=question.decoded_name,
-                    record_type=question.type_,
-                    values=values,
-                    overwrite=True,
-                )
+                    # TODO:  macos system service/daemon -- use processes -- configure cores and workers -- figure out what to do with RTYPES (maybe enum or smtn)
+                    # base_domain = get_base_domain(question.decoded_name)
+                    self.storage.cache.set_record(
+                        name=question.decoded_name,
+                        record_type=question.type_,
+                        values=values,
+                        overwrite=True,
+                    )
 
         self.buf = pack_all_compressed(
             self.resp_header, self.resp_questions, self.resp_answers

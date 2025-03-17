@@ -178,8 +178,8 @@ pyrightconfig.json
 static/
 *.pem
 *.pcapng
-ignore/
 
+ignore*/
 ignore-*.*
 .vscode
 

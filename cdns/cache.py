@@ -41,6 +41,8 @@ from .utils import BiInt
 class TimedCache:
     """A dictionary, with expiring keys."""
 
+    # This might no longer be in use, but it's still useful
+
     def __init__(self, max_length: int = float("inf")) -> None:  # type: ignore
         """Create a TimedCache instance."""
         self.data: OrderedDict[Hashable, tuple[Any, float, float]] = OrderedDict()
@@ -179,6 +181,7 @@ class DNSCache:
             if not isinstance(record_type, BiInt):
                 record_type = RTypes[record_type]
 
+            # TODO: Very important. Remove this since it takes up a lot of space
             if name not in self.data:
                 self.data[name] = {}
             if record_type not in self.data[name]:
@@ -224,6 +227,7 @@ class DNSCache:
         for data, ttl in values:
             self.add_record(name, record_type, data, ttl)
 
+        
     @_ensure
     def get_records(self, name: str, record_type: str) -> list[tuple[str, int]]:
         """

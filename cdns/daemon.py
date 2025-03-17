@@ -25,16 +25,18 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
 import socket
+import functools
 import time
 from multiprocessing import Process, Queue
-
+from typing import Callable
+from pathlib import Path
 from .protocol import DNSHeader, DNSQuestion, pack_all_compressed
-from typing import Optional
 
 class BaseDaemon(Process):
     """All daemons inherit from this class."""
-    def __init__(self, queue: Optional[Queue] = None, *p_args, **p_kwargs):
-        # wtf. Queue | None fails, but Optional[Queue] works
+    def __init__(self, interval, queue: "Queue | None", *p_args, **p_kwargs):
+        # waht. Queue | None fails, but putting quotes around or using Optional[Queue] works
+        # Seems that Queue is a bound method (https://github.com/python/cpython/blob/main/Lib/multiprocessing/context.py#L100)
         #     def foo(q: Queue | None):
         #       ~~~~~~^~~~~~
         # TypeError: unsupported operand type(s) for |: 'method' and 'NoneType'
@@ -48,25 +50,45 @@ class BaseDaemon(Process):
             *p_kwargs: Kwargs to the Process.
         """
         super().__init__(*p_args, **p_kwargs)
+
+        self._interval = interval
+
         if not queue:
             self.queue: Queue = Queue()
         else:
             self.queue = queue
 
+        self._last_time = None
+
     def run(self):
         """
         Not implemented.
         """
+
+        # if self.last_time is None:
+        self.queue.put(self.task())
+        
+        self._last_time = time.time()
+        while True:
+            now = time.time()
+            wait_t = (self._last_time + self._interval) - now
+            if wait_t > 0:
+                time.sleep(wait_t)
+
+            self.queue.put(self.task())
+
+            self._last_time = now
+            
+    def task(self):
         raise NotImplementedError
 
 class FastestResolverDaemon(BaseDaemon):
     def __init__(
         self,
         servers: list[tuple[str, int]],
-        interval: int,
         test_name = "github.com",
         **kwargs
-    ):
+    ) -> None:
         """
         Daemon to find the fastest resolver.
 
@@ -78,17 +100,22 @@ class FastestResolverDaemon(BaseDaemon):
         """
         super().__init__(**kwargs) # TODO: Create Queue inside BaseDaemon
 
-        # self.servers = servers
-        # self.latencies = [0] * len(servers)s
         self.servers = {k: 0 for k in servers}
         self.total_agg = 0
 
-        self.interval = interval
-        self.last_time = None
-
         self.test_query = pack_all_compressed(DNSHeader(id_=1, qdcount=1), [DNSQuestion(decoded_name=test_name)])
 
-    def latency(self, addr, iterations=3):
+    def latency(self, addr, iterations=3) -> float:
+        """
+        Get the latency to a server
+
+        Args:
+            addr: Address of server.
+            iterations: Number of times to check. Defaults to 3.
+
+        Returns:
+            The latency in seconds.
+        """
         latencies = []
         for i in range(iterations):
             try:
@@ -104,7 +131,13 @@ class FastestResolverDaemon(BaseDaemon):
                 latencies.append(float("inf"))
         return sum(latencies) / iterations
 
-    def find_fastest_server(self):
+    def find_fastest_server(self) -> tuple[int, str]:
+        """
+        Get the fastest server.
+
+        Returns:
+            The fastest server.
+        """
         if self.total_agg == 0:
             self.servers = {k: 0 for k in list(self.servers.keys())}
 
@@ -117,26 +150,41 @@ class FastestResolverDaemon(BaseDaemon):
             self.total_agg = 0
 
         return min(self.servers, key=self.servers.__getitem__)
+    
+    def task(self):
+        return self.find_fastest_server()
+
+class DumpStorageDaemon(BaseDaemon):
+    """
+    Daemon to dump the cache at an interval.
+
+    Args:
+        BaseDaemon: _description_
+    """
+    def __init__(self, storage, path, **kwargs):
+        super().__init__(**kwargs)
+
+        self.storage = storage
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        from datetime import datetime
+
+        self.path = path
+        # self.path = path.replace("$time", str(datetime.now()))
+
+    def task(self):
+        # print(self.storage.cache.data)
+        self.storage.write_cache_to_file(self.path)
+
+class IntervalTask:
+    def __init__(self, interval):
+        self.interval = interval
 
     def run(self):
-        if self.last_time is None:
-            server = self.find_fastest_server()
-            self.queue.put(server)
+        raise NotImplementedError
 
-            self.last_time = time.time()
-        while True:
-            now = time.time()
-            wait_t = (self.last_time + self.interval) - now
-            if wait_t > 0:
-                time.sleep(wait_t)
-
-            self.last_time = now
-
-            server = self.find_fastest_server()
-            # print("Fastest server", server)
-            self.queue.put(server)
-
-
+    def calculate_then(self):
+        return time.time() + self.interval
+ 
 """
 if __name__ == "__main__":
     

@@ -25,6 +25,11 @@ use_fastest = true
 add_system = false
 interval = 100
 
+[daemons.fastest_resolver]
+use=true
+test_name="github.com"
+interval = 100
+
 [storage]
 zone_dirs = [
     "example-zones"

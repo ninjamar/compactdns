@@ -62,6 +62,7 @@ else:
     import tomllib
 
 from . import tools
+
 from .manager import ServerManager
 from .utils import flatten_dict, merge_defaults
 
@@ -89,6 +90,13 @@ kwargs_defaults = {
         "zone_pickle_path": None,
         "cache_pickle_path": None,
     },
+    "daemons": {
+        "fastest_resolver": {
+            "use": False,
+            "test_name": "github.com",
+            "interval": 100
+        }
+    }
 }
 kwargs_defaults_help = {
     "max_workers": "Max number of workers for the DNS server",
@@ -215,9 +223,9 @@ def cli() -> None:
         manager = ServerManager.from_config(kwargs)
         manager.start()
 
-    elif args.subcommand == "tools":
-        if args.tool == "shell":
-            host = args.host.split(":")
-            tools.shell_client.main(secret=args.secret, addr=(host[0], int(host[1])))
-        elif args.tool == "h2j":
-            tools.h2j.main(args.source, args.dest)
+    elif args.subcommand == "shell":
+        host = args.host.split(":")
+        print(args.secret)
+        tools.shell_client.main(secret=args.secret, addr=(host[0], int(host[1])))
+    elif args.subcommand == "h2j":
+        tools.h2j.main(args.source, args.dest)

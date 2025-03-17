@@ -41,3 +41,5 @@ from .zones import DNSZone, parse_all_zones
 # The TODOLIST is located in TODO.md
 
 # TODO: Figure out what to import here
+
+# TODO: Only import from protocol and zones

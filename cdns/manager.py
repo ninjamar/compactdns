@@ -33,14 +33,18 @@ import socket
 import ssl
 import struct
 import sys
+import time
 import threading
 from multiprocessing import Queue
 from pathlib import Path
-from typing import cast
+from typing import cast, Callable, Type
 
-from .daemon import FastestResolverDaemon
 from .response import ResponseHandler
 from .storage import RecordStorage
+
+from . import daemon
+
+
 
 MAX_WORKERS = 1000
 
@@ -54,15 +58,11 @@ class ServerManager:
         shell_host: tuple[str, int],
         resolvers: list[tuple[str, int]],
         storage: RecordStorage,
-        # max_cache_length: int = float("inf"),
         tls_host: tuple[str, int] | None = None,
         ssl_key_path: str | None = None,
         ssl_cert_path: str | None = None,
-        use_fastest_resolver: bool = True,
-        resolver_interval: int | None = None,
         max_workers: int = MAX_WORKERS,
-        # zone_dir: str | None = None,
-        # cache_path: str | None = None,
+        daemon_options: dict = {},
     ) -> None:
         """
         Create a ServerManager instance.
@@ -78,7 +78,7 @@ class ServerManager:
         """
 
         # TODO: Make this better
-
+        # Sockets
         self.host = host
         self.shell_host = shell_host
         self.tls_host = tls_host
@@ -112,30 +112,7 @@ class ServerManager:
         self.shell_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.shell_secret = secrets.token_hex(10)
 
-        self.resolver_q: Queue = Queue()
-
-        if use_fastest_resolver:
-            if resolver_interval is None:
-                raise ValueError(
-                    "Unable to use fastest resolver when resolver_interval is None"
-                )
-            # Start the resolver daemon
-            self.resolver_daemon = FastestResolverDaemon(
-                resolvers, resolver_interval, queue=self.resolver_q
-            )
-            self.resolver_daemon.start()
-        else:
-            if len(resolvers) > 1:
-                raise ValueError(
-                    "Unable to have more than one resolver when use_fastest is False"
-                )
-
-            self.resolver_q.put(resolvers[0])
-
-        # Get the address
-        self.resolver_addr = self.resolver_q.get()
-        logging.info("Resolver address: %s", self.resolver_addr)
-
+        # Forwarder
         self.forwarder_sel = selectors.DefaultSelector()
         self.forwarder_pending_requests: dict[
             socket.socket, concurrent.futures.Future
@@ -145,10 +122,38 @@ class ServerManager:
         self.forwarder_thread.start()
         self.forwarder_lock = threading.Lock()
 
+
+        # Other config. TODO: Implement better configuration here
         self.execution_timeout = 0
         self.max_workers = max_workers
-
         self.storage = storage
+
+        # Daemons
+        # Resolver daemon
+        self.resolver_q: Queue = Queue()
+
+        if daemon_options.get("fastest_resolver.use"):
+            self.resolver_daemon = daemon.FastestResolverDaemon(resolvers, daemon_options["fastest_resolver.test_name"], interval=daemon_options["fastest_resolver.interval"],queue=self.resolver_q)
+            self.resolver_daemon.start()
+        else:
+            if len(resolvers) > 1:
+                raise ValueError(
+                    "Unable to have more than one resolver when use_fastest is False"
+                )
+
+            self.resolver_q.put(resolvers[0])
+        # Get the address
+        self.resolver_addr = self.resolver_q.get()
+        logging.info("Resolver address: %s", self.resolver_addr)
+        
+        # I removed the dump cache daemon because the cache was designed
+        # to only be in-memory. If the cache was written to a file, all
+        # the TimedItem's would expire, meaning the dump would be useless.
+
+        # Dump cache daemon
+        #if daemon_options.get("dump_cache.use"):
+        #    self.dump_cache_daemon = daemon.DumpStorageDaemon(self.storage, daemon_options["dump_cache.path"], interval=daemon_options["dump_cache.interval"], queue=None)
+        #    self.dump_cache_daemon.start()
 
     @classmethod
     def from_config(cls, kwargs):
@@ -176,7 +181,6 @@ class ServerManager:
             )
 
         logging.debug("Records: %s", storage)
-
         return cls(
             storage=storage,
             host=(kwargs["servers.host.host"], int(kwargs["servers.host.port"])),
@@ -187,12 +191,12 @@ class ServerManager:
             resolvers=[
                 (addr, 53) for addr in kwargs["resolver.resolvers"]
             ],  # Use port 53 for resolvers
-            use_fastest_resolver=kwargs["resolver.use_fastest"],
-            resolver_interval=kwargs["resolver.interval"],
             tls_host=(kwargs["servers.tls.host"], int(kwargs["servers.tls.port"])),
             ssl_key_path=kwargs["servers.tls.ssl_key"],
             ssl_cert_path=kwargs["servers.tls.ssl_cert"],
             max_workers=kwargs["max_workers"],
+            daemon_options={k[8:]: v for k, v in kwargs.items() if k.startswith("daemon")}
+            # daemon_options=kwargs["daemons"]
         )
 
     def forwarder_daemon(self) -> None:
