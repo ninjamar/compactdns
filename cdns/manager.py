@@ -150,11 +150,6 @@ class ServerManager:
         # to only be in-memory. If the cache was written to a file, all
         # the TimedItem's would expire, meaning the dump would be useless.
 
-        # Dump cache daemon
-        #if daemon_options.get("dump_cache.use"):
-        #    self.dump_cache_daemon = daemon.DumpStorageDaemon(self.storage, daemon_options["dump_cache.path"], interval=daemon_options["dump_cache.interval"], queue=None)
-        #    self.dump_cache_daemon.start()
-
     @classmethod
     def from_config(cls, kwargs):
         """

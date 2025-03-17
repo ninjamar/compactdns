@@ -153,38 +153,6 @@ class FastestResolverDaemon(BaseDaemon):
     
     def task(self):
         return self.find_fastest_server()
-
-class DumpStorageDaemon(BaseDaemon):
-    """
-    Daemon to dump the cache at an interval.
-
-    Args:
-        BaseDaemon: _description_
-    """
-    def __init__(self, storage, path, **kwargs):
-        super().__init__(**kwargs)
-
-        self.storage = storage
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-        from datetime import datetime
-
-        self.path = path
-        # self.path = path.replace("$time", str(datetime.now()))
-
-    def task(self):
-        # print(self.storage.cache.data)
-        self.storage.write_cache_to_file(self.path)
-
-class IntervalTask:
-    def __init__(self, interval):
-        self.interval = interval
-
-    def run(self):
-        raise NotImplementedError
-
-    def calculate_then(self):
-        return time.time() + self.interval
- 
 """
 if __name__ == "__main__":
     
