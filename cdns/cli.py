@@ -24,7 +24,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 """
 usage: cdns [-h] --host HOST --resolver RESOLVER [--records [RECORDS ...]]
             [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}] [--ttl TTL]
@@ -62,7 +61,6 @@ else:
     import tomllib
 
 from . import tools
-
 from .manager import ServerManager
 from .utils import flatten_dict, merge_defaults
 
@@ -91,12 +89,8 @@ kwargs_defaults = {
         "cache_pickle_path": None,
     },
     "daemons": {
-        "fastest_resolver": {
-            "use": False,
-            "test_name": "github.com",
-            "interval": 100
-        }
-    }
+        "fastest_resolver": {"use": False, "test_name": "github.com", "interval": 100}
+    },
 }
 kwargs_defaults_help = {
     "max_workers": "Max number of workers for the DNS server",

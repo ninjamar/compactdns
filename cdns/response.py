@@ -16,9 +16,7 @@ from .storage import RecordStorage
 
 
 class ResponseHandler:
-    """
-    A class to make a DNS response.
-    """
+    """A class to make a DNS response."""
 
     def __init__(
         self,
@@ -28,9 +26,7 @@ class ResponseHandler:
         udp_addr: tuple[str, int] | None = None,
         tcp_conn: socket.socket | None = None,
     ) -> None:
-        """
-        Create a ResponseHandler instance.
-        Use with either UDP or TCP.
+        """Create a ResponseHandler instance. Use with either UDP or TCP.
 
         Args:
             storage: Storage.
@@ -74,8 +70,7 @@ class ResponseHandler:
         self.question_answers: list[DNSAnswer] = []
 
     def start(self, buf) -> None:
-        """
-        Unpack a buffer, then process it.
+        """Unpack a buffer, then process it.
 
         Args:
             buf: Buffer to unpack.
@@ -85,8 +80,7 @@ class ResponseHandler:
             self._process()
 
     def _receive(self, buf: bytes) -> bool:
-        """
-        Receive a buffer, unpacking it.
+        """Receive a buffer, unpacking it.
 
         Args:
             buf: Buffer to unpack.
@@ -102,9 +96,7 @@ class ResponseHandler:
             return False
 
     def _process(self) -> None:
-        """
-        Start the process.
-        """
+        """Start the process."""
         if self.buf_header is None:
             raise Exception("Buffer header can't be empty")
 
@@ -164,8 +156,7 @@ class ResponseHandler:
     def _forwarding_done_handler(
         self, future: concurrent.futures.Future[bytes]
     ) -> None:
-        """
-        Callback when self.forwarder is complete.
+        """Callback when self.forwarder is complete.
 
         Args:
             future: Future from self.forwarder.
@@ -179,9 +170,7 @@ class ResponseHandler:
         self._post_process()
 
     def _post_process(self) -> None:
-        """
-        Automatically called after self.process.
-        """
+        """Automatically called after self.process."""
         if self.buf_header is None:
             raise Exception
         # We could also make a copy of self.resp_header, but it doesn't matter
@@ -271,9 +260,7 @@ class ResponseHandler:
         self._send()
 
     def _send(self) -> None:
-        """
-        Send a DNS query back.
-        """
+        """Send a DNS query back."""
         # buf = pack_all_compressed(
         #     self.resp_header, self.resp_questions, self.resp_answers
         # )

@@ -33,18 +33,15 @@ import socket
 import ssl
 import struct
 import sys
-import time
 import threading
+import time
 from multiprocessing import Queue
 from pathlib import Path
-from typing import cast, Callable, Type
-
-from .response import ResponseHandler
-from .storage import RecordStorage
+from typing import Callable, Type, cast
 
 from . import daemon
-
-
+from .response import ResponseHandler
+from .storage import RecordStorage
 
 MAX_WORKERS = 1000
 
@@ -64,8 +61,7 @@ class ServerManager:
         max_workers: int = MAX_WORKERS,
         daemon_options: dict = {},
     ) -> None:
-        """
-        Create a ServerManager instance.
+        """Create a ServerManager instance.
 
         Args:
             host: Host and port of server for UDP and TCP.
@@ -122,7 +118,6 @@ class ServerManager:
         self.forwarder_thread.start()
         self.forwarder_lock = threading.Lock()
 
-
         # Other config. TODO: Implement better configuration here
         self.execution_timeout = 0
         self.max_workers = max_workers
@@ -133,7 +128,12 @@ class ServerManager:
         self.resolver_q: Queue = Queue()
 
         if daemon_options.get("fastest_resolver.use"):
-            self.resolver_daemon = daemon.FastestResolverDaemon(resolvers, daemon_options["fastest_resolver.test_name"], interval=daemon_options["fastest_resolver.interval"],queue=self.resolver_q)
+            self.resolver_daemon = daemon.FastestResolverDaemon(
+                resolvers,
+                daemon_options["fastest_resolver.test_name"],
+                interval=daemon_options["fastest_resolver.interval"],
+                queue=self.resolver_q,
+            )
             self.resolver_daemon.start()
         else:
             if len(resolvers) > 1:
@@ -145,15 +145,14 @@ class ServerManager:
         # Get the address
         self.resolver_addr = self.resolver_q.get()
         logging.info("Resolver address: %s", self.resolver_addr)
-        
+
         # I removed the dump cache daemon because the cache was designed
         # to only be in-memory. If the cache was written to a file, all
         # the TimedItem's would expire, meaning the dump would be useless.
 
     @classmethod
     def from_config(cls, kwargs):
-        """
-        Create an instance of ServerManager from a configuration.
+        """Create an instance of ServerManager from a configuration.
 
         Returns:
             An instance of ServerManager
@@ -190,14 +189,15 @@ class ServerManager:
             ssl_key_path=kwargs["servers.tls.ssl_key"],
             ssl_cert_path=kwargs["servers.tls.ssl_cert"],
             max_workers=kwargs["max_workers"],
-            daemon_options={k[8:]: v for k, v in kwargs.items() if k.startswith("daemon")}
+            daemon_options={
+                k[8:]: v for k, v in kwargs.items() if k.startswith("daemon")
+            },
             # daemon_options=kwargs["daemons"]
         )
 
     def forwarder_daemon(self) -> None:
-        """
-        Handler for the thread that handles the response for forwarded queries
-        """
+        """Handler for the thread that handles the response for forwarded
+        queries."""
         while True:
             events = self.forwarder_sel.select(timeout=0)  # TODO: Timeout
             with self.forwarder_lock:
@@ -312,8 +312,7 @@ class ServerManager:
                     ).start(query)
 
     def _handle_dns_query_tls(self, conn: socket.socket) -> None:
-        """
-        Handle a DNS query over tls.
+        """Handle a DNS query over tls.
 
         Args:
             conn: The TLS connection.
@@ -346,8 +345,7 @@ class ServerManager:
         return self._handle_dns_query_tcp(tls)
 
     def command(self, cmd, **kwargs) -> None:
-        """
-        Call a command.
+        """Call a command.
 
         | Command Name | Description | Arguments |
         | load-zones   | Load zones from pickle file | Path - path to file |
@@ -381,11 +379,10 @@ class ServerManager:
             return self.storage.cache.purge()
 
     def _handle_shell_session(self, conn: socket.socket) -> None:
-        """
-        Handle a shell session. This function blocks the DNS queries,
-        and starts an interactive debugging sesion. A secret is needed
-        in order for verification. This function will wait until the,
-        secret is sent before starting the interpreter.
+        """Handle a shell session. This function blocks the DNS queries, and
+        starts an interactive debugging sesion. A secret is needed in order for
+        verification. This function will wait until the, secret is sent before
+        starting the interpreter.
 
         Running a command
         >>> self.command("dump-cache", path="path/to/cache/dump")

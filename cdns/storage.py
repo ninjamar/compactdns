@@ -41,22 +41,16 @@ from .zones import (DNSZone, parse_multiple_json_zones,
 
 
 class RecordError(Exception):
-    """
-    An error for a record.
-    """
+    """An error for a record."""
 
     pass
 
 
 class RecordStorage:
-    """
-    A container to store zones and the cache.
-    """
+    """A container to store zones and the cache."""
 
     def __init__(self) -> None:
-        """
-        Create an instance of RecordStorage.
-        """
+        """Create an instance of RecordStorage."""
         # Store a TimedCache for upstream requests
         # Lookup zones locally
 
@@ -86,8 +80,7 @@ class RecordStorage:
         record_domain: str,
         record_name: str | None = None,
     ) -> list[tuple[str, int]]:
-        """
-        Get a record. Prioritize zones over the cache.
+        """Get a record. Prioritize zones over the cache.
 
         Args:
             type_: Type of record. One of RTypes.
@@ -146,9 +139,8 @@ class RecordStorage:
         return values
 
     def load_zone_from_file(self, path: Path | str) -> None:
-        """
-        Load the zone from a file. The filename must be domain.zone.
-        The file is pickled, and uses LZMA compression.
+        """Load the zone from a file. The filename must be domain.zone. The
+        file is pickled, and uses LZMA compression.
 
         Args:
             path: Path to file.
@@ -168,9 +160,8 @@ class RecordStorage:
         raise Exception("Unable to load zone from file: invalid format")
 
     def load_cache_from_file(self, path: Path | str) -> None:
-        """
-        Load the cache from a file. The file is pickled,
-        and uses LZMA compression.
+        """Load the cache from a file. The file is pickled, and uses LZMA
+        compression.
 
         Args:
             path: Path to file.
@@ -179,9 +170,8 @@ class RecordStorage:
             self.cache = pickle.load(f)
 
     def write_cache_to_file(self, path: Path | str) -> None:
-        """
-        Write the cache to a file. The file is pickled,
-        and uses LZMA compression.
+        """Write the cache to a file. The file is pickled, and uses LZMA
+        compression.
 
         Args:
             path: Path to file.
@@ -190,9 +180,8 @@ class RecordStorage:
             pickle.dump(self.cache, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_zone_object_from_file(self, path: Path | str) -> None:
-        """
-        Load self.zones from a file. The file is pickled,
-        and uses LZMA compression.
+        """Load self.zones from a file. The file is pickled, and uses LZMA
+        compression.
 
         Args:
             path: Path to file.
@@ -201,9 +190,8 @@ class RecordStorage:
             self.zones = pickle.load(f)
 
     def write_zone_object_to_file(self, path: Path | str) -> None:
-        """
-        Write self.zones to a file. The file is pickled,
-        and uses LZMA compression.
+        """Write self.zones to a file. The file is pickled, and uses LZMA
+        compression.
 
         Args:
             path: Path to file.
@@ -212,8 +200,8 @@ class RecordStorage:
             pickle.dump(self.zones, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_zones_from_dir(self, path: Path | str) -> None:
-        """
-        Load all the zones from a directory. Each filename must be domain.zone.
+        """Load all the zones from a directory. Each filename must be
+        domain.zone.
 
         Args:
             zone_dir_path: Path to directory

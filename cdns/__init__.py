@@ -24,9 +24,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 """This module, CompactDNS is a small, portable DNS server with support for
-blocking certain hostnames."
+blocking certain hostnames.".
 
 Requires a minimum python version of 3.11
 """

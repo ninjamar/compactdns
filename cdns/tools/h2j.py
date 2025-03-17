@@ -24,10 +24,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
-
-"""
-Hosts to JSON blocklist
+"""Hosts to JSON blocklist.
 
 Usage: cdns tools h2j path/to/host path/to/target.all.json
 """

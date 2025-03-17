@@ -24,16 +24,19 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
-import socket
 import functools
+import socket
 import time
 from multiprocessing import Process, Queue
-from typing import Callable
 from pathlib import Path
+from typing import Callable
+
 from .protocol import DNSHeader, DNSQuestion, pack_all_compressed
+
 
 class BaseDaemon(Process):
     """All daemons inherit from this class."""
+
     def __init__(self, interval, queue: "Queue | None", *p_args, **p_kwargs):
         # waht. Queue | None fails, but putting quotes around or using Optional[Queue] works
         # Seems that Queue is a bound method (https://github.com/python/cpython/blob/main/Lib/multiprocessing/context.py#L100)
@@ -41,8 +44,7 @@ class BaseDaemon(Process):
         #       ~~~~~~^~~~~~
         # TypeError: unsupported operand type(s) for |: 'method' and 'NoneType'
 
-        """
-        Create an instance of BaseDaemon.
+        """Create an instance of BaseDaemon.
 
         Args:
             queue: The Queue to use. If there is no queue, make one. Defaults to None.
@@ -61,13 +63,11 @@ class BaseDaemon(Process):
         self._last_time = None
 
     def run(self):
-        """
-        Not implemented.
-        """
+        """Not implemented."""
 
         # if self.last_time is None:
         self.queue.put(self.task())
-        
+
         self._last_time = time.time()
         while True:
             now = time.time()
@@ -78,19 +78,16 @@ class BaseDaemon(Process):
             self.queue.put(self.task())
 
             self._last_time = now
-            
+
     def task(self):
         raise NotImplementedError
 
+
 class FastestResolverDaemon(BaseDaemon):
     def __init__(
-        self,
-        servers: list[tuple[str, int]],
-        test_name = "github.com",
-        **kwargs
+        self, servers: list[tuple[str, int]], test_name="github.com", **kwargs
     ) -> None:
-        """
-        Daemon to find the fastest resolver.
+        """Daemon to find the fastest resolver.
 
         Args:
             servers: A list of DNS servers to find.
@@ -98,16 +95,17 @@ class FastestResolverDaemon(BaseDaemon):
             test_name: Test name for the query. Defaults to "github.com".
             **kwargs: Passed to BaseDaemon.
         """
-        super().__init__(**kwargs) # TODO: Create Queue inside BaseDaemon
+        super().__init__(**kwargs)  # TODO: Create Queue inside BaseDaemon
 
         self.servers = {k: 0 for k in servers}
         self.total_agg = 0
 
-        self.test_query = pack_all_compressed(DNSHeader(id_=1, qdcount=1), [DNSQuestion(decoded_name=test_name)])
+        self.test_query = pack_all_compressed(
+            DNSHeader(id_=1, qdcount=1), [DNSQuestion(decoded_name=test_name)]
+        )
 
     def latency(self, addr, iterations=3) -> float:
-        """
-        Get the latency to a server
+        """Get the latency to a server.
 
         Args:
             addr: Address of server.
@@ -132,8 +130,7 @@ class FastestResolverDaemon(BaseDaemon):
         return sum(latencies) / iterations
 
     def find_fastest_server(self) -> tuple[int, str]:
-        """
-        Get the fastest server.
+        """Get the fastest server.
 
         Returns:
             The fastest server.
@@ -150,9 +147,11 @@ class FastestResolverDaemon(BaseDaemon):
             self.total_agg = 0
 
         return min(self.servers, key=self.servers.__getitem__)
-    
+
     def task(self):
         return self.find_fastest_server()
+
+
 """
 if __name__ == "__main__":
     

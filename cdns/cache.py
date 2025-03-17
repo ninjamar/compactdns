@@ -28,8 +28,7 @@
 import functools
 import time
 from collections import OrderedDict
-from typing import Any, Callable, Hashable
-from typing import cast
+from typing import Any, Callable, Hashable, cast
 
 from .protocol import RTypes
 from .utils import BiInt
@@ -120,13 +119,10 @@ class TimedCache:
 
 
 class TimedItem:
-    """
-    A singular item that can expire.
-    """
+    """A singular item that can expire."""
 
     def __init__(self, item: Any, ttl: int | float) -> None:
-        """
-        Create a TimedItem instance.
+        """Create a TimedItem instance.
 
         Args:
             item: The item.
@@ -137,8 +133,7 @@ class TimedItem:
         self.ttl = ttl
 
     def get(self) -> Any:
-        """
-        Get the item.
+        """Get the item.
 
         Returns:
             The item. If it's expired, return None.
@@ -156,21 +151,12 @@ class TimedItem:
 
 # TODO: Max length
 class DNSCache:
-    """
-    A cache for DNS records.
-    """
+    """A cache for DNS records."""
 
     def __init__(self) -> None:
-        """
-        Create a DNSCache instance.
-        """
+        """Create a DNSCache instance."""
         self.data: dict[str, dict[str, list[TimedItem]]] = {}
-        """{
-            "foo.example.com": {
-                "A": [("127.0.0.1", 500)]
-            }
-        }
-        """
+        """{ "foo.example.com": { "A": [("127.0.0.1", 500)] } }"""
 
     def _ensure(fn: Callable) -> Callable:  # type: ignore
         # YAIMBA
@@ -193,8 +179,7 @@ class DNSCache:
 
     @_ensure
     def add_record(self, name: str, record_type: str, value: str, ttl: int) -> None:
-        """
-        Add a singular record to the cache.
+        """Add a singular record to the cache.
 
         Args:
             name: Domain name.
@@ -213,8 +198,7 @@ class DNSCache:
         values: list[tuple[str, int]],
         overwrite=False,
     ) -> None:
-        """
-        Set multiple records in the cache.
+        """Set multiple records in the cache.
 
         Args:
             name: Domain name.
@@ -227,11 +211,9 @@ class DNSCache:
         for data, ttl in values:
             self.add_record(name, record_type, data, ttl)
 
-        
     @_ensure
     def get_records(self, name: str, record_type: str) -> list[tuple[str, int]]:
-        """
-        Get the records from the cache.
+        """Get the records from the cache.
 
         Args:
             name: Domain name.
@@ -250,9 +232,7 @@ class DNSCache:
         return cast(list[tuple[str, int]], ret)
 
     def purge(self) -> None:
-        """
-        Purge expired records.
-        """
+        """Purge expired records."""
         for domain in list(self.data.keys()):
             for record in list(self.data[domain].keys()):
                 self.data[domain][record] = [

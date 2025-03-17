@@ -58,7 +58,7 @@ class MXRecord:
 
 @dataclasses.dataclass
 class DNSZone:
-    """DNS Zone"""
+    """DNS Zone."""
 
     domain: str
     ttl: int = 3600
@@ -72,8 +72,7 @@ class DNSZone:
     def add_record(
         self, name: str, record_type: str, value: str, ttl: int | None = None
     ) -> None:
-        """
-        Add a record to the zone.
+        """Add a record to the zone.
 
         Args:
             name: Name of the record.
@@ -133,13 +132,10 @@ class ZoneParsingError(Exception):
 
 
 class ZoneParser:
-    """
-    A class to parse a DNS zone from a zone file.
-    """
+    """A class to parse a DNS zone from a zone file."""
 
     def __init__(self, domain: str, stream: io.TextIOWrapper) -> None:
-        """
-        Create an instance of ZoneParser.
+        """Create an instance of ZoneParser.
 
         Args:
             domain: The base domain for the zone file.
@@ -150,8 +146,7 @@ class ZoneParser:
         self.line: str | None = None
 
     def parse_instr(self) -> None:
-        """
-        Parse a section in the zone file.
+        """Parse a section in the zone file.
 
         Raises:
             ZoneParsingError: Unable to parse zone.
@@ -252,9 +247,7 @@ class ZoneParser:
         self.zone.add_record(name, record_type, value, ttl)
 
     def parse(self) -> None:
-        """
-        Parse the entire stream into the zone.
-        """
+        """Parse the entire stream into the zone."""
         # I mean I could use regex's but I already started this
         # https://regex101.com/r/7yNlJu/1
 
@@ -269,8 +262,7 @@ class ZoneParser:
                 self.parse_instr()
 
     def fetch(self) -> None:
-        """
-        Fetch a expected line from the stream.
+        """Fetch a expected line from the stream.
 
         Raises:
             ZoneParsingError: If an expected
@@ -329,8 +321,7 @@ def parse_singular_json_zone(path: Path | str) -> DNSZone:
 
 
 def parse_zone(path: Path | str) -> DNSZone:
-    """
-    Parse a zone from the file.
+    """Parse a zone from the file.
 
     Args:
         path: Path to file
@@ -355,8 +346,7 @@ def parse_zone(path: Path | str) -> DNSZone:
 
 
 def parse_all_zones(paths: list[str]) -> dict[str, DNSZone]:
-    """
-    Parse all zones from a list of paths.
+    """Parse all zones from a list of paths.
 
     Args:
         paths: A list of paths.

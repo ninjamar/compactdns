@@ -25,5 +25,4 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from . import h2j
-from . import shell_client
+from . import h2j, shell_client

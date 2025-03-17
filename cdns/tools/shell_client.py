@@ -31,8 +31,7 @@ import sys
 
 
 def main(addr: tuple[str, int], secret: str | None = None) -> None:
-    """
-    Start a shell client with cdns.
+    """Start a shell client with cdns.
 
     Args:
         addr: Address of the server.

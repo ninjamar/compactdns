@@ -66,17 +66,15 @@ def flatten_dict(d: dict[str, Any], sep=".", base="") -> dict[str, Any]:
 # TODO: Should actually be BiInt
 # TODO: This is too overcomplicated
 class BiInt:
-    """
-    A container for an something that can be both an integer and a string.
-    """
+    """A container for an something that can be both an integer and a
+    string."""
 
     @overload
     def __init__(self, a: str, b: int) -> None: ...
     @overload
     def __init__(self, a: int, b: str) -> None: ...
     def __init__(self, a, b) -> None:
-        """
-        Create an instance of BiInt.
+        """Create an instance of BiInt.
 
         Args:
             a: str or int.
@@ -115,13 +113,10 @@ class BiInt:
 
 
 class ImmutableBiDict:
-    """
-    An immutable dictionary with forward and backward keys.
-    """
+    """An immutable dictionary with forward and backward keys."""
 
     def __init__(self, values: list[tuple[Any, Any]]):
-        """
-        Create an instance of ImmutableBiDict.
+        """Create an instance of ImmutableBiDict.
 
         Args:
             values: A list of values with the items.
