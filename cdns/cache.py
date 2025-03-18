@@ -25,6 +25,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import sys
 import functools
 import time
 from collections import OrderedDict
@@ -156,9 +157,11 @@ class DNSCache:
     def __init__(self) -> None:
         """Create a DNSCache instance."""
         self.data: dict[str, dict[str, list[TimedItem]]] = {}
+
+        self.estimated_size = 0
         """{ "foo.example.com": { "A": [("127.0.0.1", 500)] } }"""
 
-    def _ensure(fn: Callable) -> Callable:  # type: ignore
+    def _ensure_args(fn: Callable) -> Callable:  # type: ignore
         # YAIMBA
         # Ensure the type of arguments, as well as make necessary fields in self.data.
         # https://stackoverflow.com/a/1263782/21322342
@@ -166,18 +169,18 @@ class DNSCache:
         def dec_ensure(self, name: str, record_type: str, *args, **kwargs) -> Any:
             if not isinstance(record_type, BiInt):
                 record_type = RTypes[record_type]
-
-            # TODO: Very important. Remove this since it takes up a lot of space
-            if name not in self.data:
-                self.data[name] = {}
-            if record_type not in self.data[name]:
-                self.data[name][record_type] = []
-
             return fn(self, name, record_type, *args, **kwargs)
 
         return dec_ensure
-
-    @_ensure
+    
+    def make(self, name: str, record_type: str) -> None:
+        if name not in self.data:
+            self.data[name] = {}
+        if record_type not in self.data[name]:
+            self.data[name][record_type] = []
+        
+    # TODO: Estimated size
+    @_ensure_args
     def add_record(self, name: str, record_type: str, value: str, ttl: int) -> None:
         """Add a singular record to the cache.
 
@@ -187,10 +190,11 @@ class DNSCache:
             value: Value of the record.
             ttl: TTL of the record.
         """
+        self.make(name, record_type)
         # self.data[name][record_type].append((value, ttl))
         self.data[name][record_type].append(TimedItem(value, ttl))
 
-    @_ensure
+    @_ensure_args
     def set_record(
         self,
         name: str,
@@ -206,12 +210,13 @@ class DNSCache:
             values: A list of tuples of a value to a TTL.
             overwrite: Overwrite the existing values. Defaults to False.
         """
+        self.make(name, record_type)
         if overwrite:
             self.data[name][record_type] = []
         for data, ttl in values:
             self.add_record(name, record_type, data, ttl)
 
-    @_ensure
+    @_ensure_args
     def get_records(self, name: str, record_type: str) -> list[tuple[str, int]]:
         """Get the records from the cache.
 
@@ -222,6 +227,10 @@ class DNSCache:
         Returns:
             A list containing tuples of a value and a TTL.
         """
+        # Do not make. If the record doesn't exist, return nothing
+        if self.data.get(name, {}).get(record_type) is None:
+            return []
+
         ret = []
         for item in self.data[name][record_type]:
             value = item.get()

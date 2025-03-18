@@ -74,8 +74,6 @@ query = pack_all_compressed(
 
 storage = RecordStorage()
 storage.load_zones_from_dir(Path("./example-zones").resolve())
-storage.load_extractor_from_dir(Path("./extractor-cache").resolve())
-
 manager = ResponseHandler(
     storage=storage, forwarder=forward, tcp_conn="foo"  # No sending
 )
@@ -140,7 +138,23 @@ def time_extractors():
     p.disable()
     p.print_stats()
 
+def t():
+    def do():
+        sys.getsizeof("abcdef")
+        sys.getsizeof(1)
+        sys.getsizeof([])
 
+    p = lp.LineProfiler()
+    p.add_function(do)
+
+    p.enable()
+    
+    do()
+    
+    p.disable()
+    p.print_stats()
+
+t()
 if __name__ == "__main__":
     if "-l" in sys.argv:
         time_lines()

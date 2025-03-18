@@ -219,7 +219,6 @@ def cli() -> None:
 
     elif args.subcommand == "shell":
         host = args.host.split(":")
-        print(args.secret)
         tools.shell_client.main(secret=args.secret, addr=(host[0], int(host[1])))
     elif args.subcommand == "h2j":
         tools.h2j.main(args.source, args.dest)

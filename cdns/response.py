@@ -230,7 +230,13 @@ class ResponseHandler:
                     or answer.type_
                     == RTypes.AAAA  # HACK: This is a CRITICAL temporary fix
                 ]
-                if len(values) > 0:
+
+                # Make sure we have values to cache.
+                # HACK: Do a quick lookup to make sure that the answers should be cached.
+                # An answer should only be cached if it isn't in the local storage. This
+                # temporary fix does another lookup on the domain for the records. TODO:
+                # in the future, the lookup should be stored from earlier.
+                if len(values) > 0 and not self.storage.get_record(record_domain=answers[0].decoded_name, type_=answers[0].type_):
                     # print("setting", values, RTypes.A.i)
                     # HACK: This fix only caches A and AAAA records. Apparently CNAME records
                     # have some encoded labels. This would require some large changes to be made.
@@ -243,7 +249,6 @@ class ResponseHandler:
                         values=values,
                         overwrite=True,
                     )
-
         self.buf = pack_all_compressed(
             self.resp_header, self.resp_questions, self.resp_answers
         )
