@@ -97,7 +97,7 @@ class FastestResolverDaemon(BaseDaemon):
         """
         super().__init__(**kwargs)  # TODO: Create Queue inside BaseDaemon
 
-        self.servers = {k: 0 for k in servers}
+        self.servers = {k: 0.0 for k in servers}
         self.total_agg = 0
 
         self.test_query = pack_all_compressed(
@@ -129,14 +129,14 @@ class FastestResolverDaemon(BaseDaemon):
                 latencies.append(float("inf"))
         return sum(latencies) / iterations
 
-    def find_fastest_server(self) -> tuple[int, str]:
+    def find_fastest_server(self) -> tuple[str, int]:
         """Get the fastest server.
 
         Returns:
             The fastest server.
         """
         if self.total_agg == 0:
-            self.servers = {k: 0 for k in list(self.servers.keys())}
+            self.servers = {k: 0.0 for k in list(self.servers.keys())}
 
         for key in list(self.servers.keys()):
             l = self.latency(key)
