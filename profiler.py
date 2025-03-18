@@ -138,6 +138,7 @@ def time_extractors():
     p.disable()
     p.print_stats()
 
+
 def t():
     def do():
         sys.getsizeof("abcdef")
@@ -148,11 +149,12 @@ def t():
     p.add_function(do)
 
     p.enable()
-    
+
     do()
-    
+
     p.disable()
     p.print_stats()
+
 
 t()
 if __name__ == "__main__":

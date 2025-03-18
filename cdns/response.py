@@ -172,7 +172,7 @@ class ResponseHandler:
     def _post_process(self) -> None:
         """Automatically called after self.process."""
         if self.buf_header is None:
-            raise Exception
+            raise ValueError("buf_header cannot be None")
         # We could also make a copy of self.resp_header, but it doesn't matter
         # Make a new header
         self.resp_header = DNSHeader(
@@ -236,7 +236,9 @@ class ResponseHandler:
                 # An answer should only be cached if it isn't in the local storage. This
                 # temporary fix does another lookup on the domain for the records. TODO:
                 # in the future, the lookup should be stored from earlier.
-                if len(values) > 0 and not self.storage.get_record(record_domain=answers[0].decoded_name, type_=answers[0].type_):
+                if len(values) > 0 and not self.storage.get_record(
+                    record_domain=answers[0].decoded_name, type_=answers[0].type_
+                ):
                     # print("setting", values, RTypes.A.i)
                     # HACK: This fix only caches A and AAAA records. Apparently CNAME records
                     # have some encoded labels. This would require some large changes to be made.

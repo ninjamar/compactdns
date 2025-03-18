@@ -25,8 +25,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys
 import functools
+import sys
 import time
 from collections import OrderedDict
 from typing import Any, Callable, Hashable, cast
@@ -172,13 +172,13 @@ class DNSCache:
             return fn(self, name, record_type, *args, **kwargs)
 
         return dec_ensure
-    
+
     def make(self, name: str, record_type: str) -> None:
         if name not in self.data:
             self.data[name] = {}
         if record_type not in self.data[name]:
             self.data[name][record_type] = []
-        
+
     # TODO: Estimated size
     @_ensure_args
     def add_record(self, name: str, record_type: str, value: str, ttl: int) -> None:
