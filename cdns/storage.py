@@ -76,7 +76,7 @@ class RecordStorage:
         self,
         *,
         # base_domain: str,
-        type_: str,  # RTypes
+        type_: BiInt,  # RTypes
         record_domain: str,
         record_name: str | None = None,
     ) -> list[tuple[str, int]]:

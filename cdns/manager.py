@@ -88,7 +88,7 @@ class ServerManager:
         self.tcp_sock.setblocking(False)
 
         # Make sure all of these are not none
-        if all([x is not None for x in [self.tls_host, ssl_key_path, ssl_cert_path]]):
+        if self.tls_host is not None and ssl_key_path is not None and ssl_cert_path is not None:
             self.use_tls = True
 
             self.tls_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -98,7 +98,7 @@ class ServerManager:
             # TODO: SSL optional
             self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             self.ssl_context.load_cert_chain(
-                certfile=ssl_cert_path, keyfile=ssl_key_path  # type: ignore
+                certfile=ssl_cert_path, keyfile=ssl_key_path
             )
         else:
             self.use_tls = False
@@ -114,7 +114,8 @@ class ServerManager:
             socket.socket, concurrent.futures.Future
         ] = {}
 
-        self.forwarder_thread = threading.Thread(target=self.forwarder_daemon)
+        self.forwarder_thread = threading.Thread(target=self._forwarder_thread_handler)
+        self.forwarder_thread.daemon = True # When the main thread stops, stop this thread
         self.forwarder_thread.start()
         self.forwarder_lock = threading.Lock()
 
@@ -195,7 +196,7 @@ class ServerManager:
             # daemon_options=kwargs["daemons"]
         )
 
-    def forwarder_daemon(self) -> None:
+    def _forwarder_thread_handler(self) -> None:
         """Handler for the thread that handles the response for forwarded
         queries."""
         while True:
@@ -518,6 +519,15 @@ class ServerManager:
 
             except KeyboardInterrupt:
                 logging.info("KeyboardInterrupt: Server shutting down")
+                # Terminate resolver daemon
+                self.resolver_daemon.terminate()
+
+                # Shutdown all threads
+                # The with statement calls executor.shutdown(wait=True) already,
+                # so this code could be modifed to have the try-except outside
+                # of the with.
+                executor.shutdown(wait=True)
+                # self.forwarder_thread.shut
                 sys.exit()
 
     def _handle_thread_pool_completion(self, future: concurrent.futures.Future) -> None:

@@ -82,12 +82,14 @@ class BiInt:
 
         One of `a` and `b` has to be a string, while the other one has to be an int.
         """
-        if isinstance(a, int):
+        if isinstance(a, int) and isinstance(b, str):
             self.i = a
             self.s = b
-        else:
+        elif isinstance(b, int) and isinstance(a, str):
             self.i = b
             self.s = a
+        else:
+            raise TypeError("One argument must be int and the other must be str.")
 
     def __str__(self) -> str:
         return str(self.s)
@@ -130,7 +132,7 @@ class ImmutableBiDict:
     def __contains__(self, a):
         return a in self.data
 
-    def __getitem__(self, x):
+    def __getitem__(self, x: str) -> BiInt:
         # HACK: Use .get so we don't get an error for wrong ones
         a = self.data.get(x, 0)
         b = self.data.get(a, "")

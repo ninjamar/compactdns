@@ -24,7 +24,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
-import functools
+import signal
 import socket
 import time
 from multiprocessing import Process, Queue
@@ -63,7 +63,8 @@ class BaseDaemon(Process):
         self._last_time = None
 
     def run(self):
-        """Not implemented."""
+        """Run the daemon."""
+        # signal.signal(signal.SIGINT, signal.SIG_IGN)
 
         # if self.last_time is None:
         self.queue.put(self.task())

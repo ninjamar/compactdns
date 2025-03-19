@@ -185,3 +185,6 @@ ignore-*.*
 
 # extractor-cache/*
 # !extractor-cache/.gitignore
+
+# For now
+setup.py
