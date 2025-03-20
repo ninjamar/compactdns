@@ -85,7 +85,9 @@ class DNSCache:
         # Ensure the type of arguments, as well as make necessary fields in self.data.
         # https://stackoverflow.com/a/1263782/21322342
         @functools.wraps(fn)
-        def dec_ensure(self, name: str, record_type: str | BiInt, *args, **kwargs) -> Any:
+        def dec_ensure(
+            self, name: str, record_type: str | BiInt, *args, **kwargs
+        ) -> Any:
             if not isinstance(record_type, BiInt):
                 record_type = RTypes[record_type]
             return fn(self, name, record_type, *args, **kwargs)
@@ -161,15 +163,20 @@ class DNSCache:
 
     def purge(self) -> None:
         """Purge expired records."""
+        # For every domain
         for domain in list(self.data.keys()):
+            # For every record in every domain
             for record in list(self.data[domain].keys()):
+                # Remove all the expired records for the domain
                 self.data[domain][record] = [
                     value
                     for value in self.data[domain][record]
                     if value.get() is not None
                 ]
+                # If the record is empty, delete it
                 if not self.data[domain][record]:
                     del self.data[domain][record]
 
+            # If the domain is empty, delete it
             if not self.data[domain]:
                 del self.data[domain]

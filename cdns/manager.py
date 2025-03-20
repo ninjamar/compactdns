@@ -88,7 +88,11 @@ class ServerManager:
         self.tcp_sock.setblocking(False)
 
         # Make sure all of these are not none
-        if self.tls_host is not None and ssl_key_path is not None and ssl_cert_path is not None:
+        if (
+            self.tls_host is not None
+            and ssl_key_path is not None
+            and ssl_cert_path is not None
+        ):
             self.use_tls = True
 
             self.tls_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -115,7 +119,9 @@ class ServerManager:
         ] = {}
 
         self.forwarder_thread = threading.Thread(target=self._forwarder_thread_handler)
-        self.forwarder_thread.daemon = True # When the main thread stops, stop this thread
+        self.forwarder_thread.daemon = (
+            True  # When the main thread stops, stop this thread
+        )
         self.forwarder_thread.start()
         self.forwarder_lock = threading.Lock()
 
