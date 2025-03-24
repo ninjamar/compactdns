@@ -7,9 +7,9 @@ import socket
 import struct
 from typing import Callable
 
-from .protocol import (DNSAnswer, DNSHeader, DNSQuestion, RTypes,
+from .protocol import (DNSAnswer, DNSHeader, DNSQuestion, RTypes, DNSQuery,
                        auto_decode_label, auto_encode_label,
-                       pack_all_compressed, unpack_all)
+                       unpack_all)
 from .storage import RecordStorage
 
 # TODO: Send back and check TC flag
@@ -54,7 +54,7 @@ class ResponseHandler:
 
         self.storage = storage
         self.forwarder = forwarder
-
+    
         # Header and qustions from the initial buffer
         self.buf_header: DNSHeader | None = None
         self.buf_questions: list[DNSQuestion] = []

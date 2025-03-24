@@ -31,7 +31,7 @@ from multiprocessing import Process, Queue
 from pathlib import Path
 from typing import Callable
 
-from .protocol import DNSHeader, DNSQuestion, pack_all_compressed
+from .protocol import DNSHeader, DNSQuestion
 
 
 class BaseDaemon(Process):

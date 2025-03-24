@@ -25,4 +25,18 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from . import h2j, shell_client
+import sys
+if sys.version_info < (3, 11):
+    import tomli as tomllib
+else:
+    import tomllib
+
+# We need to get the defaults from the toml file
+from ..cli import kwargs_defaults
+from ..utils import flatten_dict, merge_defaults
+
+def main(host, target):
+    pass
+
+if __name__ == "__main__":
+    main(sys.argv[1], sys.argv[2])

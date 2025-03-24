@@ -30,12 +30,13 @@ blocking certain hostnames.".
 Requires a minimum python version of 3.11
 """
 
+"""
 from .manager import ServerManager
-from .protocol import (DNSAnswer, DNSHeader, DNSQuestion, decode_name,
-                       decode_name_uncompressed, pack_all_compressed,
-                       pack_all_uncompressed, unpack_all)
+from .protocol import (DNSAnswer, DNSHeader, DNSQuestion, DNSQuery,
+                       decode_name_uncompressed,
+                       , unpack_all)
 from .zones import DNSZone, parse_all_zones
-
+"""
 # TODO: Update pragma
 # The TODOLIST is located in TODO.md
 

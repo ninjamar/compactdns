@@ -449,8 +449,8 @@ class DNSQuestion:
 
 
 @dataclasses.dataclass(unsafe_hash=True)
-class DNSAnswer:
-    """Dataclass to store a DNS answer."""
+class _DNSReply:
+    """Dataclass to store a generic DNS answer."""
 
     # Keep NAME decoded, since it encoded in the message
     decoded_name: str = ""
@@ -464,7 +464,7 @@ class DNSAnswer:
     rdata: bytes = b""  # IPV4
 
     def pack(self, encoded_name: bytes) -> bytes:
-        """Pack the DNS answer.
+        """Pack the DNS reply.
 
         Args:
             encoded_name: The encoded form of decoded_name.
@@ -487,95 +487,172 @@ class DNSAnswer:
         )
 
 
+class DNSAnswer(_DNSReply):
+    """
+    Dataclass to store a DNS answer
+    """
+    pass
+class DNSAuthority(_DNSReply):
+    """
+    Dataclass to store DNS authority section. Has the same fields as DNSAnswer.
+    """
+
+    pass
+
+
+class DNSAdditional(_DNSReply):
+    """
+    Dataclass to store DNS additional section. Has the same fields as DNSAnswer.
+    """
+
+    pass
+
 # TODO: Cache these because list isn't hashable
 # @functools.lru_cache(maxsize=512)
 def pack_all_uncompressed(
-    header: DNSHeader, questions: list[DNSQuestion] = [], answers: list[DNSAnswer] = []
+    header: DNSHeader,
+    questions: list[DNSQuestion] = [],
+    answers: list[DNSAnswer] = [],
+    authorities: list[DNSAuthority] = [],
+    additionals: list[DNSAdditional] = [],
 ) -> bytes:
-    """Pack a DNS header, DNS questions, and DNS answers, without compression.
+    """Pack a DNS header, DNS questions, and DNS answers, (and DNS authorities and DNS additionals) without compression.
 
     Args:
         header: The DNS header to pack
         questions: Multiple DNS questions to pack. Defaults to [].
         answers: Multiple DNS answers to pack. Defaults to [].
+        authorities: Multiple DNS authorities to pack. Defaults to [].
+        additionals: Multiple DNS additionals to pack. Defaults to [].
 
     Returns:
-        The packed DNS header, DNS questions, and DNS answers, without compression.
+        The packed DNS header, DNS questions, and DNS answers, (and DNS authorities and DNS additionals) without compression.
     """
 
     # Pack header
     response = header.pack()
-    # Pack questions
-    for question in questions:
-        response += question.pack(encode_name_uncompressed(question.decoded_name))
-    # Pack answers
-    for answer in answers:
-        response += answer.pack(encode_name_uncompressed(answer.decoded_name))
+
+    # Pack all fields
+    for fields in [questions, answers, authorities, additionals]:
+        # Pack each field
+        for field in fields:
+            response += field.pack(encode_name_uncompressed(field.decoded_name))
+
     return response
 
 
 # @functools.lru_cache(maxsize=512)
 def pack_all_compressed(
-    header: DNSHeader, questions: list[DNSQuestion] = [], answers: list[DNSAnswer] = []
+    header: DNSHeader,
+    questions: list[DNSQuestion] = [],
+    answers: list[DNSAnswer] = [],
+    authorities: list[DNSAuthority] = [],
+    additionals: list[DNSAdditional] = [],
 ) -> bytes:
-    """Pack a DNS header, DNS questions, and DNS answers, with compression.
+    """Pack a DNS header, DNS questions, and DNS answers, (and DNS authorities and DNS additionals) with compression.
 
     Args:
         header: The DNSHeader to pack.
         questions: Multiple DNS questions to pack. Defaults to [].
         answers: Multiple DNS answers to pack. Defaults to [].
+        authorities: Multiple DNS authorities to pack. Defaults to [].
+        additionals: Multiple DNS additionals to pack. Defaults to [].
 
     Returns:
-        The packed DNS header, DNS questions, and DNS answers, with compression.
+        The packed DNS header, DNS questions, and DNS answers, (and DNS authorities and DNS additionals) with compression.
     """
+    # print(questions)
     # Pack header
     response = header.pack()
     # Store pointer locations
     name_offset_map: dict[str, int] = {}
 
-    # Compress question + answers
+    # Compress question + answers...
     # Pack + store names + compression
-    for question in questions:
-        # If the name is repeated
-        if question.decoded_name in name_offset_map:
-            # Starting pointer + offset of name
-            pointer = 0xC000 | name_offset_map[question.decoded_name]
+    for fields in [questions, answers, authorities, additionals]:
+        # print("FIELDS", fields)
+        for field in fields:
+            # If the name is repeated
+            if field.decoded_name in name_offset_map:
+                # Starting pointer + offset of name
+                pointer = 0xC000 | name_offset_map[field.decoded_name]
+                # Pack the pointer
+                encoded_name = struct.pack("!H", pointer)
+            else:
+                # Otherwise, encode the name without compression
+                encoded_name = encode_name_uncompressed(field.decoded_name)
+                # Store the name for future pointers
+                name_offset_map[field.decoded_name] = len(response)
 
-            encoded_name = struct.pack("!H", pointer)
-        else:
-            # Otherwise, encode the name without compression
-            encoded_name = encode_name_uncompressed(question.decoded_name)
-            # Store the name for future pointers
-            name_offset_map[question.decoded_name] = len(response)
-
-        response += question.pack(encoded_name)
-
-    for answer in answers:
-        if answer.decoded_name in name_offset_map:
-            # Starting pointer + offset of name
-            pointer = 0xC000 | name_offset_map[answer.decoded_name]
-
-            encoded_name = struct.pack("!H", pointer)
-        else:
-            encoded_name = encode_name_uncompressed(answer.decoded_name)
-            name_offset_map[answer.decoded_name] = len(response)
-
-        response += answer.pack(encoded_name)
+            # Add the field to the response
+            response += field.pack(encoded_name)
 
     return response
+
+@dataclasses.dataclass
+class DNSQuery:
+    """
+    Dataclass to store a DNS query/
+    """
+    header: DNSHeader
+    questions: list[DNSQuestion] = dataclasses.field(default_factory=list)
+    answers: list[DNSAnswer] = dataclasses.field(default_factory=list)
+    authorities: list[DNSAuthority] = dataclasses.field(default_factory=list)
+    additionals: list[DNSAdditional] = dataclasses.field(default_factory=list)
+    
+    @classmethod
+    def from_bytes(self, buf: bytes) -> "DNSQuery":
+        """
+        Create an instance of DNSQuery from bytes.
+
+        Args:
+            bytes: The bytes.
+
+        Returns:
+            An instance of DNSQuery.
+        """
+        return unpack_all(buf)
+    
+    def pack(self, auto_verify_correct=True) -> bytes:
+        """
+        Pack the DNSQuery.
+
+        Args:
+            auto_verify_correct: If fields in the header are incorrect, should
+            they be corrected. Defaults to True.
+
+        Raises:
+            Exception: If the fields in the header are incorrect and auto_verify_correct
+            = False.
+
+        Returns:
+            The packed query.
+        """
+        
+        if self.header.qdcount != len(self.questions) or self.header.ancount != len(self.answers) or self.header.nscount != len(self.authorities) or self.header.arcount != len(self.additionals):
+            if auto_verify_correct:
+                self.header.qdcount = len(self.questions)
+                self.header.ancount = len(self.answers)
+                self.header.nscount = len(self.authorities)
+                self.header.arcount = len(self.additionals)
+            else:
+                raise Exception("Invalid DNS header for query")
+
+        return pack_all_compressed(self.header, self.questions, self.answers, self.authorities, self.additionals)
+    
 
 
 # @functools.lru_cache(maxsize=512)
 def unpack_all(
     buf: bytes,
-) -> tuple[DNSHeader, list[DNSQuestion], list[DNSAnswer]]:
-    """Unpack a buffer into a DNS header, DNS questions, and DNS answers.
+) -> DNSQuery:
+    """Unpack a buffer into a DNS Query.
 
     Args:
-        buf: Buffer containing a DNS header, DNS questions, DNS answers.
+        buf: Buffer containing a DNS header, DNS questions, DNS answers (and DNS authorities and DNS additionals).
 
     Returns:
-        The DNS header, DNS answers, and DNS questions.
+        The DNS Query for the buffer.
     """
 
     # Header isn't compressed
@@ -601,8 +678,10 @@ def unpack_all(
         )
 
     answers = []
+    authorities = []
+    additionals = []
     # use header.ancount for # of answers
-    for _ in range(header.ancount):
+    for i in range(header.ancount + header.nscount + header.arcount):
         # Decode the name
         decoded_name, idx = decode_name(buf, idx)
 
@@ -621,19 +700,34 @@ def unpack_all(
         idx += 2
 
         # Use rdlength to get rdata
-        rdata = buf[idx : idx + rdlength]
+        # 
+        if type_ in {2, 5, 12, 15}: # NS, CNAME, PTR, MX -- These are all domains and may have pointers
+            rdata, _ = decode_name(buf, idx)
+            # real_rdlength = len(rdata)
+        else:
+            # rdata = buf[idx : idx + rdlength]
+            rdata = auto_decode_label(buf[idx : idx + rdlength])
+            # real_rdlength = rdlength
+        
         idx += rdlength
+        # idx += rdlength
+        # idx += len(rdata)
 
-        answers.append(
-            DNSAnswer(
-                decoded_name=decoded_name,
-                type_=type_,
-                class_=class_,
-                ttl=ttl,
-                rdlength=rdlength,
-                rdata=rdata,
-            )
+        kwargs = dict(
+            decoded_name=decoded_name,
+            type_=type_,
+            class_=class_,
+            ttl=ttl,
+            rdlength=rdlength, # TODO: Should this be len(rdata)?
+            rdata=rdata
         )
+        if i < header.ancount:
+            answers.append(DNSAnswer(**kwargs))
+        elif i < header.ancount + header.nscount:
+            authorities.append(DNSAuthority(**kwargs))
+        else:
+            additionals.append(DNSAdditional(**kwargs))
 
     # Return empty questions and answers, rather than None, due to mypy
-    return header, questions, answers
+    # return header, questions, answers
+    return DNSQuery(header, questions, answers, authorities, additionals)

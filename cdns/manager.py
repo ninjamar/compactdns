@@ -101,6 +101,7 @@ class ServerManager:
 
             # TODO: SSL optional
             self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            self.ssl_context.minimum_version = ssl.TLSVersion.TLSv1_3
             self.ssl_context.load_cert_chain(
                 certfile=ssl_cert_path, keyfile=ssl_key_path
             )
@@ -205,6 +206,9 @@ class ServerManager:
     def _forwarder_thread_handler(self) -> None:
         """Handler for the thread that handles the response for forwarded
         queries."""
+
+        # TODO: Add a way to use TLS for forwarding (use_secure_forwarder=True)
+
         while True:
             events = self.forwarder_sel.select(timeout=0)  # TODO: Timeout
             with self.forwarder_lock:
