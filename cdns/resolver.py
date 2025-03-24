@@ -79,7 +79,7 @@ class UdpForwarder(BaseForwarder):
         # TODO: Add a way to use TLS for forwarding (use_secure_forwarder=True)
 
         while True:
-            events = self.sel.select(timeout=0)  # TODO: Timeout
+            events = self.sel.select(timeout=1)  # TODO: Timeout
             with self.lock:
                 for key, mask in events:
                     # TODO: Try except
@@ -119,7 +119,6 @@ class UdpForwarder(BaseForwarder):
         future: concurrent.futures.Future = concurrent.futures.Future()
 
         # TODO: The bottleneck
-
         try:
             sock.sendto(query, addr)
             with self.lock:
@@ -203,12 +202,12 @@ class RecursiveResolver(BaseResolver):
         # Match authorities and additionals to get IP address. Right now it's fine
         # to just get the first IP address if there is one. If there isn't one, recursively
         # resolve the first name server (AAH MORE LOOPS)
-        ip = next((x.rdata for x in additionals if x.rdlength == 4), None)
+        ip = next((x.decoded_rdata for x in additionals if x.rdlength == 4), None)
         if ip:
             self._post_nameserver_found(ip, query, to_future)
         else:
             # Resolve nameserver
-            nameserver = authorities[0].rdata
+            nameserver = authorities[0].decoded_rdata
             q = DNSQuery(DNSHeader(), [DNSQuestion(decoded_name=nameserver)]).pack()
             # future = self._resolve(query,)
             # Get the IP addresses of the nameservers
@@ -287,7 +286,6 @@ class RecursiveResolver(BaseResolver):
             Future that fufils when there's a response.
         """
         future = concurrent.futures.Future()
-
         def send():
             response = self.forwarder.forward(query, server_addr)
             response.add_done_callback(lambda f: self._resolve_done(f, query, future))
@@ -307,6 +305,6 @@ class RecursiveResolver(BaseResolver):
         """
         # TODO: In future take in DNS query, then query each question
         # TODO: Make a flowchart for this
-
+        
         server = ROOT_SERVERS[0]  # TODO: Could be random
         return self._resolve(query, server)

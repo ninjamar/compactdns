@@ -31,7 +31,7 @@ from multiprocessing import Process, Queue
 from pathlib import Path
 from typing import Callable
 
-from .protocol import DNSHeader, DNSQuestion
+from .protocol import DNSHeader, DNSQuestion, DNSQuery
 
 
 class BaseDaemon(Process):
@@ -101,9 +101,9 @@ class FastestResolverDaemon(BaseDaemon):
         self.servers = {k: 0.0 for k in servers}
         self.total_agg = 0
 
-        self.test_query = pack_all_compressed(
+        self.test_query = DNSQuery(
             DNSHeader(id_=1, qdcount=1), [DNSQuestion(decoded_name=test_name)]
-        )
+        ).pack()
 
     def latency(self, addr, iterations=3) -> float:
         """Get the latency to a server.

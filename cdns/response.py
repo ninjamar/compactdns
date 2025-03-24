@@ -11,6 +11,7 @@ from .protocol import (DNSAnswer, DNSHeader, DNSQuestion, RTypes, DNSQuery,
                        auto_decode_label, auto_encode_label,
                        unpack_all)
 from .storage import RecordStorage
+from .resolver import RecursiveResolver
 
 # TODO: Send back and check TC flag
 
@@ -21,7 +22,7 @@ class ResponseHandler:
     def __init__(
         self,
         storage: RecordStorage,
-        forwarder: Callable[[bytes], concurrent.futures.Future[bytes]],
+        resolver: int,
         udp_sock: socket.socket | None = None,
         udp_addr: tuple[str, int] | None = None,
         tcp_conn: socket.socket | None = None,
@@ -30,7 +31,7 @@ class ResponseHandler:
 
         Args:
             storage: Storage.
-            forwarder: Function that forwards DNS queries.
+            resolver: Resolver class.
             udp_sock: UDP socket. Defaults to None.
             udp_addr: UDP address. Defaults to None.
             tcp_conn: TCP connection. Defaults to None.
@@ -53,8 +54,12 @@ class ResponseHandler:
         self.buf = b""  # Response buffer
 
         self.storage = storage
-        self.forwarder = forwarder
-    
+        self.resolver = resolver
+        
+        self.buf = DNSQuery()
+        self.new = DNSQuery()
+        self.resp = DNSQuery()
+        """
         # Header and qustions from the initial buffer
         self.buf_header: DNSHeader | None = None
         self.buf_questions: list[DNSQuestion] = []
@@ -65,9 +70,10 @@ class ResponseHandler:
         self.resp_header: DNSHeader | None = None
         self.resp_questions: list[DNSQuestion] = []
         self.resp_answers: list[DNSAnswer] = []
-
+        """
         self.question_index_intercepted: list[tuple[int, list[DNSAnswer]]] = []
         self.question_answers: list[DNSAnswer] = []
+        
 
     def start(self, buf) -> None:
         """Unpack a buffer, then process it.
@@ -87,8 +93,9 @@ class ResponseHandler:
         """
         # Receive header and questions
         try:
-            self.buf_header, self.buf_questions, _ = unpack_all(buf)
-            logging.debug("Received query: %s, %s", self.buf_header, self.buf_questions)
+            # self.buf_header, self.buf_questions, _ = unpack_all(buf)
+            self.buf = unpack_all(buf)
+            logging.debug("Received query: %s, %s", self.buf.header, self.buf.questions)
             return True
         except (struct.error, IndexError) as e:
             # raise e
@@ -97,14 +104,14 @@ class ResponseHandler:
 
     def _process(self) -> None:
         """Start the process."""
-        if self.buf_header is None:
+        if self.buf.header is None:
             raise Exception("Buffer header can't be empty")
 
-        self.new_header = dataclasses.replace(self.buf_header)
+        self.new = DNSQuery(dataclasses.replace(self.buf.header))
 
         # Remove intercepted sites, so it doesn't get forwarded
         # Remove cached sites, so it doesn't get forwarded
-        for idx, question in enumerate(self.buf_questions):
+        for idx, question in enumerate(self.buf.questions):
             # TODO: Find root domain
             type_ = question.type_
             record_domain = question.decoded_name
@@ -116,14 +123,14 @@ class ResponseHandler:
                 answers = []
                 for record in records:
                     data, ttl = record
-                    rdata = auto_encode_label(data)
+                    # rdata = auto_encode_label(data)
                     answers.append(
                         DNSAnswer(
                             decoded_name=record_domain,
                             type_=int(type_),
                             ttl=int(ttl),
-                            rdata=rdata,
-                            rdlength=len(rdata),
+                            decoded_rdata=data,
+                            # rdlength=len(rdata), # -- length is already specified when packed
                         )
                     )
 
@@ -131,52 +138,52 @@ class ResponseHandler:
                 self.question_answers.extend(answers)
                 self.question_index_intercepted.append((idx, answers))
             else:
-                self.new_questions.append(question)
+                self.new.questions.append(question)
 
         # Set new qdcount for forwarded header
-        self.new_header.qdcount = len(self.new_questions)
+        self.new.header.qdcount = len(self.new.questions)
         logging.debug(
-            "New header %s, new questions %s", self.new_header, self.new_questions
+            "New header %s, new questions %s", self.new.header, self.new.questions
         )
-
-        if self.new_header.qdcount > 0:
+        if self.new.header.qdcount > 0:
             # Process header, questions
             # Repack data
-            send = pack_all_compressed(self.new_header, self.new_questions)
-            future = self.forwarder(send)
+            to_send = self.new.pack()
+
+            future = self.resolver.send(to_send)
+            # send = pack_all_compressed(self.new_header, self.new_questions)
+            # future = self.forwarder(send)
             future.add_done_callback(self._forwarding_done_handler)
         else:
-            self.resp_header = self.new_header
-            self.resp_header.qr = 1
-            self.resp_questions = self.new_questions
-            self.resp_answers = []
+            self.resp = DNSQuery(self.new.header, self.new.questions)
+            self.resp.header.qr = 1
 
             self._post_process()
 
     def _forwarding_done_handler(
-        self, future: concurrent.futures.Future[bytes]
+        self, future: concurrent.futures.Future[DNSQuery]
     ) -> None:
         """Callback when self.forwarder is complete.
 
         Args:
             future: Future from self.forwarder.
         """
-        self.resp_header, self.resp_questions, self.resp_answers = unpack_all(
-            future.result()
-        )
-        if len(self.resp_answers) == 0:
-            self.resp_answers = []
+        # self.resp = unpack_all(future.result())
+        self.resp = future.result()
+
+        # if len(self.resp.answers) == 0:
+        #    self.resp.answers = []
 
         self._post_process()
 
     def _post_process(self) -> None:
         """Automatically called after self.process."""
-        if self.buf_header is None:
+        if self.buf.header is None:
             raise ValueError("buf_header cannot be None")
         # We could also make a copy of self.resp_header, but it doesn't matter
         # Make a new header
-        self.resp_header = DNSHeader(
-            id_=self.buf_header.id_,  # Same id
+        self.resp.header = DNSHeader(
+            id_=self.buf.header.id_,  # Same id
             qr=1,  # Response
             # These flags are all 0
             opcode=0,
@@ -190,41 +197,42 @@ class ResponseHandler:
 
         # Add the intercepted questions to the response, keeping the position
         for idx, answers in self.question_index_intercepted:
-            question = self.buf_questions[idx]
-            self.resp_questions.insert(idx, question)
-            self.resp_answers[idx:idx] = answers
+            question = self.buf.questions[idx]
+            self.resp.questions.insert(idx, question)
+            self.resp.answers[idx:idx] = answers
 
         # Update the header's question and answer count
-        self.resp_header.qdcount = len(self.resp_questions)
-        self.resp_header.ancount = len(self.resp_answers)
+        self.resp.header.qdcount = len(self.resp.questions)
+        self.resp.header.ancount = len(self.resp.answers)
 
         # TODO: Go after mkve
         logging.debug(
             "Sending query back, %s, %s, %s",
-            self.resp_header,
-            self.resp_questions,
-            self.resp_answers,
+            self.resp.header,
+            self.resp.questions,
+            self.resp.answers,
         )
 
-        if len(self.resp_answers) > 0:
+        if len(self.resp.answers) > 0:
             # self.question_index_intercepted
 
             cache_answers = {
                 decoded_name: list(groups)  # Key to groups
                 for decoded_name, groups in itertools.groupby(  # Group consequtive items with the same key together
                     sorted(
-                        self.resp_answers, key=lambda q: q.decoded_name
+                        self.resp.answers, key=lambda q: q.decoded_name
                     ),  # Sort resp_answers by the decoded name
                     key=lambda q: q.decoded_name,
                 )
             }
-            for question in self.resp_questions:
+            for question in self.resp.questions:
                 answers = cache_answers[question.decoded_name]
                 # Cache the rdata
 
                 # TODO: Why is publicsuffix2 faster than tldextractor
                 values = [
-                    (auto_decode_label(answer.rdata), int(answer.ttl))
+                    (answer.decoded_rdata, int(answer.ttl))
+                    # (auto_decode_label(answer.rdata), int(answer.ttl))
                     for answer in answers
                     if answer.type_ == RTypes.A
                     or answer.type_
@@ -245,24 +253,28 @@ class ResponseHandler:
 
                     # TODO:  macos system service/daemon -- use processes -- configure cores and workers -- figure out what to do with RTYPES (maybe enum or smtn)
                     # base_domain = get_base_domain(question.decoded_name)
+                    # print("SETTING VALUES", values)
                     self.storage.cache.set_record(
                         name=question.decoded_name,
                         record_type=question.type_,
                         values=values,
                         overwrite=True,
                     )
-        self.buf = pack_all_compressed(
-            self.resp_header, self.resp_questions, self.resp_answers
-        )
+        #self.buf = pack_all_compressed(
+        #    self.resp_header, self.resp_questions, self.resp_answers
+        #)
+        self.buf = self.resp.pack()
+       # print(self.buf)
 
         # TODO: This isn't sufficient
         # Need to also be able to receive packets of more than 512 bytes using tcp
         if self.udp_sock and len(self.buf) > 512:
             # TODO: Use array indexing to set TC rather than reconstructing the packet
-            self.resp_header.tc = 1
-            self.buf = pack_all_compressed(
-                self.resp_header, self.resp_questions, self.resp_answers
-            )[:512]
+            self.resp.header.tc = 1
+            self.buf = self.resp.pack()[:512]
+            #self.buf = pack_all_compressed(
+            #    self.resp_header, self.resp_questions, self.resp_answers
+            #)[:512]
 
         self._send()
 

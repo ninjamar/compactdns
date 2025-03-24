@@ -42,6 +42,7 @@ from typing import Callable, Type, cast
 from . import daemon
 from .response import ResponseHandler
 from .storage import RecordStorage
+from .resolver import RecursiveResolver
 
 MAX_WORKERS = 1000
 
@@ -113,18 +114,7 @@ class ServerManager:
         self.shell_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.shell_secret = secrets.token_hex(10)
 
-        # Forwarder
-        self.forwarder_sel = selectors.DefaultSelector()
-        self.forwarder_pending_requests: dict[
-            socket.socket, concurrent.futures.Future
-        ] = {}
-
-        self.forwarder_thread = threading.Thread(target=self._forwarder_thread_handler)
-        self.forwarder_thread.daemon = (
-            True  # When the main thread stops, stop this thread
-        )
-        self.forwarder_thread.start()
-        self.forwarder_lock = threading.Lock()
+        self.resolver = RecursiveResolver()
 
         # Other config. TODO: Implement better configuration here
         self.execution_timeout = 0
@@ -203,63 +193,6 @@ class ServerManager:
             # daemon_options=kwargs["daemons"]
         )
 
-    def _forwarder_thread_handler(self) -> None:
-        """Handler for the thread that handles the response for forwarded
-        queries."""
-
-        # TODO: Add a way to use TLS for forwarding (use_secure_forwarder=True)
-
-        while True:
-            events = self.forwarder_sel.select(timeout=0)  # TODO: Timeout
-            with self.forwarder_lock:
-                for key, mask in events:
-                    # TODO: Try except
-                    sock = cast(socket.socket, key.fileobj)
-                    # Don't error if no key
-                    future = self.forwarder_pending_requests.pop(sock, None)
-                    if future:
-                        try:
-                            # TODO: Support responses larger longer than 512 using TCP
-                            response, _ = sock.recvfrom(512)
-                            future.set_result(response)
-                        except Exception as e:
-                            future.set_exception(e)
-                        finally:
-                            self.forwarder_sel.unregister(sock)
-                            sock.close()
-
-    def forward_dns_query(self, query: bytes) -> concurrent.futures.Future[bytes]:
-        """Forward a DNS query to an address.
-
-        Args:
-            query: The DNS query to forward.
-
-        Returns:
-            The response from the forwarding server.
-        """
-        # TODO: If using TCP, use a different socket (can be same, even though overhead -- much less tcp requests)
-        # TODO: If TC, use either TLS or UDP with multiple packets
-        # TODO: TC flag?
-
-        # new socket for each request
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setblocking(False)
-        future: concurrent.futures.Future = concurrent.futures.Future()
-
-        # TODO: The bottleneck
-
-        try:
-            sock.sendto(query, self.resolver_addr)
-            with self.forwarder_lock:
-                # Add a selector, and when it is ready, read from pending_requests
-                self.forwarder_sel.register(sock, selectors.EVENT_READ)
-                self.forwarder_pending_requests[sock] = future
-
-        except Exception as e:
-            future.set_exception(e)
-            sock.close()
-        return future
-
     def done(self) -> None:
         """Handle destroying the sockets."""
         self.udp_sock.close()
@@ -280,7 +213,7 @@ class ServerManager:
         """
         return ResponseHandler(
             storage=self.storage,
-            forwarder=self.forward_dns_query,
+            resolver=self.resolver,
             udp_sock=self.udp_sock,
             udp_addr=addr,
         ).start(query)
@@ -318,7 +251,7 @@ class ServerManager:
                         has_conn = False
                     return ResponseHandler(
                         storage=self.storage,
-                        forwarder=self.forward_dns_query,
+                        resolver=self.resolver,
                         tcp_conn=conn,
                     ).start(query)
 

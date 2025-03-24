@@ -45,11 +45,10 @@ These are all represented by the corresponding dataclass.
 
 Each field, except for `decoded_name`, corresponds to what RFC1035 says. Please
 note that `id`, `class`, and `type` are all represented by `id_`, `class_`, and
-`type_` respectively. Also, fields stored as bytes such as `rdata` are assumed
-to be already encoded. Each dataclass has a pack method, which packs the
+`type_` respectively. Each dataclass has a pack method, which packs the
 dataclass into the DNS wire format. `DNSQuestion.pack` and `DNSAnswer.pack` both
-take encoded_name as an argument. This is because the field can be compressed
-depending on other packets.
+take encoded_name and encoded_rdata as an argument. This is because the field
+can be compressed depending on other packets.
 
 >>> DNSHeader(
 ...         id_=12345,
@@ -72,7 +71,7 @@ b'09\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00'
 ...     auto_encode_label("google.com"))
 b'\x06google\x03com\x00\x00\x01\x00\x01'
 
->>> DNSAnswer(decoded_name="google.com", rdata=auto_encode_label("127.0.0.1"))
+>>> DNSAnswer(decoded_name="google.com", decoded_rdata="127.0.0.1")
 ...     .pack(auto_encode_label("google.com"))
 b'\x06google\x03com\x00\x00\x01\x00\x01\x00\x00\x00\x00\x00\x04\x7f\x00\x00\x01'
 
@@ -156,6 +155,8 @@ RTypes = ImmutableBiDict(
         ("TXT", 16),
     ],
 )
+
+_is_type_special = lambda type_: type_ in {2, 5, 12, 15} # NS, CNAME, PTR, MX
 
 
 @functools.lru_cache(maxsize=512)
@@ -461,9 +462,10 @@ class _DNSReply:
     class_: int = 1
     ttl: int = 0
     rdlength: int = 4
-    rdata: bytes = b""  # IPV4
+    # rdata: bytes = b""  # IPV4
+    decoded_rdata: str = ""
 
-    def pack(self, encoded_name: bytes) -> bytes:
+    def pack(self, encoded_name: bytes, encoded_rdata: bytes) -> bytes:
         """Pack the DNS reply.
 
         Args:
@@ -481,9 +483,11 @@ class _DNSReply:
                 self.type_,
                 self.class_,
                 self.ttl,
-                self.rdlength,
+                len(encoded_rdata)
+                # self.rdlength,
             )
-            + self.rdata
+            # + self.rdata
+            + encoded_rdata
         )
 
 
@@ -583,9 +587,21 @@ def pack_all_compressed(
                 encoded_name = encode_name_uncompressed(field.decoded_name)
                 # Store the name for future pointers
                 name_offset_map[field.decoded_name] = len(response)
-
-            # Add the field to the response
-            response += field.pack(encoded_name)
+            if hasattr(field, "decoded_rdata"):
+                if field.decoded_rdata in name_offset_map:
+                    pointer = 0xC000 | name_offset_map[field.decoded_rdata]
+                    encoded_rdata = struct.pack("!H", pointer)
+                else:
+                    # TODO: Does this work
+                    if _is_type_special(field.type_):
+                        encoded_rdata = encode_name_uncompressed(field.decoded_rdata)
+                    else:
+                        encoded_rdata = auto_encode_label(field.decoded_rdata)
+                    name_offset_map[field.decoded_rdata] = len(response)
+                # Add the field to the response
+                response += field.pack(encoded_name, encoded_rdata) # TODO: Encode RDATA (store before as decoded_rdata) and update RDLENGTH
+            else:
+                response += field.pack(encoded_name)
 
     return response
 
@@ -594,7 +610,7 @@ class DNSQuery:
     """
     Dataclass to store a DNS query/
     """
-    header: DNSHeader
+    header: DNSHeader | None = None
     questions: list[DNSQuestion] = dataclasses.field(default_factory=list)
     answers: list[DNSAnswer] = dataclasses.field(default_factory=list)
     authorities: list[DNSAuthority] = dataclasses.field(default_factory=list)
@@ -676,7 +692,6 @@ def unpack_all(
         questions.append(
             DNSQuestion(decoded_name=decoded_name, type_=type_, class_=class_)
         )
-
     answers = []
     authorities = []
     additionals = []
@@ -689,9 +704,13 @@ def unpack_all(
         type_, class_ = struct.unpack("!HH", buf[idx : idx + 4])
         idx += 4
 
+        if i >= header.ancount + header.nscount and type_ not in {1, 2, 28}:
+            # TODO: For additionals, only A, AAAA, and NS are supported
+            # TODO: I have rtypes...
+            continue
         # Struct format
         # https://docs.python.org/3/library/struct.html
-        # Big indian unsigned int, 4 bytess
+        # Big endian unsigned int, 4 bytess
         ttl = struct.unpack("!I", buf[idx : idx + 4])[0]
         idx += 4
 
@@ -700,13 +719,13 @@ def unpack_all(
         idx += 2
 
         # Use rdlength to get rdata
-        # 
-        if type_ in {2, 5, 12, 15}: # NS, CNAME, PTR, MX -- These are all domains and may have pointers
-            rdata, _ = decode_name(buf, idx)
+        if _is_type_special(type_):
+            decoded_rdata, _ = decode_name(buf, idx)
             # real_rdlength = len(rdata)
         else:
             # rdata = buf[idx : idx + rdlength]
-            rdata = auto_decode_label(buf[idx : idx + rdlength])
+            # print(rdlength)
+            decoded_rdata = auto_decode_label(buf[idx : idx + rdlength])
             # real_rdlength = rdlength
         
         idx += rdlength
@@ -719,7 +738,7 @@ def unpack_all(
             class_=class_,
             ttl=ttl,
             rdlength=rdlength, # TODO: Should this be len(rdata)?
-            rdata=rdata
+            decoded_rdata=decoded_rdata
         )
         if i < header.ancount:
             answers.append(DNSAnswer(**kwargs))
