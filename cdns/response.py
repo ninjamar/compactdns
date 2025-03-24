@@ -7,11 +7,18 @@ import socket
 import struct
 from typing import Callable
 
-from .protocol import (DNSAnswer, DNSHeader, DNSQuestion, RTypes, DNSQuery,
-                       auto_decode_label, auto_encode_label,
-                       unpack_all)
+from .protocol import (
+    DNSAnswer,
+    DNSHeader,
+    DNSQuery,
+    DNSQuestion,
+    RTypes,
+    auto_decode_label,
+    auto_encode_label,
+    unpack_all,
+)
+from .resolver import BaseResolver, RecursiveResolver
 from .storage import RecordStorage
-from .resolver import RecursiveResolver
 
 # TODO: Send back and check TC flag
 
@@ -22,7 +29,7 @@ class ResponseHandler:
     def __init__(
         self,
         storage: RecordStorage,
-        resolver: int,
+        resolver: BaseResolver,
         udp_sock: socket.socket | None = None,
         udp_addr: tuple[str, int] | None = None,
         tcp_conn: socket.socket | None = None,
@@ -51,11 +58,11 @@ class ResponseHandler:
         else:
             raise TypeError("Must pass either UDP socket or TCP connection")
 
-        self.buf = b""  # Response buffer
+        self.bsend = b"" # TODO: Not to be confused with self.buf
 
         self.storage = storage
         self.resolver = resolver
-        
+
         self.buf = DNSQuery()
         self.new = DNSQuery()
         self.resp = DNSQuery()
@@ -73,7 +80,6 @@ class ResponseHandler:
         """
         self.question_index_intercepted: list[tuple[int, list[DNSAnswer]]] = []
         self.question_answers: list[DNSAnswer] = []
-        
 
     def start(self, buf) -> None:
         """Unpack a buffer, then process it.
@@ -260,21 +266,21 @@ class ResponseHandler:
                         values=values,
                         overwrite=True,
                     )
-        #self.buf = pack_all_compressed(
+        # self.buf = pack_all_compressed(
         #    self.resp_header, self.resp_questions, self.resp_answers
-        #)
-        self.buf = self.resp.pack()
-       # print(self.buf)
+        # )
+        self.bsend = self.resp.pack()
+        # print(self.buf)
 
         # TODO: This isn't sufficient
         # Need to also be able to receive packets of more than 512 bytes using tcp
-        if self.udp_sock and len(self.buf) > 512:
+        if self.udp_sock and len(self.bsend) > 512:
             # TODO: Use array indexing to set TC rather than reconstructing the packet
             self.resp.header.tc = 1
-            self.buf = self.resp.pack()[:512]
-            #self.buf = pack_all_compressed(
+            self.bsend = self.resp.pack()[:512]
+            # self.buf = pack_all_compressed(
             #    self.resp_header, self.resp_questions, self.resp_answers
-            #)[:512]
+            # )[:512]
 
         self._send()
 
@@ -287,9 +293,9 @@ class ResponseHandler:
         if self.udp_sock and self.udp_addr:
             # Lock is unnecessary here since .sendto is thread safe (UDP is also connectionless)
 
-            self.udp_sock.sendto(self.buf, self.udp_addr)
+            self.udp_sock.sendto(self.bsend, self.udp_addr)
         elif self.tcp_conn:
-            buf_len = struct.pack("!H", len(self.buf))
+            buf_len = struct.pack("!H", len(self.bsend))
 
             sel = selectors.DefaultSelector()
             sel.register(self.tcp_conn, selectors.EVENT_WRITE)
@@ -297,7 +303,7 @@ class ResponseHandler:
             # Block and wait for the socket to be ready (only happens once)
             sel.select(timeout=0.1)
             try:
-                self.tcp_conn.sendall(buf_len + self.buf)
+                self.tcp_conn.sendall(buf_len + self.bsend)
             finally:
                 self.tcp_conn.close()
                 sel.unregister(self.tcp_conn)

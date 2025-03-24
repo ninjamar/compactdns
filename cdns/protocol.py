@@ -156,7 +156,7 @@ RTypes = ImmutableBiDict(
     ],
 )
 
-_is_type_special = lambda type_: type_ in {2, 5, 12, 15} # NS, CNAME, PTR, MX
+_is_type_special = lambda type_: type_ in {2, 5, 12, 15}  # NS, CNAME, PTR, MX
 
 
 @functools.lru_cache(maxsize=512)
@@ -483,7 +483,7 @@ class _DNSReply:
                 self.type_,
                 self.class_,
                 self.ttl,
-                len(encoded_rdata)
+                len(encoded_rdata),
                 # self.rdlength,
             )
             # + self.rdata
@@ -495,7 +495,10 @@ class DNSAnswer(_DNSReply):
     """
     Dataclass to store a DNS answer
     """
+
     pass
+
+
 class DNSAuthority(_DNSReply):
     """
     Dataclass to store DNS authority section. Has the same fields as DNSAnswer.
@@ -510,6 +513,7 @@ class DNSAdditional(_DNSReply):
     """
 
     pass
+
 
 # TODO: Cache these because list isn't hashable
 # @functools.lru_cache(maxsize=512)
@@ -539,7 +543,9 @@ def pack_all_uncompressed(
     # Pack all fields
     for fields in [questions, answers, authorities, additionals]:
         # Pack each field
-        for field in fields:
+        # Why does mypy complain here?
+        # error: "object" has no attribute "__iter__"; maybe "__dir__" or "__str__"? (not iterable)  [attr-defined]
+        for field in fields: # type: ignore[attr-defined]
             response += field.pack(encode_name_uncompressed(field.decoded_name))
 
     return response
@@ -574,8 +580,9 @@ def pack_all_compressed(
     # Compress question + answers...
     # Pack + store names + compression
     for fields in [questions, answers, authorities, additionals]:
-        # print("FIELDS", fields)
-        for field in fields:
+        # Why does mypy complain here?
+        # error: "object" has no attribute "__iter__"; maybe "__dir__" or "__str__"? (not iterable)  [attr-defined]
+        for field in fields: # type: ignore[attr-defined]
             # If the name is repeated
             if field.decoded_name in name_offset_map:
                 # Starting pointer + offset of name
@@ -599,23 +606,27 @@ def pack_all_compressed(
                         encoded_rdata = auto_encode_label(field.decoded_rdata)
                     name_offset_map[field.decoded_rdata] = len(response)
                 # Add the field to the response
-                response += field.pack(encoded_name, encoded_rdata) # TODO: Encode RDATA (store before as decoded_rdata) and update RDLENGTH
+                response += field.pack(
+                    encoded_name, encoded_rdata
+                )  # TODO: Encode RDATA (store before as decoded_rdata) and update RDLENGTH
             else:
                 response += field.pack(encoded_name)
 
     return response
+
 
 @dataclasses.dataclass
 class DNSQuery:
     """
     Dataclass to store a DNS query/
     """
-    header: DNSHeader | None = None
+
+    header: DNSHeader = DNSHeader()
     questions: list[DNSQuestion] = dataclasses.field(default_factory=list)
     answers: list[DNSAnswer] = dataclasses.field(default_factory=list)
     authorities: list[DNSAuthority] = dataclasses.field(default_factory=list)
     additionals: list[DNSAdditional] = dataclasses.field(default_factory=list)
-    
+
     @classmethod
     def from_bytes(self, buf: bytes) -> "DNSQuery":
         """
@@ -628,7 +639,7 @@ class DNSQuery:
             An instance of DNSQuery.
         """
         return unpack_all(buf)
-    
+
     def pack(self, auto_verify_correct=True) -> bytes:
         """
         Pack the DNSQuery.
@@ -644,8 +655,13 @@ class DNSQuery:
         Returns:
             The packed query.
         """
-        
-        if self.header.qdcount != len(self.questions) or self.header.ancount != len(self.answers) or self.header.nscount != len(self.authorities) or self.header.arcount != len(self.additionals):
+        # assert self.header is not None, "header cannot be None"
+        if (
+            self.header.qdcount != len(self.questions)
+            or self.header.ancount != len(self.answers)
+            or self.header.nscount != len(self.authorities)
+            or self.header.arcount != len(self.additionals)
+        ):
             if auto_verify_correct:
                 self.header.qdcount = len(self.questions)
                 self.header.ancount = len(self.answers)
@@ -654,8 +670,13 @@ class DNSQuery:
             else:
                 raise Exception("Invalid DNS header for query")
 
-        return pack_all_compressed(self.header, self.questions, self.answers, self.authorities, self.additionals)
-    
+        return pack_all_compressed(
+            self.header,
+            self.questions,
+            self.answers,
+            self.authorities,
+            self.additionals,
+        )
 
 
 # @functools.lru_cache(maxsize=512)
@@ -727,7 +748,7 @@ def unpack_all(
             # print(rdlength)
             decoded_rdata = auto_decode_label(buf[idx : idx + rdlength])
             # real_rdlength = rdlength
-        
+
         idx += rdlength
         # idx += rdlength
         # idx += len(rdata)
@@ -737,8 +758,8 @@ def unpack_all(
             type_=type_,
             class_=class_,
             ttl=ttl,
-            rdlength=rdlength, # TODO: Should this be len(rdata)?
-            decoded_rdata=decoded_rdata
+            rdlength=rdlength,  # TODO: Should this be len(rdata)?
+            decoded_rdata=decoded_rdata,
         )
         if i < header.ancount:
             answers.append(DNSAnswer(**kwargs))

@@ -24,22 +24,21 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
-import socket
-import threading
 import concurrent.futures
 import selectors
-
+import socket
+import threading
 from typing import cast
 
 from cdns.protocol import (
-    unpack_all,
-    DNSAnswer,
-    DNSHeader,
-    DNSQuestion,
-    DNSAuthority,
-    DNSQuery,
     DNSAdditional,
+    DNSAnswer,
+    DNSAuthority,
+    DNSHeader,
+    DNSQuery,
+    DNSQuestion,
     auto_decode_label,
+    unpack_all,
 )
 
 
@@ -47,6 +46,7 @@ class BaseForwarder:
     """
     Base forwarder class.
     """
+
     pass
 
 
@@ -54,6 +54,7 @@ class UdpForwarder(BaseForwarder):
     """
     Forwarder using UDP.
     """
+
     def __init__(self) -> None:
         """
         Create an instance of UDPForwarder.
@@ -131,18 +132,25 @@ class UdpForwarder(BaseForwarder):
             sock.close()
         return future
 
+    def cleanup(self):
+        for sock in self.pending_requests.keys():
+            sock.close()
+
 
 class BaseResolver:
     """
     Base class for resolvers.
     """
-    pass
+
+    def send(self, query: bytes) -> concurrent.futures.Future[DNSQuery]:
+        raise NotImplementedError
 
 
 class UpstreamResolver(BaseResolver):
     """
     A class to resolve from upstream.
     """
+
     def __init__(self, addr: tuple[str, int]) -> None:
         """
         Create an instance of UpstreamResolver.
@@ -153,7 +161,7 @@ class UpstreamResolver(BaseResolver):
         self.addr = addr
         self.forwarder = UdpForwarder()
 
-    def send(self, query: bytes) -> concurrent.futures.Future[bytes]:
+    def send(self, query: bytes) -> concurrent.futures.Future[DNSQuery]:
         """
         Send a query to the upstream.
 
@@ -163,7 +171,13 @@ class UpstreamResolver(BaseResolver):
         Returns:
             The future fufilling the query.
         """
-        return self.forwarder.forward(query, self.addr)
+        ret: concurrent.futures.Future[DNSQuery] = concurrent.futures.Future()
+
+        f = self.forwarder.forward(query, self.addr)
+        f.add_done_callback(lambda s: ret.set_result(unpack_all(s.result()))) # ret.result = unpack_all(s.result)
+
+        return ret
+
 
 # TODO: Load root server from url, write root server to disk and cache it
 # ROOT_SERVERS = [p + ".ROOT-SERVERS.NET" for p in string.ascii_uppercase[:13]]
@@ -174,10 +188,11 @@ class RecursiveResolver(BaseResolver):
     """
     Resolve a request recursively.
     """
+
     def __init__(self) -> None:
         """
         Create an instance of RecursiveResolver.
-        """        
+        """
         self.forwarder = UdpForwarder()
         self.executor = concurrent.futures.ThreadPoolExecutor()
         """
@@ -189,7 +204,13 @@ class RecursiveResolver(BaseResolver):
                 return response
         """
 
-    def _find_nameserver(self, authorities: list[DNSAuthority], additionals: list[DNSAdditional], query: bytes, to_future: concurrent.futures.Future[DNSQuery]) -> None:
+    def _find_nameserver(
+        self,
+        authorities: list[DNSAuthority],
+        additionals: list[DNSAdditional],
+        query: bytes,
+        to_future: concurrent.futures.Future[DNSQuery],
+    ) -> None:
         """
         Find a nameservers.
 
@@ -220,7 +241,7 @@ class RecursiveResolver(BaseResolver):
                 # them. So, we pass the answers as the additionals. This works
                 # because DNSAnswer, DNSAuthority, and DNSAdditional are all
                 # identical.
-                self._find_nameserver([], nameservers.answers, query, to_future)
+                self._find_nameserver([], nameservers.answers, query, to_future)  # type: ignore[arg-type]
 
             future.add_done_callback(callback)
 
@@ -285,7 +306,8 @@ class RecursiveResolver(BaseResolver):
         Returns:
             Future that fufils when there's a response.
         """
-        future = concurrent.futures.Future()
+        future: concurrent.futures.Future[DNSQuery] = concurrent.futures.Future()
+
         def send():
             response = self.forwarder.forward(query, server_addr)
             response.add_done_callback(lambda f: self._resolve_done(f, query, future))
@@ -293,7 +315,7 @@ class RecursiveResolver(BaseResolver):
         self.executor.submit(send)
         return future
 
-    def send(self, query: DNSQuery) -> concurrent.futures.Future[DNSQuery]:
+    def send(self, query: bytes) -> concurrent.futures.Future[DNSQuery]:
         """
         Send a query to the resolver.
 
@@ -305,6 +327,10 @@ class RecursiveResolver(BaseResolver):
         """
         # TODO: In future take in DNS query, then query each question
         # TODO: Make a flowchart for this
-        
+
         server = ROOT_SERVERS[0]  # TODO: Could be random
         return self._resolve(query, server)
+
+    def cleanup(self):
+        """Cleanup any loose ends."""
+        self.forwarder.cleanup()

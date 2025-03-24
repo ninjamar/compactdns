@@ -26,6 +26,7 @@
 # SOFTWARE.
 
 import sys
+
 if sys.version_info < (3, 11):
     import tomli as tomllib
 else:
@@ -35,8 +36,10 @@ else:
 from ..cli import kwargs_defaults
 from ..utils import flatten_dict, merge_defaults
 
+
 def main(host, target):
     pass
+
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])

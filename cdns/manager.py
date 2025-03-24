@@ -40,9 +40,9 @@ from pathlib import Path
 from typing import Callable, Type, cast
 
 from . import daemon
+from .resolver import RecursiveResolver
 from .response import ResponseHandler
 from .storage import RecordStorage
-from .resolver import RecursiveResolver
 
 MAX_WORKERS = 1000
 
@@ -193,7 +193,7 @@ class ServerManager:
             # daemon_options=kwargs["daemons"]
         )
 
-    def done(self) -> None:
+    def cleanup(self) -> None:
         """Handle destroying the sockets."""
         self.udp_sock.close()
         self.tcp_sock.close()
@@ -201,8 +201,10 @@ class ServerManager:
         if self.use_tls:
             self.tls_sock.close()
 
-        for sock in self.forwarder_pending_requests.keys():
-            sock.close()
+        # Terminate resolver daemon
+        self.resolver_daemon.terminate()
+
+        self.resolver.cleanup()
 
     def _handle_dns_query_udp(self, addr: tuple[str, int], query: bytes) -> None:
         """Handle a DNS query over UDP.
@@ -462,15 +464,15 @@ class ServerManager:
 
             except KeyboardInterrupt:
                 logging.info("KeyboardInterrupt: Server shutting down")
-                # Terminate resolver daemon
-                self.resolver_daemon.terminate()
 
                 # Shutdown all threads
                 # The with statement calls executor.shutdown(wait=True) already,
                 # so this code could be modifed to have the try-except outside
                 # of the with.
                 executor.shutdown(wait=True)
-                # self.forwarder_thread.shut
+                
+                self.cleanup()
+
                 sys.exit()
 
     def _handle_thread_pool_completion(self, future: concurrent.futures.Future) -> None:
