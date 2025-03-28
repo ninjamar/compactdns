@@ -212,7 +212,6 @@ def cli() -> None:
             {k: v["default"] for k, v in kwargs_defaults.items()},
             flatten_dict(kwargs),
         )
-        print(kwargs)
         # kwargs = merge_defaults(kwargs_defaults, kwargs)
         # kwargs = flatten_dict(kwargs)
         logging.basicConfig(

@@ -209,7 +209,7 @@ class ServerManager:
         else:
             resolver = UpstreamResolver()
 
-        if kwargs["storage.preload"]:
+        if kwargs["storage.preload_path"]:
             if not isinstance(resolver, RecursiveResolver):
                 logging.warning("Preloading hosts without a recursive resolver doesn't bring significant speed improvements")
             # TODO: Not implemented yey
@@ -253,7 +253,7 @@ class ServerManager:
             self.debug_shell_sock.close()
         
         # TODO: Hack
-        if getattr(self, "resolver_daemon"):
+        if hasattr(self, "resolver_daemon"):
             self.resolver_daemon.terminate()
 
         self.resolver.cleanup()
