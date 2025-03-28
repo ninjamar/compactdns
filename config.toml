@@ -1,5 +1,19 @@
-max_workers = 50
+# compactdns
+# A lightweight DNS server with easy customization
+# https://github.com/ninjamar/compactdns
+# Copyright (c) 2025 ninjamar
+
+# This file is licensed under the MIT license
+
+# Example configuration for compactdns
+
 loglevel = "INFO"
+
+[all]
+# fallback_ttl = 1000
+ttl_min = 400
+max_workers = 50
+
 
 [servers.host]
 host = "127.0.0.1"
@@ -12,27 +26,35 @@ ssl_key = "key.pem"
 ssl_cert = "cert.pem"
 
 
-[servers.shell]
+[servers.debug_shell]
 host = "127.0.0.1"
 port = 2055
 
 [resolver]
-resolvers = [
-    "1.1.1.1",
-    "1.0.0.1",
-]
-use_fastest = true
-add_system = false
-interval = 100
+recursive = true
+# TODO: No resolvers if we use recursive
 
-[daemons.fastest_resolver]
-use=true
-test_name="github.com"
-interval = 100
+# Uncomment these lines for upstream resolver
+# list = [
+#     "1.1.1.1",
+#     "1.0.0.1",
+# ]
+# add_system = false
+
+# Uncomment these lines for upstream resolver
+# [daemons.fastest_resolver]
+# use=true
+# test_name="github.com"
+# interval = 100
 
 [storage]
+# List of paths containing directories of zones
 zone_dirs = [
     "example-zones"
 ]
-# zone_pickle_path = "zone.pickle.lzma"
-# cache_pickle_path = "cache.pickle.lzma"
+# Text file to preload recordds
+preload_path = "./data/preload.txt"
+# Path to cache dump
+# cache_path = "./data/cache.pk.lzma"
+# Path to zone dump
+# zone_path = "./data/zone.pk.lzma"

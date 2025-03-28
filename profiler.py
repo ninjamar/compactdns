@@ -1,5 +1,5 @@
 # compactdns
-# A simple forwarding DNS server with blocking capabilities
+# A lightweight DNS server with easy customization
 # https://github.com/ninjamar/compactdns
 # Copyright (c) 2025 ninjamar
 
@@ -37,6 +37,7 @@ from cdns.manager import ServerManager
 from cdns.protocol import *
 from cdns.response import ResponseHandler
 from cdns.storage import RecordStorage
+from cdns.resolver import RecursiveResolver
 
 
 def forward(query: bytes) -> concurrent.futures.Future[bytes]:
@@ -75,7 +76,7 @@ query = pack_all_compressed(
 storage = RecordStorage()
 storage.load_zones_from_dir(Path("./example-zones").resolve())
 manager = ResponseHandler(
-    storage=storage, forwarder=forward, tcp_conn="foo"  # No sending
+    storage=storage, resolver=forward, tcp_conn="foo"  # No sending
 )
 
 
@@ -155,8 +156,24 @@ def t():
     p.disable()
     p.print_stats()
 
+def q():
+    query = DNSQuery(DNSHeader(), [DNSQuestion(decoded_name="google.com")])
+    
+    p = lp.LineProfiler()
 
-t()
+    p.add_function(concurrent.futures.Future.result)
+
+    p.enable()
+
+    r = RecursiveResolver()
+    f = r.send(query.pack())
+    f.result()
+
+    p.disable()
+    p.print_stats()
+
+q()
+
 if __name__ == "__main__":
     if "-l" in sys.argv:
         time_lines()

@@ -1,5 +1,5 @@
 # compactdns
-# A simple forwarding DNS server with blocking capabilities
+# A lightweight DNS server with easy customization
 # https://github.com/ninjamar/compactdns
 # Copyright (c) 2025 ninjamar
 

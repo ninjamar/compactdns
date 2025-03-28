@@ -22,6 +22,11 @@ from .storage import RecordStorage
 
 # TODO: Send back and check TC flag
 
+def _add_to_cache(cache, questions, answers):
+    # For preloading
+    # TODO: Implement
+    # TODO: Document all changes across everything
+    pass
 
 class ResponseHandler:
     """A class to make a DNS response."""
@@ -156,6 +161,7 @@ class ResponseHandler:
             # Repack data
             to_send = self.new.pack()
 
+            # TODO: Should this be exposed?
             future = self.resolver.send(to_send)
             # send = pack_all_compressed(self.new_header, self.new_questions)
             # future = self.forwarder(send)

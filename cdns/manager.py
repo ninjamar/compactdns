@@ -1,5 +1,5 @@
 # compactdns
-# A simple forwarding DNS server with blocking capabilities
+# A lightweight DNS server with easy customization
 # https://github.com/ninjamar/compactdns
 # Copyright (c) 2025 ninjamar
 
@@ -40,9 +40,10 @@ from pathlib import Path
 from typing import Callable, Type, cast
 
 from . import daemon
-from .resolver import RecursiveResolver
+from .resolver import RecursiveResolver, UpstreamResolver, BaseResolver
 from .response import ResponseHandler
 from .storage import RecordStorage
+from .utils import get_dns_servers
 
 MAX_WORKERS = 1000
 
@@ -53,15 +54,18 @@ class ServerManager:
     def __init__(
         self,
         host: tuple[str, int],
-        shell_host: tuple[str, int],
-        resolvers: list[tuple[str, int]],
+        debug_shell_host: tuple[str, int],
+        resolver: BaseResolver,
+        # resolvers: list[tuple[str, int]],
         storage: RecordStorage,
         tls_host: tuple[str, int] | None = None,
         ssl_key_path: str | None = None,
         ssl_cert_path: str | None = None,
         max_workers: int = MAX_WORKERS,
+        resolver_list: list[tuple[str, int]] | None = None,
         daemon_options: dict = {},
     ) -> None:
+        # TODO: document
         """Create a ServerManager instance.
 
         Args:
@@ -77,7 +81,7 @@ class ServerManager:
         # TODO: Make this better
         # Sockets
         self.host = host
-        self.shell_host = shell_host
+        self.debug_shell_host = debug_shell_host
         self.tls_host = tls_host
 
         # Bind in _start_threaded_udp
@@ -109,40 +113,53 @@ class ServerManager:
         else:
             self.use_tls = False
 
-        # Use UDP for shell
-        self.shell_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.shell_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.shell_secret = secrets.token_hex(10)
+        if self.debug_shell_host is not None:
+            self.use_debug_shell = True
+            # Use UDP for shell
+            self.debug_shell_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.debug_shell_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.debug_shell_secret = secrets.token_hex(10)
+        else:
+            self.use_debug_shell = False
 
-        self.resolver = RecursiveResolver()
+
 
         # Other config. TODO: Implement better configuration here
         self.execution_timeout = 0
         self.max_workers = max_workers
         self.storage = storage
 
-        # Daemons
-        # Resolver daemon
+
+        # Complicated resolver stuff
+        self.resolver = resolver
+        if isinstance(self.resolver, RecursiveResolver) and (resolver_list or daemon_options.get("fastest_resolver.use")):
+            raise ValueError("Unable to have resolver_list and fastest_resolver with RecursiveResolver")
+
+        # The Queue will be registered in the selectors, but is never used
+        # for the recursive resolver
         self.resolver_q: Queue = Queue()
 
-        if daemon_options.get("fastest_resolver.use"):
-            self.resolver_daemon = daemon.FastestResolverDaemon(
-                resolvers,
-                daemon_options["fastest_resolver.test_name"],
-                interval=daemon_options["fastest_resolver.interval"],
-                queue=self.resolver_q,
-            )
-            self.resolver_daemon.start()
-        else:
-            if len(resolvers) > 1:
-                raise ValueError(
-                    "Unable to have more than one resolver when use_fastest is False"
-                )
+        if isinstance(self.resolver, UpstreamResolver):
 
-            self.resolver_q.put(resolvers[0])
-        # Get the address
-        self.resolver_addr = self.resolver_q.get()
-        logging.info("Resolver address: %s", self.resolver_addr)
+            if daemon_options.get("fastest_resolver.use"):
+                self.resolver_daemon = daemon.FastestResolverDaemon(
+                    resolver_list,
+                    daemon_options["fastest_resolver.test_name"],
+                    interval=daemon_options["fastest_resolver.interval"],
+                    queue=self.resolver_q,
+                )
+                self.resolver_daemon.start()
+                self.resolver.addr = self.resolver_q.get(True)
+            else:
+                if len(resolver_list) > 1:
+                    raise ValueError(
+                        "Unable to have more than one resolver when fastest_resolver.use is False"
+                    )
+
+                self.resolver_q.put(resolver_list[0])
+                # Get the address
+                self.resolver.addr = self.resolver_q.get()
+                logging.info("Resolver address: %s", self.resolver_addr)
 
         # I removed the dump cache daemon because the cache was designed
         # to only be in-memory. If the cache was written to a file, all
@@ -161,32 +178,63 @@ class ServerManager:
         storage = RecordStorage()
         if kwargs["storage.zone_dirs"] is not None:
             for dir in kwargs["storage.zone_dirs"]:
-                storage.load_zones_from_dir(Path(dir).resolve())
-        if kwargs["storage.zone_pickle_path"] is not None:
-            storage.load_zone_object_from_file(
-                Path(kwargs["storage.zone_pickle_path"]).resolve()
-            )
-        if kwargs["storage.cache_pickle_path"] is not None:
+                p = Path(dir).resolve()
+                p.parent.mkdir(parents=True, exist_ok=True)
+                storage.load_zones_from_dir(p)
+        if kwargs["storage.zone_path"] is not None:
+            p = Path(kwargs["storage.zone_path"]).resolve()
+            p.parent.mkdir(parents=True, exist_ok=True)
+            storage.load_zone_object_from_file(p)
+        if kwargs["storage.cache_path"] is not None:
             # TODO: Test this out
-            storage.load_cache_from_file(
-                Path(kwargs["storage.cache_pickle_path"]).resolve()
+            p = Path(kwargs["storage.cache_path"]).resolve()
+            p.parent.mkdir(parents=True, exist_ok=True)
+            storage.load_cache_from_file(p)
+        
+        if kwargs["servers.debug_shell.host"] is None or kwargs["servers.debug_shell.port"] is None:
+            debug_shell_host = None
+        else:
+            debug_shell_host = (
+                kwargs["servers.debug_shell.host"],
+                int(kwargs["servers.debug_shell.port"]),
             )
+
+        if kwargs["servers.tls.host"] is None or kwargs["servers.tls.port"] is None:
+            tls_host = None
+        else:
+            tls_host = (kwargs["servers.tls.host"], int(kwargs["servers.tls.port"]))
+        
+        if kwargs["resolver.recursive"]:
+            resolver = RecursiveResolver()
+        else:
+            resolver = UpstreamResolver()
+
+        if kwargs["storage.preload"]:
+            if not isinstance(resolver, RecursiveResolver):
+                logging.warning("Preloading hosts without a recursive resolver doesn't bring significant speed improvements")
+            # TODO: Not implemented yey
+            logging.warning("This isn't implemented yet. ninjamar didn't realize that the host has to be added to the cache")
+
+        # HACK: This is what happens when it's 11 and I have to get the feature done
+        if isinstance(kwargs["resolver.list"], list):
+            resolver_list = [(addr, 53) for addr in kwargs["resolver.list"]]
+        else:
+            resolver_list = None
+
+        if kwargs["resolver.add_system"]:
+            resolver_list.append(get_dns_servers())
 
         logging.debug("Records: %s", storage)
         return cls(
             storage=storage,
             host=(kwargs["servers.host.host"], int(kwargs["servers.host.port"])),
-            shell_host=(
-                kwargs["servers.shell.host"],
-                int(kwargs["servers.shell.port"]),
-            ),
-            resolvers=[
-                (addr, 53) for addr in kwargs["resolver.resolvers"]
-            ],  # Use port 53 for resolvers
-            tls_host=(kwargs["servers.tls.host"], int(kwargs["servers.tls.port"])),
+            debug_shell_host=debug_shell_host,
+            resolver=resolver,
+            resolver_list=resolver_list,
+            tls_host=tls_host, # TODO: host vs addr
             ssl_key_path=kwargs["servers.tls.ssl_key"],
             ssl_cert_path=kwargs["servers.tls.ssl_cert"],
-            max_workers=kwargs["max_workers"],
+            max_workers=kwargs["all.max_workers"],
             daemon_options={
                 k[8:]: v for k, v in kwargs.items() if k.startswith("daemon")
             },
@@ -200,9 +248,13 @@ class ServerManager:
 
         if self.use_tls:
             self.tls_sock.close()
-
-        # Terminate resolver daemon
-        self.resolver_daemon.terminate()
+        
+        if self.use_debug_shell:
+            self.debug_shell_sock.close()
+        
+        # TODO: Hack
+        if getattr(self, "resolver_daemon"):
+            self.resolver_daemon.terminate()
 
         self.resolver.cleanup()
 
@@ -324,8 +376,8 @@ class ServerManager:
         elif cmd == "purge-cache":
             return self.storage.cache.purge()
 
-    def _handle_shell_session(self, conn: socket.socket) -> None:
-        """Handle a shell session. This function blocks the DNS queries, and
+    def _handle_debug_shell_session(self, conn: socket.socket) -> None:
+        """Handle a debug shell session. This function blocks the DNS queries, and
         starts an interactive debugging sesion. A secret is needed in order for
         verification. This function will wait until the, secret is sent before
         starting the interpreter.
@@ -337,8 +389,8 @@ class ServerManager:
             conn: TCP connection
         """
 
-        secret, addr = conn.recvfrom(len(self.shell_secret))
-        if secret.decode() != self.shell_secret:
+        secret, addr = conn.recvfrom(len(self.debug_shell_secret))
+        if secret.decode() != self.debug_shell_secret:
             conn.close()
             return
 
@@ -359,15 +411,16 @@ class ServerManager:
         """Start the server."""
         # TODO: Configure max workers
 
-        self.shell_sock.bind(self.shell_host)
-        self.shell_sock.listen(self.max_workers)
+        if self.use_debug_shell:
+            self.debug_shell_sock.bind(self.debug_shell_host)
+            self.debug_shell_sock.listen(self.max_workers)
 
-        logging.info(
-            "Shell server running at %s:%s via UDP.",
-            self.shell_host[0],
-            self.shell_host[1],
-        )
-        logging.info("Shell secret: %s", self.shell_secret)
+            logging.info(
+                "Debug shell server running at %s:%s via UDP.",
+                self.debug_shell_host[0],
+                self.debug_shell_host[1],
+            )
+            logging.info("Debug shell secret: %s", self.debug_shell_secret)
 
         self.udp_sock.bind(self.host)
         logging.info("DNS Server running at %s:%s via TCP", self.host[0], self.host[1])
@@ -391,10 +444,11 @@ class ServerManager:
             self.resolver_q._reader,  # type: ignore[attr-defined]
             self.udp_sock,
             self.tcp_sock,
-            self.shell_sock,
         ]
         if self.use_tls:
             sockets.append(self.tls_sock)
+        if self.use_debug_shell:
+            sockets.append(self.debug_shell_sock)
 
         # Select a value when READ is available
         sel = selectors.DefaultSelector()
@@ -443,17 +497,17 @@ class ServerManager:
                                 future.add_done_callback(
                                     self._handle_thread_pool_completion
                                 )
-                            elif obj == self.shell_sock:
-                                conn, addr = self.shell_sock.accept()
+                            elif obj == self.debug_shell_sock:
+                                conn, addr = self.debug_shell_sock.accept()
                                 future = executor.submit(
-                                    self._handle_shell_session, conn
+                                    self._handle_debug_shell_session, conn
                                 )
                                 future.add_done_callback(
                                     self._handle_thread_pool_completion
                                 )
 
                             elif obj == self.resolver_q:
-                                self.resolver_addr = self.resolver_q.get()
+                                self.resolver.addr = self.resolver_q.get()
                                 logging.info("Resolver address: %s", self.resolver_addr)
 
                     except KeyboardInterrupt:

@@ -1,5 +1,5 @@
 # compactdns
-# A simple forwarding DNS server with blocking capabilities
+# A lightweight DNS server with easy customization
 # https://github.com/ninjamar/compactdns
 # Copyright (c) 2025 ninjamar
 
@@ -24,32 +24,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-"""
-usage: cdns [-h] --host HOST --resolver RESOLVER [--records [RECORDS ...]]
-            [--loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}] [--ttl TTL]
-            [--max-cache-length MAX_CACHE_LENGTH] [--tls-host TLS_HOST] [--ssl-key SSL_KEY]
-            [--ssl-cert SSL_CERT]
 
-A simple forwarding DNS server
+# TODO: Show usage notice
 
-options:
-  -h, --help            show this help message and exit
-  --host HOST, -a HOST  The host address in the format of a.b.c.d:port
-  --resolver RESOLVER, -r RESOLVER
-                        The resolver address in the format of a.b.c.d:port
-  --records [RECORDS ...], -b [RECORDS ...]
-                        Path to file containing records
-  --loglevel {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}, -l {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}
-                        Provide information about the logging level (default = info).
-  --ttl TTL, -t TTL     Default TTL for blocked hosts (default = 300)
-  --max-cache-length MAX_CACHE_LENGTH, -m MAX_CACHE_LENGTH
-                        Maximum length of the cache (default=infinity)
-  --tls-host TLS_HOST   TLS socket address in the format of a.b.c.d:port (only needed if using tls)
-  --ssl-key SSL_KEY, -sk SSL_KEY
-                        Path to SSL key file (only needed if using TLS)
-  --ssl-cert SSL_CERT, -sc SSL_CERT
-                        Path to SSL cert file (only needed if using TLS)
-"""
 import argparse
 import json
 import logging
@@ -64,62 +41,96 @@ from . import tools
 from .manager import ServerManager
 from .utils import flatten_dict, merge_defaults
 
+class _IFS:
+    def __init__(self, **kwargs):
+        self.d = kwargs
+    def __getitem__(self, x):
+        return self.d[x]
+
+# TODO: Merge with above (use tuple) and store type
 kwargs_defaults = {
-    "max_workers": 50,
-    "loglevel": "INFO",
+    "loglevel": _IFS(
+        help_="Log level to use. One of {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET'}",
+        type_=str,
+        default="INFO",
+    ),
+    "all": {
+        "fallback_ttl": _IFS(
+            help_="Fallback TTL for all requests", type_=int, default=300
+        ),
+        "ttl_min": _IFS(
+            help_="TTL minimum for storage and resolver", type_=int, default=200
+        ),
+        "max_workers": _IFS(
+            help_="Max number of workers for the DNS server", type_=int, default=50
+        ),
+    },
     "servers": {
-        "host": {"host": "127.0.0.1", "port": 2053},
-        "tls": {
-            "host": None,
-            "port": None,
-            "ssl_key": None,
-            "ssl_cert": None,
+        "host": {
+            "host": _IFS(
+                help_="Address of the host (a.b.c.d)", type_=str, default="127.0.0.1"
+            ),
+            "port": _IFS(help_="Port of server", type_=int, default=2053),
         },
-        "shell": {"host": "127.0.0.1", "port": 2055},
+        "tls": {
+            "host": _IFS(
+                help_="Host of DNS over TLS host (a.b.c.d)", type_=str, default=None
+            ),
+            "port": _IFS(help_="Port of DNS over TLS", type_=int, default=2853),
+            "ssl_key": _IFS(
+                help_="Path to SSL key for DNS over TLS", type_=str, default=None
+            ),
+            "ssl_cert": _IFS(
+                help_="Path to SSL certificate for DNS over TL", type_=str, default=None
+            ),
+        },
+        # TODO: Make shell optional
+        "debug_shell": {
+            "host": _IFS(
+                help_="Address of shell server (a.b.c.d)", type_=str, default=None
+            ),
+            "port": _IFS(help_="Port of shell server", type_=int, default=2053),
+        },
     },
     "resolver": {
-        "resolvers": [],
-        "use_fastest": True,
-        "add_system": True,
-        "interval": 120,
-    },
-    "storage": {
-        "zone_dirs": [],
-        "zone_pickle_path": None,
-        "cache_pickle_path": None,
+        "recursive": _IFS(help_="Is the resolver recursive?", type_=bool, default=True),
+        "list": _IFS(
+            help_="A list of resolvers to use.", type_=list, default=None
+        ),
+        "add_system": _IFS(
+            help_="Add the system resolvers to the resolvers", type_=bool, default=False
+        ),
     },
     "daemons": {
-        "fastest_resolver": {"use": False, "test_name": "github.com", "interval": 100}
-    },
-}
-kwargs_defaults_help = {
-    "max_workers": "Max number of workers for the DNS server",
-    "loglevel": "Log level to use. One of {{CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET'}}",
-    "servers": {
-        "host": {"host": "Address of the host (a.b.c.d)", "port": "Port of server"},
-        "tls": {
-            "host": "Host of DNS over TLS host (a.b.c.d)",
-            "port": "Port of DNS over TLS",
-            "ssl_key": "Path to SSL key for DNS over TLS",
-            "ssl_cert": "Path to SSL certificate for DNS over TL",
-        },
-        "shell": {
-            "host": "Address of shell server (a.b.c.d)",
-            "port": "Port of shell server",
-        },
-    },
-    "resolver": {
-        "resolvers": "A list of resolvers to use.",
-        "use_fastest": "Should the fastest resolver be used?",
-        "add_system": "Add the system resolvers to the resolvers",
-        "interval": "How often should the fastest resolver be updated?",
+        "fastest_resolver": {
+            "use": _IFS(
+                help_="Should the fastest resolver daemon be used?",
+                type_=bool,
+                default=False,
+            ),
+            "test_name": _IFS(
+                help_="Domain name for speed test query", type_=str, default="google.com"
+            ),
+            "interval": _IFS(help_="Interval between tests", type_=int, default=120),
+        }
     },
     "storage": {
-        "zone_dirs": "A list of paths to directories containing zones. (*.zone, *.json, *.all.json)",
-        "zone_pickle_path": "Path to a pickled zone",
-        "cache_pickle_path": "Path to a pickled cache",
+        "zone_dirs": _IFS(
+            help_="A list of paths to directories containing zones. (*.zone, *.json, *.all.json)",
+            type_=list,
+            default=None,
+        ),
+        "zone_path": _IFS(help_="Path to a pickled lzma zone", type_=str, default=None),
+        "cache_path": _IFS(
+            help_="Path to a pickled lzma cache", type_=str, default=None
+        ),
+        "preload_path": _IFS(
+            help_="Path to cache preload file", type_=str, default=None
+        ),
     },
 }
+
+kwargs_defaults = flatten_dict(kwargs_defaults)
 
 
 def cli() -> None:
@@ -154,22 +165,14 @@ def cli() -> None:
         type=str,
         help="Path to configuration file (json or toml)",
     )
-
-    for (key, value), msg in zip(
-        flatten_dict(kwargs_defaults).items(),
-        flatten_dict(kwargs_defaults_help).values(),
-    ):
-
+    
+    for key, value in kwargs_defaults.items():
         # HACK-TYPING: I don't know how to get mypy to not complain here
         parser_run.add_argument(
             f"--{key}",
-            help=msg,
-            type=(
-                str  # type: ignore[arg-type]
-                if isinstance(value, str)
-                else (int if isinstance(value, int) else None)
-            ),
-            nargs="+" if isinstance(value, list) else None,  # type: ignore[arg-type]
+            help=value["help_"],
+            type=value["type_"] if value["type_"] != list else None,
+            nargs="+" if value["type_"] == list else None,  # type: ignore[arg-type]
         )
 
     # TODO: Help message for kwargs
@@ -201,13 +204,17 @@ def cli() -> None:
         kwargs.update(
             {k: v for k, v in vars(args).items() if v is not None and k != "subcommand"}
         )
-        if len(kwargs.keys()) == 0:
-            parser_run.print_help()
-            sys.exit(1)
+        # if len(kwargs.keys()) == 0:
+        #    parser_run.print_help()
+        #    sys.exit(1)
 
-        kwargs = merge_defaults(kwargs_defaults, kwargs)
-        kwargs = flatten_dict(kwargs)
-
+        kwargs = merge_defaults(
+            {k: v["default"] for k, v in kwargs_defaults.items()},
+            flatten_dict(kwargs),
+        )
+        print(kwargs)
+        # kwargs = merge_defaults(kwargs_defaults, kwargs)
+        # kwargs = flatten_dict(kwargs)
         logging.basicConfig(
             level=logging.getLevelNamesMapping()[kwargs["loglevel"]],
             format="%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s",
