@@ -492,24 +492,24 @@ class _DNSReply:
 
 
 class DNSAnswer(_DNSReply):
-    """
-    Dataclass to store a DNS answer
-    """
+    """Dataclass to store a DNS answer."""
 
     pass
 
 
 class DNSAuthority(_DNSReply):
-    """
-    Dataclass to store DNS authority section. Has the same fields as DNSAnswer.
+    """Dataclass to store DNS authority section.
+
+    Has the same fields as DNSAnswer.
     """
 
     pass
 
 
 class DNSAdditional(_DNSReply):
-    """
-    Dataclass to store DNS additional section. Has the same fields as DNSAnswer.
+    """Dataclass to store DNS additional section.
+
+    Has the same fields as DNSAnswer.
     """
 
     pass
@@ -524,7 +524,8 @@ def pack_all_uncompressed(
     authorities: list[DNSAuthority] = [],
     additionals: list[DNSAdditional] = [],
 ) -> bytes:
-    """Pack a DNS header, DNS questions, and DNS answers, (and DNS authorities and DNS additionals) without compression.
+    """Pack a DNS header, DNS questions, and DNS answers, (and DNS authorities
+    and DNS additionals) without compression.
 
     Args:
         header: The DNS header to pack
@@ -545,7 +546,7 @@ def pack_all_uncompressed(
         # Pack each field
         # Why does mypy complain here?
         # error: "object" has no attribute "__iter__"; maybe "__dir__" or "__str__"? (not iterable)  [attr-defined]
-        for field in fields: # type: ignore[attr-defined]
+        for field in fields:  # type: ignore[attr-defined]
             response += field.pack(encode_name_uncompressed(field.decoded_name))
 
     return response
@@ -559,7 +560,8 @@ def pack_all_compressed(
     authorities: list[DNSAuthority] = [],
     additionals: list[DNSAdditional] = [],
 ) -> bytes:
-    """Pack a DNS header, DNS questions, and DNS answers, (and DNS authorities and DNS additionals) with compression.
+    """Pack a DNS header, DNS questions, and DNS answers, (and DNS authorities
+    and DNS additionals) with compression.
 
     Args:
         header: The DNSHeader to pack.
@@ -582,7 +584,7 @@ def pack_all_compressed(
     for fields in [questions, answers, authorities, additionals]:
         # Why does mypy complain here?
         # error: "object" has no attribute "__iter__"; maybe "__dir__" or "__str__"? (not iterable)  [attr-defined]
-        for field in fields: # type: ignore[attr-defined]
+        for field in fields:  # type: ignore[attr-defined]
             # If the name is repeated
             if field.decoded_name in name_offset_map:
                 # Starting pointer + offset of name
@@ -617,9 +619,7 @@ def pack_all_compressed(
 
 @dataclasses.dataclass
 class DNSQuery:
-    """
-    Dataclass to store a DNS query/
-    """
+    """Dataclass to store a DNS query/"""
 
     header: DNSHeader = DNSHeader()
     questions: list[DNSQuestion] = dataclasses.field(default_factory=list)
@@ -629,8 +629,7 @@ class DNSQuery:
 
     @classmethod
     def from_bytes(self, buf: bytes) -> "DNSQuery":
-        """
-        Create an instance of DNSQuery from bytes.
+        """Create an instance of DNSQuery from bytes.
 
         Args:
             bytes: The bytes.
@@ -641,8 +640,7 @@ class DNSQuery:
         return unpack_all(buf)
 
     def pack(self, auto_verify_correct=True) -> bytes:
-        """
-        Pack the DNSQuery.
+        """Pack the DNSQuery.
 
         Args:
             auto_verify_correct: If fields in the header are incorrect, should

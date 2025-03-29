@@ -35,9 +35,9 @@ import timerit
 
 from cdns.manager import ServerManager
 from cdns.protocol import *
+from cdns.resolver import RecursiveResolver
 from cdns.response import ResponseHandler
 from cdns.storage import RecordStorage
-from cdns.resolver import RecursiveResolver
 
 
 def forward(query: bytes) -> concurrent.futures.Future[bytes]:
@@ -156,9 +156,10 @@ def t():
     p.disable()
     p.print_stats()
 
+
 def q():
     query = DNSQuery(DNSHeader(), [DNSQuestion(decoded_name="google.com")])
-    
+
     p = lp.LineProfiler()
 
     p.add_function(concurrent.futures.Future.result)
@@ -171,6 +172,7 @@ def q():
 
     p.disable()
     p.print_stats()
+
 
 q()
 

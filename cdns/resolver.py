@@ -43,22 +43,16 @@ from cdns.protocol import (
 
 
 class BaseForwarder:
-    """
-    Base forwarder class.
-    """
+    """Base forwarder class."""
 
     pass
 
 
 class UdpForwarder(BaseForwarder):
-    """
-    Forwarder using UDP.
-    """
+    """Forwarder using UDP."""
 
     def __init__(self) -> None:
-        """
-        Create an instance of UDPForwarder.
-        """
+        """Create an instance of UDPForwarder."""
 
         # When we want to send, send the request, and add the socket to
         # pending_requests and selectors. When the socket can be read (checked)
@@ -138,22 +132,20 @@ class UdpForwarder(BaseForwarder):
 
 
 class BaseResolver:
-    """
-    Base class for resolvers.
-    """
+    """Base class for resolvers."""
 
     def send(self, query: bytes) -> concurrent.futures.Future[DNSQuery]:
         raise NotImplementedError
 
+    def cleanup(self):
+        raise NotImplementedError
+
 
 class UpstreamResolver(BaseResolver):
-    """
-    A class to resolve from upstream.
-    """
+    """A class to resolve from upstream."""
 
     def __init__(self, addr: tuple[str, int]) -> None:
-        """
-        Create an instance of UpstreamResolver.
+        """Create an instance of UpstreamResolver.
 
         Args:
             addr: Address of the upstream.
@@ -162,8 +154,7 @@ class UpstreamResolver(BaseResolver):
         self.forwarder = UdpForwarder()
 
     def send(self, query: bytes) -> concurrent.futures.Future[DNSQuery]:
-        """
-        Send a query to the upstream.
+        """Send a query to the upstream.
 
         Args:
             query: Query to send.
@@ -174,9 +165,14 @@ class UpstreamResolver(BaseResolver):
         ret: concurrent.futures.Future[DNSQuery] = concurrent.futures.Future()
 
         f = self.forwarder.forward(query, self.addr)
-        f.add_done_callback(lambda s: ret.set_result(unpack_all(s.result()))) # ret.result = unpack_all(s.result)
+        f.add_done_callback(
+            lambda s: ret.set_result(unpack_all(s.result()))
+        )  # ret.result = unpack_all(s.result)
 
         return ret
+
+    def cleanup(self):
+        self.forwarder.cleanup()
 
 
 # TODO: Load root server from url, write root server to disk and cache it
@@ -185,24 +181,15 @@ ROOT_SERVERS = [("198.41.0.4", 53)]
 
 
 class RecursiveResolver(BaseResolver):
-    """
-    Resolve a request recursively.
-    """
+    """Resolve a request recursively."""
 
     def __init__(self) -> None:
-        """
-        Create an instance of RecursiveResolver.
-        """
+        """Create an instance of RecursiveResolver."""
         self.forwarder = UdpForwarder()
         self.executor = concurrent.futures.ThreadPoolExecutor()
-        """
-        server = root server
-        send request to server (enable timeout)
-            receive response
-            parse response
-            if the response has ip address of domain
-                return response
-        """
+        """Server = root server send request to server (enable timeout) receive
+        response parse response if the response has ip address of domain return
+        response."""
 
     def _find_nameserver(
         self,
@@ -211,8 +198,7 @@ class RecursiveResolver(BaseResolver):
         query: bytes,
         to_future: concurrent.futures.Future[DNSQuery],
     ) -> None:
-        """
-        Find a nameservers.
+        """Find a nameservers.
 
         Args:
             authorities: Authorities.
@@ -251,8 +237,7 @@ class RecursiveResolver(BaseResolver):
         query: bytes,
         to_future: concurrent.futures.Future[DNSQuery],
     ) -> None:
-        """
-        Callback after nameservers are found.
+        """Callback after nameservers are found.
 
         Args:
             nameserver: IP address of nameserver.
@@ -268,8 +253,7 @@ class RecursiveResolver(BaseResolver):
         query: bytes,
         to_future: concurrent.futures.Future[DNSQuery],
     ) -> None:
-        """
-        Called after _resolve.
+        """Called after _resolve.
 
         Args:
             recv_future: Future received
@@ -296,8 +280,7 @@ class RecursiveResolver(BaseResolver):
     def _resolve(
         self, query: bytes, server_addr: tuple[str, int]
     ) -> concurrent.futures.Future[DNSQuery]:
-        """
-        Resolve a query recursively.
+        """Resolve a query recursively.
 
         Args:
             query: Query to send.
@@ -316,8 +299,7 @@ class RecursiveResolver(BaseResolver):
         return future
 
     def send(self, query: bytes) -> concurrent.futures.Future[DNSQuery]:
-        """
-        Send a query to the resolver.
+        """Send a query to the resolver.
 
         Args:
             query: Query in bytes.

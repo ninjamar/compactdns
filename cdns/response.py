@@ -22,11 +22,15 @@ from .storage import RecordStorage
 
 # TODO: Send back and check TC flag
 
+
 def _add_to_cache(cache, questions, answers):
     # For preloading
     # TODO: Implement
     # TODO: Document all changes across everything
+    # TODO: Just ran mypy and it fails, so make it pass
+    # TODO: Work on tests (hyperion or smtn)
     pass
+
 
 class ResponseHandler:
     """A class to make a DNS response."""
@@ -63,7 +67,7 @@ class ResponseHandler:
         else:
             raise TypeError("Must pass either UDP socket or TCP connection")
 
-        self.bsend = b"" # TODO: Not to be confused with self.buf
+        self.bsend = b""  # TODO: Not to be confused with self.buf
 
         self.storage = storage
         self.resolver = resolver
@@ -71,17 +75,14 @@ class ResponseHandler:
         self.buf = DNSQuery()
         self.new = DNSQuery()
         self.resp = DNSQuery()
-        """
-        # Header and qustions from the initial buffer
-        self.buf_header: DNSHeader | None = None
-        self.buf_questions: list[DNSQuestion] = []
+        """# Header and qustions from the initial buffer self.buf_header:
+        DNSHeader | None = None self.buf_questions: list[DNSQuestion] = []
 
-        self.new_header: DNSHeader | None = None
-        self.new_questions: list[DNSQuestion] = []
+        self.new_header: DNSHeader | None = None self.new_questions:
+        list[DNSQuestion] = []
 
-        self.resp_header: DNSHeader | None = None
-        self.resp_questions: list[DNSQuestion] = []
-        self.resp_answers: list[DNSAnswer] = []
+        self.resp_header: DNSHeader | None = None self.resp_questions:
+        list[DNSQuestion] = [] self.resp_answers: list[DNSAnswer] = []
         """
         self.question_index_intercepted: list[tuple[int, list[DNSAnswer]]] = []
         self.question_answers: list[DNSAnswer] = []

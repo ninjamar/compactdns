@@ -41,11 +41,14 @@ from . import tools
 from .manager import ServerManager
 from .utils import flatten_dict, merge_defaults
 
+
 class _IFS:
     def __init__(self, **kwargs):
         self.d = kwargs
+
     def __getitem__(self, x):
         return self.d[x]
+
 
 # TODO: Merge with above (use tuple) and store type
 kwargs_defaults = {
@@ -94,9 +97,7 @@ kwargs_defaults = {
     },
     "resolver": {
         "recursive": _IFS(help_="Is the resolver recursive?", type_=bool, default=True),
-        "list": _IFS(
-            help_="A list of resolvers to use.", type_=list, default=None
-        ),
+        "list": _IFS(help_="A list of resolvers to use.", type_=list, default=None),
         "add_system": _IFS(
             help_="Add the system resolvers to the resolvers", type_=bool, default=False
         ),
@@ -109,7 +110,9 @@ kwargs_defaults = {
                 default=False,
             ),
             "test_name": _IFS(
-                help_="Domain name for speed test query", type_=str, default="google.com"
+                help_="Domain name for speed test query",
+                type_=str,
+                default="google.com",
             ),
             "interval": _IFS(help_="Interval between tests", type_=int, default=120),
         }
@@ -165,7 +168,7 @@ def cli() -> None:
         type=str,
         help="Path to configuration file (json or toml)",
     )
-    
+
     for key, value in kwargs_defaults.items():
         # HACK-TYPING: I don't know how to get mypy to not complain here
         parser_run.add_argument(
