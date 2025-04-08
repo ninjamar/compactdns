@@ -41,7 +41,7 @@ from typing import Callable, Type, cast
 
 from . import daemon
 from .resolver import BaseResolver, RecursiveResolver, UpstreamResolver
-from .response import ResponseHandler
+from .response import ResponseHandler, _preload_hosts
 from .storage import RecordStorage
 from .utils import get_dns_servers
 
@@ -219,10 +219,12 @@ class ServerManager:
                 logging.warning(
                     "Preloading hosts without a recursive resolver doesn't bring significant speed improvements"
                 )
-            # TODO: Not implemented yey
-            logging.warning(
-                "This isn't implemented yet. ninjamar didn't realize that the host has to be added to the cache"
-            )
+            
+            with open(kwargs["storage.preload_path"]) as f:
+                hosts = [x.strip() for x in f.readlines() if not x.startswith("#")]
+
+            _preload_hosts(hosts, storage, resolver)
+            
 
         # HACK: This is what happens when it's 11 and I have to get the feature done
         if isinstance(kwargs["resolver.list"], list):

@@ -315,3 +315,15 @@ class ResponseHandler:
                 self.tcp_conn.close()
                 sel.unregister(self.tcp_conn)
                 logging.debug("Closed TCP connection")
+
+
+def _preload_hosts(hosts: list[str], storage: RecordStorage, resolver: BaseResolver) -> None:
+    for host in hosts:
+        # Monkeypatch the buffer, ignoring the fake socket connection
+        r = ResponseHandler(storage=storage, resolver=resolver, tcp_conn=True)
+
+        # Don't send any data back
+        r._send = lambda: None
+
+        r.buf = DNSQuery(header=DNSHeader(qdcount=1), questions=[DNSQuestion(decoded_name=host)])
+        r._process()

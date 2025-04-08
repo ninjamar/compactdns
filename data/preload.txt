@@ -1,0 +1,3 @@
+# A list of all hosts to be preloaded
+google.com
+github.com
