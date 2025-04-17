@@ -85,6 +85,22 @@ Send test queries using dig.
 dig @A.B.C.D -p PORT google.com
 ```
 
+## Running as a service
+
+### Macos
+
+To run this program in the background, run
+```
+$ sudo cdns install -c /path/to/config
+Wrote plist to /Library/LaunchDaemons/com.ninjamar.compactdns.plist
+This program has been configured to run at boot.
+Run the following to start the program immediately
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.ninjamar.compactdns.plist
+To stop it, run
+sudo launchctl bootout system /Library/LaunchDaemons/com.ninjamar.compactdns.plist
+```
+Make sure that all paths in the configuration file are relative to the path of the configuration file.
+
 ## License
 
 This project is licensed under the MIT License. Please see the LICENSE file for more details.

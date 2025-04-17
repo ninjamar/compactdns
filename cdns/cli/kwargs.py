@@ -32,9 +32,10 @@ if sys.version_info < (3, 11):
     import tomli as tomllib
 else:
     import tomllib
-    
+
 from pathlib import Path
 from ..utils import flatten_dict, merge_defaults
+
 
 class _IFS:
     def __init__(self, **kwargs):
@@ -42,7 +43,8 @@ class _IFS:
 
     def __getitem__(self, x):
         return self.d[x]
-    
+
+
 # All paths have to be from the root of the config file, so use path=True
 
 # TODO: Merge with above (use tuple) and store type
@@ -56,19 +58,17 @@ kwargs_defaults = {
         "format": _IFS(
             help_="Logging message format",
             type_=str,
-            default="%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s"
+            default="%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s",
         ),
         "datefmt": _IFS(
-            help_="Logging date format",
-            type_=str,
-            default="%Y-%m-%d %H:%M:%S"
+            help_="Logging date format", type_=str, default="%Y-%m-%d %H:%M:%S"
         ),
         "path": _IFS(
             help_="Path to stdout/stderr (leave empty for console)",
             type_=str,
             default=None,
-            path=True
-        )
+            path=True,
+        ),
     },
     "all": {
         "fallback_ttl": _IFS(
@@ -94,10 +94,16 @@ kwargs_defaults = {
             ),
             "port": _IFS(help_="Port of DNS over TLS", type_=int, default=2853),
             "ssl_key": _IFS(
-                help_="Path to SSL key for DNS over TLS", type_=str, default=None, path=True
+                help_="Path to SSL key for DNS over TLS",
+                type_=str,
+                default=None,
+                path=True,
             ),
             "ssl_cert": _IFS(
-                help_="Path to SSL certificate for DNS over TL", type_=str, default=None, path=True
+                help_="Path to SSL certificate for DNS over TL",
+                type_=str,
+                default=None,
+                path=True,
             ),
         },
         # TODO: Make shell optional
@@ -110,7 +116,9 @@ kwargs_defaults = {
     },
     "resolver": {
         "recursive": _IFS(help_="Is the resolver recursive?", type_=bool, default=True),
-        "list": _IFS(help_="A list of resolvers to use.", type_=list, default=None, path=True),
+        "list": _IFS(
+            help_="A list of resolvers to use.", type_=list, default=None, path=True
+        ),
         "add_system": _IFS(
             help_="Add the system resolvers to the resolvers", type_=bool, default=False
         ),
@@ -135,9 +143,11 @@ kwargs_defaults = {
             help_="A list of paths to directories containing zones. (*.zone, *.json, *.all.json)",
             type_=list,
             default=None,
-            path=True
+            path=True,
         ),
-        "zone_path": _IFS(help_="Path to a pickled lzma zone", type_=str, default=None, path=True),
+        "zone_path": _IFS(
+            help_="Path to a pickled lzma zone", type_=str, default=None, path=True
+        ),
         "cache_path": _IFS(
             help_="Path to a pickled lzma cache", type_=str, default=None, path=True
         ),
@@ -149,9 +159,9 @@ kwargs_defaults = {
 
 kwargs_defaults = flatten_dict(kwargs_defaults)
 
+
 def get_kwargs(config_path, args=None, _no_args=False) -> dict[str, str | int | bool]:
-    """
-    Normalize/process kwargs from a path.
+    """Normalize/process kwargs from a path.
 
     Args:
         config_path: Path to config.
@@ -175,18 +185,16 @@ def get_kwargs(config_path, args=None, _no_args=False) -> dict[str, str | int | 
                 kwargs.update(tomllib.load(f))
         else:
             raise ValueError("Unable to load configuration: unknown file format")
-    
+
     if not _no_args:
         kwargs.update(
             {k: v for k, v in vars(args).items() if v is not None and k != "subcommand"}
         )
 
-    
     kwargs = merge_defaults(
         {k: v["default"] for k, v in kwargs_defaults.items()},
         flatten_dict(kwargs),
     )
-
 
     base_path = Path(config_path).parent
     paths = [k for k, v in kwargs_defaults.items() if v.d.get("path") is not None]

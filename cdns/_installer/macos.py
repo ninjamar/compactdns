@@ -62,17 +62,16 @@ TEMPLATE = """
 
 
 def get_cdns_path() -> str:
-    """
-    Get the path to the cdns executable.
+    """Get the path to the cdns executable.
 
     Returns:
         The path to the cdns executable.
     """
     return sys.argv[0]
 
-def generate_plist(config_path) -> None:
-    """
-    Generate a plist file corresponding to a specific configuration path.
+
+def generate_plist(config_path) -> str:
+    """Generate a plist file corresponding to a specific configuration path.
 
     Args:
         config_path: Path to config file.
@@ -80,11 +79,13 @@ def generate_plist(config_path) -> None:
     Returns:
         The plist file contents.
     """
-    return TEMPLATE.format(cdns_path=get_cdns_path(), config_path=Path(config_path).resolve())
+    return TEMPLATE.format(
+        cdns_path=get_cdns_path(), config_path=Path(config_path).resolve()
+    )
+
 
 def main(config_path, out_path) -> None:
-    """
-    Generate and write a plist file.
+    """Generate and write a plist file.
 
     Args:
         config_path: Path to configuration.
@@ -101,4 +102,3 @@ def main(config_path, out_path) -> None:
     print(f"sudo launchctl bootstrap system {out_path}")
     print("To stop it, run")
     print(f"sudo launchctl bootout system {out_path}")
-        

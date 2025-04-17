@@ -219,12 +219,11 @@ class ServerManager:
                 logging.warning(
                     "Preloading hosts without a recursive resolver doesn't bring significant speed improvements"
                 )
-            
+
             with open(kwargs["storage.preload_path"]) as f:
                 hosts = [x.strip() for x in f.readlines() if not x.startswith("#")]
 
             _preload_hosts(hosts, storage, resolver)
-            
 
         # HACK: This is what happens when it's 11 and I have to get the feature done
         if isinstance(kwargs["resolver.list"], list):
@@ -516,7 +515,7 @@ class ServerManager:
                                     self._handle_thread_pool_completion
                                 )
 
-                            elif obj == self.resolver_q._reader: # type: ignore[attr-defined]
+                            elif obj == self.resolver_q._reader:  # type: ignore[attr-defined]
                                 self.resolver.addr = self.resolver_q.get()
                                 logging.info("Resolver address: %s", self.resolver.addr)
 

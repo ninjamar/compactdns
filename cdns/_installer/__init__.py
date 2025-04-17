@@ -32,9 +32,9 @@ from . import macos
 
 MACOS_INSTALL_PATH = "/Library/LaunchDaemons/com.ninjamar.compactdns.plist"
 
+
 def install(config_path) -> None:
-    """
-    Install the background process for cdns.
+    """Install the background process for cdns.
 
     Args:
         config_path: Path to configuration file.

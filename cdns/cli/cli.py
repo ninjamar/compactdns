@@ -41,8 +41,7 @@ from .kwargs import get_kwargs, kwargs_defaults
 
 
 def _configure_logging(kwargs) -> None:
-    """
-    Configure the logger.
+    """Configure the logger.
 
     Args:
         kwargs: Kwargs.
@@ -53,14 +52,16 @@ def _configure_logging(kwargs) -> None:
     # Rather than getLevelNamesMapping, because we can support an older version of python
     logger.setLevel(getattr(logging, kwargs["logging.loglevel"]))
 
-    formatter = logging.Formatter(fmt=kwargs["logging.format"], datefmt=kwargs["logging.datefmt"])
+    formatter = logging.Formatter(
+        fmt=kwargs["logging.format"], datefmt=kwargs["logging.datefmt"]
+    )
 
     if kwargs["logging.path"]:
         path = os.path.expanduser(kwargs["logging.path"])
         handler = logging.FileHandler(path)
     else:
         handler = logging.StreamHandler(sys.stdout)
-    
+
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
@@ -77,15 +78,16 @@ def cli() -> None:
     tools_subparser = tools_parser.add_subparsers(
         help="Tools", dest="subcommand", required=True
     )
-    
 
-    install_parser = subparsers.add_parser("install", help="Run the installer (background functionality)")
+    install_parser = subparsers.add_parser(
+        "install", help="Run the installer (background functionality)"
+    )
     install_parser.add_argument(
         "--config",
         "-c",
         type=str,
         required=True,
-        help="Path to configuration file (json or toml)"
+        help="Path to configuration file (json or toml)",
     )
 
     h2j_parser = tools_subparser.add_parser(
@@ -134,7 +136,9 @@ def cli() -> None:
             manager = ServerManager.from_config(kwargs)
             manager.start()
         except Exception as e:
-            logging.error("Critical uncaught error (most likely in startup)", exc_info=True)
+            logging.error(
+                "Critical uncaught error (most likely in startup)", exc_info=True
+            )
 
     elif args.subcommand == "shell":
         host = args.host.split(":")
@@ -144,4 +148,3 @@ def cli() -> None:
 
     elif args.subcommand == "install":
         _installer.install(args.config)
-
