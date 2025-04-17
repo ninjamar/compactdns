@@ -150,6 +150,20 @@ kwargs_defaults = {
 kwargs_defaults = flatten_dict(kwargs_defaults)
 
 def get_kwargs(config_path, args=None, _no_args=False) -> dict[str, str | int | bool]:
+    """
+    Normalize/process kwargs from a path.
+
+    Args:
+        config_path: Path to config.
+        args: Args to program. Only needed if _no_args is True. Defaults to None.
+        _no_args: Only needed if running from the main program.. Defaults to False.
+
+    Raises:
+        ValueError: Unknown configuration file format.
+
+    Returns:
+        The processed kwargs.
+    """
     kwargs = {}
 
     if config_path is not None:

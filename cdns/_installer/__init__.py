@@ -30,9 +30,17 @@ import platform
 from . import macos
 
 
-def install(config_path):
+MACOS_INSTALL_PATH = "/Library/LaunchDaemons/com.ninjamar.compactdns.plist"
+
+def install(config_path) -> None:
+    """
+    Install the background process for cdns.
+
+    Args:
+        config_path: Path to configuration file.
+    """
     if platform.system() == "Darwin":
-        macos.main(config_path=config_path, out_path="/Library/LaunchDaemons/com.ninjamar.compactdns.plist")
+        macos.main(config_path, MACOS_INSTALL_PATH)
     elif platform.system() == "Linux":
         raise NotImplementedError
     elif platform.system() == "Windows":

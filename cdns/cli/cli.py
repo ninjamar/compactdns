@@ -39,28 +39,30 @@ from ..manager import ServerManager
 
 from .kwargs import get_kwargs, kwargs_defaults
 
-class LoggerWriter:
-    # Needed to write stderr (and stdout) to a file when running in the background
-    # Taken from https://stackoverflow.com/a/31688396
-    def __init__(self, level):
-        # self.level is really like using log.debug(message)
-        # at least in my case
-        self.level = level
 
-    def write(self, message):
-        # if statement reduces the amount of newlines that are
-        # printed to the logger
-        #if message != '\n':
-        message = message.strip()
-        if message:
-            self.level(message)
+def _configure_logging(kwargs) -> None:
+    """
+    Configure the logger.
 
-    def flush(self):
-        # create a flush method so things can be flushed when
-        # the system wants to. Not sure if simply 'printing'
-        # sys.stderr is the correct way to do it, but it seemed
-        # to work properly for me.
-        self.level(sys.stderr)
+    Args:
+        kwargs: Kwargs.
+    """
+    # Configure the logger
+    logger = logging.getLogger()
+
+    # Rather than getLevelNamesMapping, because we can support an older version of python
+    logger.setLevel(getattr(logging, kwargs["logging.loglevel"]))
+
+    formatter = logging.Formatter(fmt=kwargs["logging.format"], datefmt=kwargs["logging.datefmt"])
+
+    if kwargs["logging.path"]:
+        path = os.path.expanduser(kwargs["logging.path"])
+        handler = logging.FileHandler(path)
+    else:
+        handler = logging.StreamHandler(sys.stdout)
+    
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 
 def cli() -> None:
@@ -126,29 +128,7 @@ def cli() -> None:
     elif args.subcommand == "run":
         kwargs = get_kwargs(args.config, args)
 
-        logger = logging.getLogger()
-
-        # Rather than getLevelNamesMapping, because we can support an older version of python
-        logger.setLevel(getattr(logging, kwargs["logging.loglevel"]))
-
-        formatter = logging.Formatter(fmt=kwargs["logging.format"], datefmt=kwargs["logging.datefmt"])
-
-        if kwargs["logging.path"]:
-            path = os.path.expanduser(kwargs["logging.path"])
-            handler = logging.FileHandler(path)
-        else:
-            handler = logging.StreamHandler(sys.stdout)
-        
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        # sys.stdout = LoggerWriter(logger.debug)
-        # sys.stderr = LoggerWriter(logger.error)
-
-        #logging.basicConfig(
-        #    level=logging.getLevelNamesMapping()[kwargs["loglevel"]],
-        #    format="%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s",
-        #    datefmt="%Y-%m-%d %H:%M:%S",
-        #)
+        _configure_logging(kwargs)
 
         try:
             manager = ServerManager.from_config(kwargs)

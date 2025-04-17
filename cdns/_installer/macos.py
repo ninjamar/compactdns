@@ -28,9 +28,12 @@
 import sys
 import os.path
 from pathlib import Path
-from cdns.cli.kwargs import get_kwargs
 
-# TODO: Open template from file
+
+# Need to have exact binary path
+# /tmp/cdns-startup.log and /tmp/cdns-startup-err.log are use for logging
+# during startup, before the main logger is configured.
+
 TEMPLATE = """
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -48,67 +51,54 @@ TEMPLATE = """
     <key>KeepAlive</key>
     <true/>
 
-    <key>Sockets</key>
-    <dict>
-        {sockets}
-    </dict>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>{PATH}</string>
-    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/cdns-startup.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/cdns-startup-err.log</string>
 </dict>
 </plist>
 """
 
-SOCKET_TEMPLATE = """
-<key>{name}</key>
-<dict>
-    <key>SockServiceName</key>
-    <string>{service}</string>
-    <key>SockType</key>
-    <string>{type}</string>
-    <key>SockFamily</key>
-    <string>{family}</string>
-</dict>
-"""
 
-def get_cdns_path():
+def get_cdns_path() -> str:
+    """
+    Get the path to the cdns executable.
+
+    Returns:
+        The path to the cdns executable.
+    """
     return sys.argv[0]
-    # return subprocess.check_output(["which", "cdns"]).decode().strip()
 
-def generate_plist_from_config_dict(config, config_path):
-    sockets = []
+def generate_plist(config_path) -> None:
+    """
+    Generate a plist file corresponding to a specific configuration path.
 
-    udp = config["servers.host.host"]
-    udp_port = config["servers.host.port"]
-    tcp = config["servers.host.host"]
-    tcp_port = config["servers.host.port"]
-    tls = config["servers.tls.host"]
-    tls_port = config["servers.tls.port"]
-    debug_shell = config["servers.debug_shell.host"]
-    debug_shell_port = config["servers.debug_shell.port"]
+    Args:
+        config_path: Path to config file.
 
-    if udp and udp_port:
-        sockets.append(SOCKET_TEMPLATE.format(name="UDP", service="domain" if udp_port == 53 else udp_port, type="dgram", family="IPv4"))
-    if tcp and tcp_port:
-        sockets.append(SOCKET_TEMPLATE.format(name="TCP", service="domain" if tcp_port == 53 else tcp_port, type="stream", family="IPv4"))
-    
-    if tls and tls_port:
-        sockets.append(SOCKET_TEMPLATE.format(name="TLS", service="domain-s" if tls_port == 853 else tls_port, type="stream", family="IPv4"))
+    Returns:
+        The plist file contents.
+    """
+    return TEMPLATE.format(cdns_path=get_cdns_path(), config_path=Path(config_path).resolve())
 
-    if debug_shell and debug_shell_port:
-        sockets.append(SOCKET_TEMPLATE.format(name="DEBUG", service=debug_shell_port, type="dgram", family="IPv4"))
+def main(config_path, out_path) -> None:
+    """
+    Generate and write a plist file.
 
-    # print(Path(config_path).resolve())
-    return TEMPLATE.format(cdns_path=get_cdns_path(), sockets="\n".join(sockets), config_path=Path(config_path).resolve(), PATH=os.environ["PATH"])
-
-def main(config_path, out_path):
+    Args:
+        config_path: Path to configuration.
+        out_path: Path to write plist file to.
+    """
     out_path = os.path.expanduser(out_path)
-    config = get_kwargs(config_path, _no_args=True)
-    data = generate_plist_from_config_dict(config, config_path)
+    data = generate_plist(config_path)
     with open(out_path, "w") as f:
         f.write(data)
 
     print(f"Wrote plist to {out_path}")
+    print("This program has been configured to run at boot.")
+    print("Run the following to start the program immediately")
+    print(f"sudo launchctl bootstrap system {out_path}")
+    print("To stop it, run")
+    print(f"sudo launchctl bootout system {out_path}")
         
