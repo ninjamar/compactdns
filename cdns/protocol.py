@@ -689,7 +689,7 @@ def unpack_all(
     Returns:
         The DNS Query for the buffer.
     """
-
+    # print(buf)
     # Header isn't compressed
     # Load the first 12 bytes into the header
     header = DNSHeader.from_buffer(buf[:12])
@@ -769,3 +769,16 @@ def unpack_all(
     # Return empty questions and answers, rather than None, due to mypy
     # return header, questions, answers
     return DNSQuery(header, questions, answers, authorities, additionals)
+
+
+def get_ip_mode_from_rtype(t):
+    if t == RTypes.A:
+        return 4
+    if t == RTypes.AAAA:
+        return 28
+
+def get_rtype_from_ip_mode(ip_mode):
+    if ip_mode == 4:
+        return RTypes.A
+    if ip_mode == 6:
+        return RTypes.AAAA

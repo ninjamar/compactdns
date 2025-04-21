@@ -117,7 +117,7 @@ kwargs_defaults = {
     "resolver": {
         "recursive": _IFS(help_="Is the resolver recursive?", type_=bool, default=True),
         "list": _IFS(
-            help_="A list of resolvers to use.", type_=list, default=None, path=True
+            help_="A list of resolvers to use.", type_=list, default=None
         ),
         "add_system": _IFS(
             help_="Add the system resolvers to the resolvers", type_=bool, default=False
@@ -201,7 +201,6 @@ def get_kwargs(config_path, args=None, _no_args=False) -> dict[str, str | int | 
     for path in paths:
         if kwargs[path] is not None:
             if kwargs_defaults[path]["type_"] == list:
-                print(path, kwargs[path])
                 #  for x in path]
                 kwargs[path] = [(base_path / Path(x)).resolve() for x in kwargs[path]]
             else:
