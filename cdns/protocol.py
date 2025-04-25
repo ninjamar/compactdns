@@ -723,10 +723,18 @@ def unpack_all(
         type_, class_ = struct.unpack("!HH", buf[idx : idx + 4])
         idx += 4
 
+        # To fix the SOA error, "and" has to be changed to "or". However, this
+        # makes the server crash for normal requests. The simple fix is to check
+        # SOA records below.
         if i >= header.ancount + header.nscount and type_ not in {1, 2, 28}:
             # TODO: For additionals, only A, AAAA, and NS are supported
             # TODO: I have rtypes...
             continue
+        
+        # Check for SOA records
+        if type_ in {6}:
+            continue
+
         # Struct format
         # https://docs.python.org/3/library/struct.html
         # Big endian unsigned int, 4 bytess
@@ -780,5 +788,5 @@ def get_ip_mode_from_rtype(t):
 def get_rtype_from_ip_mode(ip_mode):
     if ip_mode == 4:
         return RTypes.A
-    if ip_mode == 6:
+    if ip_mode == 28:
         return RTypes.AAAA

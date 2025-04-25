@@ -9,7 +9,7 @@
 
 [logging]
 loglevel = "INFO"
-path = "./data/stdout.log"
+# path = "./data/stdout.log"
 
 [all]
 # fallback_ttl = 1000
@@ -19,11 +19,11 @@ max_workers = 50
 
 [servers.host]
 host = "127.0.0.1"
-port = 53
+port = 2053
 
 [servers.tls]
 host = "127.0.0.1"
-port = 853
+port = 2853
 ssl_key = "key.pem"
 ssl_cert = "cert.pem"
 
@@ -55,7 +55,7 @@ zone_dirs = [
     "./example-zones"
 ]
 # Text file to preload recordds
-preload_path = "./data/preload.txt"
+# preload_path = "./data/preload.txt"
 # Path to cache dump
 # cache_path = "./data/cache.pk.lzma"
 # Path to zone dump

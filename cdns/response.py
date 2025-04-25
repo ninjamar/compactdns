@@ -160,18 +160,11 @@ class ResponseHandler:
         if self.new.header.qdcount > 0:
             # Process header, questions
             # Repack data
-            to_send = self.new.pack()
-
-            print(self.new.questions)
-
-            t = self.new.questions[0].type_
-            if t == RTypes.A:
-                ip_mode = 4
-            elif t == RTypes.AAAA:
-                ip_mode = 6
+            # to_send = self.new.pack()
 
             # TODO: Should this be exposed?
-            future = self.resolver.send(to_send, ip_mode)
+            # future = self.resolver.send(to_send, ip_mode)
+            future = self.resolver.send(self.new)
             # send = pack_all_compressed(self.new_header, self.new_questions)
             # future = self.forwarder(send)
             future.add_done_callback(self._forwarding_done_handler)
