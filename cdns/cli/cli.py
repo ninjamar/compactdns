@@ -29,14 +29,11 @@
 
 import argparse
 import logging
-import sys
 import os
+import sys
 
-
-from .. import tools
-from .. import _installer
+from .. import _installer, tools
 from ..manager import ServerManager
-
 from .kwargs import get_kwargs, kwargs_defaults
 
 

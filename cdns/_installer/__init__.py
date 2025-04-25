@@ -29,7 +29,6 @@ import platform
 
 from . import macos
 
-
 MACOS_INSTALL_PATH = "/Library/LaunchDaemons/com.ninjamar.compactdns.plist"
 
 

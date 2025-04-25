@@ -34,6 +34,7 @@ else:
     import tomllib
 
 from pathlib import Path
+
 from ..utils import flatten_dict, merge_defaults
 
 
@@ -116,9 +117,7 @@ kwargs_defaults = {
     },
     "resolver": {
         "recursive": _IFS(help_="Is the resolver recursive?", type_=bool, default=True),
-        "list": _IFS(
-            help_="A list of resolvers to use.", type_=list, default=None
-        ),
+        "list": _IFS(help_="A list of resolvers to use.", type_=list, default=None),
         "add_system": _IFS(
             help_="Add the system resolvers to the resolvers", type_=bool, default=False
         ),

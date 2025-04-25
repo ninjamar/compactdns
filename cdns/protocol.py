@@ -730,7 +730,7 @@ def unpack_all(
             # TODO: For additionals, only A, AAAA, and NS are supported
             # TODO: I have rtypes...
             continue
-        
+
         # Check for SOA records
         if type_ in {6}:
             continue
@@ -784,6 +784,7 @@ def get_ip_mode_from_rtype(t):
         return 4
     if t == RTypes.AAAA:
         return 28
+
 
 def get_rtype_from_ip_mode(ip_mode):
     if ip_mode == 4:

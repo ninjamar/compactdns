@@ -25,10 +25,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys
 import os.path
+import sys
 from pathlib import Path
-
 
 # Need to have exact binary path
 # /tmp/cdns-startup.log and /tmp/cdns-startup-err.log are use for logging
