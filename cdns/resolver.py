@@ -198,7 +198,6 @@ class RecursiveResolver(BaseResolver):
         additionals: list[DNSAdditional],
         query: DNSQuery,
         to_future: concurrent.futures.Future[DNSQuery],
-        ip_size=4,
     ) -> None:
         """Find a nameservers.
 
@@ -216,7 +215,7 @@ class RecursiveResolver(BaseResolver):
         ip = next((x.decoded_rdata for x in additionals if x.rdlength == 4), None)
         # ip = next((x.decoded_rdata for x in additionals if x.rdlength == ip_size), None)
         if ip:
-            f = self._post_nameserver_found(ip, query, to_future, ip_size)
+            f = self._post_nameserver_found(ip, query, to_future)
         else:
             # Resolve nameserver
             nameserver = authorities[0].decoded_rdata
@@ -235,7 +234,7 @@ class RecursiveResolver(BaseResolver):
                 # them. So, we pass the answers as the additionals. This works
                 # because DNSAnswer, DNSAuthority, and DNSAdditional are all
                 # identical.
-                self._find_nameserver([], nameservers.answers, query, to_future, 4)  # type: ignore[arg-type]
+                self._find_nameserver([], nameservers.answers, query, to_future)  # type: ignore[arg-type]
 
             future.add_done_callback(callback)
 
@@ -244,7 +243,6 @@ class RecursiveResolver(BaseResolver):
         nameserver: str,
         query: DNSQuery,
         to_future: concurrent.futures.Future[DNSQuery],
-        ip_size,
     ) -> None:
         """Callback after nameservers are found.
 
@@ -253,7 +251,7 @@ class RecursiveResolver(BaseResolver):
             query: Query to send.
             to_future: The parent future.
         """
-        new_future = self._resolve(query, (nameserver, 53), ip_size)
+        new_future = self._resolve(query, (nameserver, 53))
         new_future.add_done_callback(lambda f: to_future.set_result(f.result()))
         return new_future
 
@@ -262,7 +260,6 @@ class RecursiveResolver(BaseResolver):
         recv_future: concurrent.futures.Future[bytes],
         query: DNSQuery,
         to_future: concurrent.futures.Future[DNSQuery],
-        ip_size,
     ) -> None:
         """Called after _resolve.
 
@@ -295,7 +292,7 @@ class RecursiveResolver(BaseResolver):
             # GET IPV4 record
             # This function executes rest of code
             self._find_nameserver(
-                r.authorities, r.additionals, query, to_future, ip_size
+                r.authorities, r.additionals, query, to_future
             )
         else:
             # TODO: DO authorities and additionals always go together?
@@ -309,7 +306,7 @@ class RecursiveResolver(BaseResolver):
             to_future.set_result(error_query)
 
     def _resolve(
-        self, query: DNSQuery, server_addr: tuple[str, int], ip_size
+        self, query: DNSQuery, server_addr: tuple[str, int]
     ) -> concurrent.futures.Future[DNSQuery]:
         """Resolve a query recursively.
 
@@ -325,7 +322,7 @@ class RecursiveResolver(BaseResolver):
         def send():
             response = self.forwarder.forward(query.pack(), server_addr)
             response.add_done_callback(
-                lambda f: self._resolve_done(f, query, future, ip_size)
+                lambda f: self._resolve_done(f, query, future)
             )
 
         self.executor.submit(send)
@@ -354,7 +351,7 @@ class RecursiveResolver(BaseResolver):
         elif t == RTypes.AAAA:
             ip_size = 16
 
-        return self._resolve(query, server_addr, ip_size)
+        return self._resolve(query, server_addr)
 
     def cleanup(self):
         """Cleanup any loose ends."""

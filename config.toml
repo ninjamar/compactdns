@@ -9,7 +9,7 @@
 
 [logging]
 loglevel = "INFO"
-# path = "./data/stdout.log"
+path = "./data/stdout.log"
 
 [all]
 # fallback_ttl = 1000
@@ -19,11 +19,11 @@ max_workers = 50
 
 [servers.host]
 host = "127.0.0.1"
-port = 2053
+port = 53
 
 [servers.tls]
 host = "127.0.0.1"
-port = 2853
+port = 853
 ssl_key = "key.pem"
 ssl_cert = "cert.pem"
 
