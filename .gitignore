@@ -181,6 +181,9 @@ static/
 
 ignore*/
 ignore-*.*
+
+data
+
 .vscode
 
 # extractor-cache/*

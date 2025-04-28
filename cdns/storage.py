@@ -25,6 +25,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import os
 import functools
 import lzma
 import pickle
@@ -49,6 +50,10 @@ class RecordError(Exception):
 class RecordStorage:
     """A container to store zones and the cache."""
 
+    # Used internally
+    _zone_path = None
+    _cache_path = None
+
     def __init__(self) -> None:
         """Create an instance of RecordStorage."""
         # Store a TimedCache for upstream requests
@@ -60,7 +65,7 @@ class RecordStorage:
         self.zones: dict[str, DNSZone] = {}
 
     def _ensure(fn: Callable) -> Callable:  # type: ignore
-        # Yet another instance of mypy being annoying (YAIMBA) -- see https://github.com/python/mypy/issues/7778
+        # Yet another instance of mypy being annoying -- see https://github.com/python/mypy/issues/7778
         # Ensure proper arguments
         @functools.wraps(fn)
         def dec_ensure(self, *args, **kwargs) -> Any:
@@ -71,6 +76,23 @@ class RecordStorage:
 
         return dec_ensure
 
+    def _make_file(fn: Callable) -> Callable:
+        @functools.wraps(fn)
+        def do_make_file(self, file, *args, **kwargs) -> Any:
+            Path(file).parent.mkdir(parents=True, exist_ok=True)
+
+            return fn(self, file, *args, **kwargs)
+        return do_make_file
+    
+    def _do_nothing_if_no_file(fn: Callable) -> Callable:
+        @functools.wraps(fn)
+        def do_nothing(self, file, *args, **kwargs):
+            if not os.path.exists(file):
+                return None
+            return fn(self, file, *args, **kwargs)
+
+        return do_nothing
+            
     @_ensure
     def get_record(
         self,
@@ -138,6 +160,7 @@ class RecordStorage:
 
         return values
 
+    @_make_file
     def load_zone_from_file(self, path: Path | str) -> None:
         """Load the zone from a file. The filename must be domain.zone. The
         file is pickled, and uses LZMA compression.
@@ -158,7 +181,8 @@ class RecordStorage:
             self.zones[zone.domain] = zone
             return
         raise Exception("Unable to load zone from file: invalid format")
-
+    
+    @_do_nothing_if_no_file
     def load_cache_from_file(self, path: Path | str) -> None:
         """Load the cache from a file. The file is pickled, and uses LZMA
         compression.
@@ -179,6 +203,7 @@ class RecordStorage:
         with lzma.open(path, "wb") as f:
             pickle.dump(self.cache, f, protocol=pickle.HIGHEST_PROTOCOL)
 
+    @_do_nothing_if_no_file
     def load_zone_object_from_file(self, path: Path | str) -> None:
         """Load self.zones from a file. The file is pickled, and uses LZMA
         compression.

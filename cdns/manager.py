@@ -187,11 +187,14 @@ class ServerManager:
             p = Path(kwargs["storage.zone_path"]).resolve()
             p.parent.mkdir(parents=True, exist_ok=True)
             storage.load_zone_object_from_file(p)
+            storage._zone_path = kwargs["storage.zone_path"]
+
         if kwargs["storage.cache_path"] is not None:
             # TODO: Test this out
             p = Path(kwargs["storage.cache_path"]).resolve()
             p.parent.mkdir(parents=True, exist_ok=True)
             storage.load_cache_from_file(p)
+            storage._cache_path = kwargs["storage.cache_path"]
 
         if (
             kwargs["servers.debug_shell.host"] is None
@@ -249,7 +252,7 @@ class ServerManager:
                 k[8:]: v for k, v in kwargs.items() if k.startswith("daemon")
             },
             # daemon_options=kwargs["daemons"]
-        )
+            )
 
     def cleanup(self) -> None:
         """Handle destroying the sockets."""
@@ -267,6 +270,15 @@ class ServerManager:
             self.resolver_daemon.terminate()
 
         self.resolver.cleanup()
+
+        logging.info("Cleanup: Sockets closed")
+        # Dump cache and zones to file
+        if self.storage._cache_path:
+            logging.info("Cleanup: Writing cache to file %s", self.storage._cache_path)
+            self.storage.write_cache_to_file(self.storage._cache_path)
+        if self.storage._zone_path:
+            logging.info("Cleanup: Writing zone to file %s", self.storage._zone_path)
+            self.storage.write_zone_object_to_file(self.storage._zone_path)
 
     def _handle_dns_query_udp(self, addr: tuple[str, int], query: bytes) -> None:
         """Handle a DNS query over UDP.
