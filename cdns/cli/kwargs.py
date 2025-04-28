@@ -49,7 +49,7 @@ class _IFS:
 # All paths have to be from the root of the config file, so use path=True
 
 # TODO: Merge with above (use tuple) and store type
-kwargs_defaults = {
+kwargs_defaults_initial = {
     "logging": {
         "loglevel": _IFS(
             help_="Log level to use. One of {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET'}",
@@ -156,7 +156,7 @@ kwargs_defaults = {
     },
 }
 
-kwargs_defaults = flatten_dict(kwargs_defaults)
+kwargs_defaults: dict[str, _IFS] = flatten_dict(kwargs_defaults_initial)
 
 
 def get_kwargs(config_path, args=None, _no_args=False) -> dict[str, str | int | bool]:

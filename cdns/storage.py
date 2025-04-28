@@ -37,8 +37,12 @@ from publicsuffixlist import PublicSuffixList  # type: ignore
 from .cache import DNSCache
 from .protocol import RTypes
 from .utils import BiInt
-from .zones import (DNSZone, parse_multiple_json_zones,
-                    parse_singular_json_zone, parse_zone)
+from .zones import (
+    DNSZone,
+    parse_multiple_json_zones,
+    parse_singular_json_zone,
+    parse_zone,
+)
 
 
 class RecordError(Exception):
@@ -76,15 +80,20 @@ class RecordStorage:
 
         return dec_ensure
 
-    def _make_file(fn: Callable) -> Callable:
+    def _make_file(fn: Callable) -> Callable:  # type: ignore
+        # Yet another instance of mypy being annoying -- see https://github.com/python/mypy/issues/7778
+
         @functools.wraps(fn)
         def do_make_file(self, file, *args, **kwargs) -> Any:
             Path(file).parent.mkdir(parents=True, exist_ok=True)
 
             return fn(self, file, *args, **kwargs)
+
         return do_make_file
-    
-    def _do_nothing_if_no_file(fn: Callable) -> Callable:
+
+    def _do_nothing_if_no_file(fn: Callable) -> Callable:  # type: ignore
+        # Yet another instance of mypy being annoying -- see https://github.com/python/mypy/issues/7778
+
         @functools.wraps(fn)
         def do_nothing(self, file, *args, **kwargs):
             if not os.path.exists(file):
@@ -92,7 +101,7 @@ class RecordStorage:
             return fn(self, file, *args, **kwargs)
 
         return do_nothing
-            
+
     @_ensure
     def get_record(
         self,
@@ -181,7 +190,7 @@ class RecordStorage:
             self.zones[zone.domain] = zone
             return
         raise Exception("Unable to load zone from file: invalid format")
-    
+
     @_do_nothing_if_no_file
     def load_cache_from_file(self, path: Path | str) -> None:
         """Load the cache from a file. The file is pickled, and uses LZMA

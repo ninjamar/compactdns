@@ -30,10 +30,19 @@ import socket
 import threading
 from typing import cast
 
-from cdns.protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
-                           DNSQuery, DNSQuestion, RTypes, auto_decode_label,
-                           get_ip_mode_from_rtype, get_rtype_from_ip_mode,
-                           unpack_all)
+from cdns.protocol import (
+    DNSAdditional,
+    DNSAnswer,
+    DNSAuthority,
+    DNSHeader,
+    DNSQuery,
+    DNSQuestion,
+    RTypes,
+    auto_decode_label,
+    get_ip_mode_from_rtype,
+    get_rtype_from_ip_mode,
+    unpack_all,
+)
 
 
 class BaseForwarder:
@@ -87,7 +96,7 @@ class UdpForwarder(BaseForwarder):
                             sock.close()
 
     def forward(
-        self, query: bytes, addr: tuple[str, int]
+        self, query: DNSQuery, addr: tuple[str, int]
     ) -> concurrent.futures.Future[bytes]:
         """Forward a DNS query to an address.
 
@@ -109,7 +118,7 @@ class UdpForwarder(BaseForwarder):
 
         # TODO: The bottleneck
         try:
-            sock.sendto(query, addr)
+            sock.sendto(query.pack(), addr)
             with self.lock:
                 # Add a selector, and when it is ready, read from pending_requests
                 self.sel.register(sock, selectors.EVENT_READ)
@@ -128,7 +137,7 @@ class UdpForwarder(BaseForwarder):
 class BaseResolver:
     """Base class for resolvers."""
 
-    def send(self, query: bytes) -> concurrent.futures.Future[DNSQuery]:
+    def send(self, query: DNSQuery) -> concurrent.futures.Future[DNSQuery]:
         raise NotImplementedError
 
     def cleanup(self):
@@ -147,7 +156,7 @@ class UpstreamResolver(BaseResolver):
         self.addr = addr
         self.forwarder = UdpForwarder()
 
-    def send(self, query: bytes) -> concurrent.futures.Future[DNSQuery]:
+    def send(self, query: DNSQuery) -> concurrent.futures.Future[DNSQuery]:
         """Send a query to the upstream.
 
         Args:
@@ -215,7 +224,7 @@ class RecursiveResolver(BaseResolver):
         ip = next((x.decoded_rdata for x in additionals if x.rdlength == 4), None)
         # ip = next((x.decoded_rdata for x in additionals if x.rdlength == ip_size), None)
         if ip:
-            f = self._post_nameserver_found(ip, query, to_future)
+            self._post_nameserver_found(ip, query, to_future)
         else:
             # Resolve nameserver
             nameserver = authorities[0].decoded_rdata
@@ -243,13 +252,16 @@ class RecursiveResolver(BaseResolver):
         nameserver: str,
         query: DNSQuery,
         to_future: concurrent.futures.Future[DNSQuery],
-    ) -> None:
+    ) -> concurrent.futures.Future:
         """Callback after nameservers are found.
 
         Args:
             nameserver: IP address of nameserver.
             query: Query to send.
             to_future: The parent future.
+
+        Returns:
+            The new future (not sure why it returns, but it does)
         """
         new_future = self._resolve(query, (nameserver, 53))
         new_future.add_done_callback(lambda f: to_future.set_result(f.result()))
@@ -291,9 +303,7 @@ class RecursiveResolver(BaseResolver):
         elif r.authorities:
             # GET IPV4 record
             # This function executes rest of code
-            self._find_nameserver(
-                r.authorities, r.additionals, query, to_future
-            )
+            self._find_nameserver(r.authorities, r.additionals, query, to_future)
         else:
             # TODO: DO authorities and additionals always go together?
 
@@ -320,10 +330,8 @@ class RecursiveResolver(BaseResolver):
         future: concurrent.futures.Future[DNSQuery] = concurrent.futures.Future()
 
         def send():
-            response = self.forwarder.forward(query.pack(), server_addr)
-            response.add_done_callback(
-                lambda f: self._resolve_done(f, query, future)
-            )
+            response = self.forwarder.forward(query, server_addr)
+            response.add_done_callback(lambda f: self._resolve_done(f, query, future))
 
         self.executor.submit(send)
         return future

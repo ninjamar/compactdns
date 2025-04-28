@@ -7,8 +7,16 @@ import socket
 import struct
 from typing import Callable
 
-from .protocol import (DNSAnswer, DNSHeader, DNSQuery, DNSQuestion, RTypes,
-                       auto_decode_label, auto_encode_label, unpack_all)
+from .protocol import (
+    DNSAnswer,
+    DNSHeader,
+    DNSQuery,
+    DNSQuestion,
+    RTypes,
+    auto_decode_label,
+    auto_encode_label,
+    unpack_all,
+)
 from .resolver import BaseResolver, RecursiveResolver
 from .storage import RecordStorage
 
@@ -315,10 +323,10 @@ def _preload_hosts(
 ) -> None:
     for host in hosts:
         # Monkeypatch the buffer, ignoring the fake socket connection
-        r = ResponseHandler(storage=storage, resolver=resolver, tcp_conn=True)
+        r = ResponseHandler(storage=storage, resolver=resolver, tcp_conn=True)  # type: ignore
 
         # Don't send any data back
-        r._send = lambda: None
+        r._send = lambda: None  # type: ignore
 
         r.buf = DNSQuery(
             header=DNSHeader(qdcount=1), questions=[DNSQuestion(decoded_name=host)]

@@ -252,7 +252,7 @@ class ServerManager:
                 k[8:]: v for k, v in kwargs.items() if k.startswith("daemon")
             },
             # daemon_options=kwargs["daemons"]
-            )
+        )
 
     def cleanup(self) -> None:
         """Handle destroying the sockets."""
@@ -528,8 +528,15 @@ class ServerManager:
                                 )
 
                             elif obj == self.resolver_q._reader:  # type: ignore[attr-defined]
-                                self.resolver.addr = self.resolver_q.get()
-                                logging.info("Resolver address: %s", self.resolver.addr)
+                                # I'm no expert at mypy, but ignore the type because
+                                # we can assert that self.resolver.addr is used only if
+                                # hasattr(self.resolver, "attr")
+
+                                # TODO: Fix
+                                # TODO: Very indented here...
+
+                                self.resolver.addr = self.resolver_q.get()  # type: ignore
+                                logging.info("Resolver address: %s", self.resolver.addr)  # type: ignore
 
                     except KeyboardInterrupt:
                         # Don't want the except call here to be called, I want the one outside the while loop

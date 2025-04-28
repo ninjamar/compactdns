@@ -55,7 +55,7 @@ def _configure_logging(kwargs) -> None:
 
     if kwargs["logging.path"]:
         path = os.path.expanduser(kwargs["logging.path"])
-        handler = logging.FileHandler(path)
+        handler: logging.Handler = logging.FileHandler(path)
     else:
         handler = logging.StreamHandler(sys.stdout)
 
@@ -112,7 +112,7 @@ def cli() -> None:
         parser_run.add_argument(
             f"--{key}",
             help=value["help_"],
-            type=value["type_"] if value["type_"] != list else None,
+            type=value["type_"] if value["type_"] != list else None,  # type: ignore[arg-type]
             nargs="+" if value["type_"] == list else None,  # type: ignore[arg-type]
         )
 
