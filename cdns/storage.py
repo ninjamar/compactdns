@@ -25,9 +25,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import os
 import functools
 import lzma
+import os
 import pickle
 from pathlib import Path
 from typing import Any, Callable
@@ -37,12 +37,8 @@ from publicsuffixlist import PublicSuffixList  # type: ignore
 from .cache import DNSCache
 from .protocol import RTypes
 from .utils import BiInt
-from .zones import (
-    DNSZone,
-    parse_multiple_json_zones,
-    parse_singular_json_zone,
-    parse_zone,
-)
+from .zones import (DNSZone, parse_multiple_json_zones,
+                    parse_singular_json_zone, parse_zone)
 
 
 class RecordError(Exception):
@@ -129,6 +125,8 @@ class RecordStorage:
 
         base_domain = self.extractor.privatesuffix(record_domain)
         values = []
+
+        # Lookup record_domain via base_domain
         if base_domain in self.zones:
             # TODO: use ttl here -- can be none
             if type_ == RTypes.SOA:
@@ -151,11 +149,12 @@ class RecordStorage:
                         values = self.zones[base_domain].records[record_domain][
                             str(type_)
                         ]  # This is why BiInt is a terrible idea
-
-        else:
+        
+        # If nothing is found, try from the cache
+        if len(values) == 0:
             values = self.cache.get_records(record_domain, type_)
-
         # TODO: Does wildcard work
+
         if "*" not in record_domain and len(values) == 0:
             # TODO: Make this faster
             # TODO: Make TTL cache wrapper for function
@@ -230,7 +229,7 @@ class RecordStorage:
         Args:
             path: Path to file.
         """
-        with lzma.open(path, "rb") as f:
+        with lzma.open(path, "wb") as f:
             pickle.dump(self.zones, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_zones_from_dir(self, path: Path | str) -> None:

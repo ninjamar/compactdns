@@ -7,16 +7,8 @@ import socket
 import struct
 from typing import Callable
 
-from .protocol import (
-    DNSAnswer,
-    DNSHeader,
-    DNSQuery,
-    DNSQuestion,
-    RTypes,
-    auto_decode_label,
-    auto_encode_label,
-    unpack_all,
-)
+from .protocol import (DNSAnswer, DNSHeader, DNSQuery, DNSQuestion, RTypes,
+                       auto_decode_label, auto_encode_label, unpack_all)
 from .resolver import BaseResolver, RecursiveResolver
 from .storage import RecordStorage
 
@@ -131,6 +123,7 @@ class ResponseHandler:
                 raise NotImplementedError("SOA and MX records aren't supported yet")
 
             records = self.storage.get_record(type_=type_, record_domain=record_domain)
+
             if len(records) > 0:
                 answers = []
                 for record in records:

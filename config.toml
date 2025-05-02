@@ -19,18 +19,18 @@ max_workers = 50
 
 [servers.host]
 host = "127.0.0.1"
-port = 53
+port = 2053
 
 [servers.tls]
 host = "127.0.0.1"
-port = 853
+port = 2853
 ssl_key = "key.pem"
 ssl_cert = "cert.pem"
 
 
 [servers.debug_shell]
 host = "127.0.0.1"
-port = 2055
+port = 22055
 
 [resolver]
 recursive = true
