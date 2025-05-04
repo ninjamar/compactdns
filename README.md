@@ -1,7 +1,7 @@
 # CompactDNS (CDNS)
-CompactDNS (CDNS) is a privacy-oriented and bloat-free recursive DNS server.
+CompactDNS (CDNS) is a privacy-oriented, bloat-free recursive DNS server.
 
-> In 2025, Google Chrome will remove adblockers with the impending manifest V3 update. This horrific change will threaten the existance of software such as UBlock Origin. Instead of ditching Chrome, I decided to see how I could block ads. This DNS server, CompactDns, solves exactly that: it's lightweight, blazing fast, and can block ads. Oh, and did I mention is caches requests on device, leading to an average latency time of only 1 ms..
+> In 2025, Google Chrome will remove adblockers with the impending Manifest V3 update. This change threaten the existance of software like UBlock Origin. Rather than abandoning Chrome, I explored alternative ways to block ads. This DNS server, CompactDns, was the result: it's lightweight, blazing fast, and can block ads. It also caches all requests on device, leading to a latency as low as 0 ms.
 > 
 > \- ninjamar
 
@@ -27,9 +27,7 @@ cdns [command] [options]
 
 The server can be run as a daemon, or as a standalone program. 
 
-
-
-### Running the server
+### Running the Server
 To start the server:
 ```bash
 cdns run [options]
@@ -40,7 +38,7 @@ cdns run --config onfig.toml
 ```
 The DNS protocol is typically run over port `53` for TCP and `853` for TLS. 
 
-**When TLS is used, a key and certificate file are needed.**  
+**When TLS is used, a key and certificate file are required.**  
 Generate a pair:
 ```bash
 openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
@@ -48,33 +46,36 @@ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -node
 
 ## Configuration
 
-An example configuration file can be found in `config.toml`.
+An example configuration file is available in `config.toml`.
 
-## Running as a service
+## Running as a Service
 
 ### MacOS / OSX
 
-CDNS can be setup to run in the background / as a service.
+CDNS can be set up to run in the background as a service:
 
 ```
-$ sudo cdns install -c /path/to/config
+sudo cdns install -c /path/to/config
 ```
 
-This will write a plist file to `/Library/LaunchDaemons/com.ninjamar.compactdns.plist`. 
+This command writes a plist file to `/Library/LaunchDaemons/com.ninjamar.compactdns.plist`. 
 
-To start the server, run `sudo launchctl bootstrap system /Library/LaunchDaemons/com.ninjamar.compactdns.plist`.
 
-To stop the server, run `sudo launchctl bootout system /Library/LaunchDaemons/com.ninjamar.compactdns.plist`
+Start the server:
+```bash
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.ninjamar.compactdns.plist
+```
+Stop the server:
+```bash
+sudo launchctl bootout system /Library/LaunchDaemons/com.ninjamar.compactdns.plist
+```
+Startup logs are written to `/tmp/cdns-startup.log` and `cdns-startup-err.log` .
 
-Log files before program initialization will be written to `/tmp/cdns-startup.log` and `cdns-startup-err.log` .
+**Ensure that all paths in the configuration file are relative to the path of the configuration file.**
 
-**Make sure that all paths in the configuration file are relative to the path of the configuration file.**
+### Changing the System DNS Server
 
-### Changing the DNS server
-
-CDNS can be configured as the system DNS server.
-
-Replace `A.B.C.D` with the address of the server.
+CDNS can be configured as the system DNS server. Replace `A.B.C.D` with the address of the server.
 
 On MacOS:
 ```bash
@@ -83,47 +84,79 @@ networksetup -setdnsservers Wi-Fi A.B.C.D
 
 ## DNS Zones
 
-Zones can be stored in 3 formats: a JSON file containing a singular zone (ends with `.json`), a JSON file containing many zones (ends with `.all.json`), or a proper zone file. (ends with `.zone`)
+Zones can be stored in 3 formats:
+* Single zone Json file (e.g., `*.json`)
+* Multiple zones JSOn file (e.g., `*.all.json`)
+* Traditional zone file (e.g., `*.zone`)
 
-See `example-zones/` for examples. 
+See the `example-zones/` directory for examples. 
 
-### From a host file
+### From a Host File
 
-To convert a host file to a json list:
+To convert a host file to a JSON list:
 ```bash
 cdns tools h2j /path/to/host.txt /path/to/output.all.json
 ```
 
 **`example-zones/lowe.all.json` was generated from [Peter Lowe's adservers list](https://pgl.yoyo.org/adservers/) using this script**
 
+## Preload Files and Cache Dump
 
-## Other commands
+A preload file is a plain text list of hosts to be loaded into the cache before server startup.
+
+
+```
+# These sites will all be preloaded
+google.com
+github.com
+example.com
+```
+
+The cache (and also the zones) can be written to a file upon server shutdown and reloaded on startup.
+
+## Architecture
+
+When in recursive mode, the server can achieve latency as low as 0 ms. Initially, cache misses will result in higher latency, but once requests are resolved, responses are cached for the future.
+```mermaid
+graph TD;
+    send["Send the request"]
+    done["Response sent back"]
+    send --> recv["Server receives the request"]
+    recv --> is_cache["Is the request in the cache?"]
+    is_cache --> |"Yes"| cache["The request is in the cache"] --> done
+    is_cache --> |"No"| recursive["Recursively fulfill the request"]
+    recursive --> |"Add response to cache"| done
+```
+
+## Other Commands
 
 ### `shell`
-CDNS has an interactive debugging shell.
+CDNS includes an interactive debugging shell.
 
 > [!WARNING]
-> This feature exists for debbuging. 
-> Use at your own risk
+> This feature exists for debbuging. Use at your own risk
 
-**Requests are blocked when in use**
+> [!NOTE]
+> Incoming requests are blocked when in use
+
+Run the shell:
 ```bash
 cdns shell [options]
 ```
 
 Options:
-  `--host`, `-h`: The host address of the shell server in the format of `a.b.c.d:port`
+*  `--host`, `-h`: The host address for the shell server in `a.b.c.d:port` format
 
-The shell will open a Python REPL hooked up to the main server process.
+The shell opens a Python REPL connected to the main server process.
 
-See the available commands:
-```bash
+List the available commands:
+```python
 >>> help(self.command)
 ```
 
 
 ## Testing
-There are some tests in `/tests` but those are quite outdated.
+Some outdated tests exist in `tests/` directory
 
 Instead, send test queries using dig.
 ```bash
@@ -132,4 +165,4 @@ dig @A.B.C.D -p PORT example.com
 
 ## License
 
-This project is licensed under the MIT License. Please see the LICENSE file for more details.
+This project is licensed under the MIT License. See the LICENSE file for details.
