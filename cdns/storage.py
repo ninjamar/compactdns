@@ -149,7 +149,7 @@ class RecordStorage:
                         values = self.zones[base_domain].records[record_domain][
                             str(type_)
                         ]  # This is why BiInt is a terrible idea
-        
+
         # If nothing is found, try from the cache
         if len(values) == 0:
             values = self.cache.get_records(record_domain, type_)

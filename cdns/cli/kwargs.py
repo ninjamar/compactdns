@@ -72,12 +72,6 @@ kwargs_defaults_initial = {
         ),
     },
     "all": {
-        "fallback_ttl": _IFS(
-            help_="Fallback TTL for all requests", type_=int, default=300
-        ),
-        "ttl_min": _IFS(
-            help_="TTL minimum for storage and resolver", type_=int, default=200
-        ),
         "max_workers": _IFS(
             help_="Max number of workers for the DNS server", type_=int, default=50
         ),
@@ -165,7 +159,7 @@ def get_kwargs(config_path, args=None, _no_args=False) -> dict[str, str | int | 
     Args:
         config_path: Path to config.
         args: Args to program. Only needed if _no_args is True. Defaults to None.
-        _no_args: Only needed if running from the main program.. Defaults to False.
+        _no_args: Only needed if running from the main program. Defaults to False.
 
     Raises:
         ValueError: Unknown configuration file format.

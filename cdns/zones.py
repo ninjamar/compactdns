@@ -58,7 +58,7 @@ class MXRecord:
 
 @dataclasses.dataclass
 class DNSZone:
-    """DNS Zone."""
+    """DNS Zone dataclass."""
 
     domain: str
     ttl: int = 3600
@@ -78,6 +78,7 @@ class DNSZone:
             name: Name of the record.
             record_type: Type of the record (eg A, TXT, MX).
             value: Value of the record.
+            ttl: Time to live for record.
         """
         if not ttl:
             ttl = self.ttl
@@ -126,7 +127,7 @@ DNSZone(
 
 
 class ZoneParsingError(Exception):
-    """An error while parsing a Zone."""
+    """An error while parsing a zone."""
 
     pass
 
@@ -139,7 +140,7 @@ class ZoneParser:
 
         Args:
             domain: The base domain for the zone file.
-            stream: File stream for the zone.
+            stream: Stream for the zone.
         """
         self.stream = stream
         self.zone = DNSZone(domain=domain)
@@ -265,7 +266,7 @@ class ZoneParser:
         """Fetch a expected line from the stream.
 
         Raises:
-            ZoneParsingError: If an expected
+            ZoneParsingError: If the zone cannot be parsed.
         """
         # TODO: Remove this function
         self.line = self.stream.readline()
@@ -275,7 +276,16 @@ class ZoneParser:
         self.line = self.line.strip().split(";")[0].strip()
 
 
-def parse_singular_json_obj(j) -> DNSZone:
+def parse_singular_json_obj(j: dict) -> DNSZone:
+    """
+    Parse a singular zone from json.
+
+    Args:
+        j: The json.
+
+    Returns:
+        The DNS zone.
+    """
     zone = DNSZone(domain=j["domain"])
     if "ttl" in j:
         zone.ttl = int(j["ttl"])
@@ -308,6 +318,15 @@ def parse_singular_json_obj(j) -> DNSZone:
 
 
 def parse_multiple_json_zones(path: Path | str) -> dict[str, DNSZone]:
+    """
+    Parse multiple json zones from a file.
+
+    Args:
+        path: Path to zone list.
+
+    Returns:
+        A dict of domain to zones.
+    """
     with open(path) as f:
         return {
             zone.domain: zone
@@ -316,6 +335,15 @@ def parse_multiple_json_zones(path: Path | str) -> dict[str, DNSZone]:
 
 
 def parse_singular_json_zone(path: Path | str) -> DNSZone:
+    """
+    Parse a singular json zone from a file.
+
+    Args:
+        path: Path to json zone.
+
+    Returns:
+        The DNS zone from the file.
+    """
     with open(path) as f:
         return parse_singular_json_obj(json.load(f))
 

@@ -46,7 +46,7 @@ def main(host, target):
     dump = []
     for ip, name in rules:
         root = extractor.privatesuffix(name)
-        if root == name: # top level = block all
+        if root == name:  # top level = block all
             dump.append(
                 {
                     "domain": root,

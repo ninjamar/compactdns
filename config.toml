@@ -8,54 +8,78 @@
 # Example configuration for compactdns
 
 [logging]
+# Default log level. Valid options are DEBUG, INFO, WARNING, ERROR, and CRITICAL.
 loglevel = "INFO"
-# path = "./data/stdout.log"
+# Path to standard output
+path = "./data/stdout.log"
 
 [all]
-# fallback_ttl = 1000
-ttl_min = 400
+# Maximum number of threads/workers open for requests
 max_workers = 50
 
-
 [servers.host]
+# TCP address and port
+# Port 53 is typically used for TCP
 host = "127.0.0.1"
-port = 2053
+port = 53
 
 [servers.tls]
+# TLS address and port
+# Port 853 is typically used for TLS
 host = "127.0.0.1"
-port = 2853
+port = 853
+# Path to key and certificate file.
+# Generate one using:
+# openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
 ssl_key = "key.pem"
 ssl_cert = "cert.pem"
 
 
 [servers.debug_shell]
+# Debug shell address and port
 host = "127.0.0.1"
-port = 22055
+port = 2055
 
 [resolver]
+# Recursive or forwarding mode
+# Recursive mode connects to the internet root servers and recursively fufills 
+# requests. Forwarding mode connects to an external DNS server to fufill
+# queries.
+# In general, it is recomended to use recursive mode.
 recursive = true
 # TODO: No resolvers if we use recursive
 
-# Uncomment these lines for upstream resolver
+# Uncomment these settings if the forwarding reserver is used
+
+# A list of addresses of DNS resolvers
 # list = [
 #     "1.1.1.1",
 #     "1.0.0.1",
 # ]
+# Controls whether the system DNS server configuration can be added
+
 # add_system = false
 
-# Uncomment these lines for upstream resolver
+# Uncomment these lines if the mode is set to forwarding. This setting will find
+# the fastest (latency) DNS resolver from the list `resolver.list`. 
+
 # [daemons.fastest_resolver]
 # use=true
+
+# The server sends a test query with a domain
+
 # test_name="github.com"
+
+# How often to check the latency of each server.
 # interval = 100
 
 [storage]
-# List of paths containing directories of zones
+# A list of paths to directories containing zone files.
 zone_dirs = [
     "./example-zones"
 ]
 
-# Text file to preload records
+# Path to a file that preloads requests
 # preload_path = "./examples/preload.txt"
 # Path to cache dump
 # cache_path = "./data/cache.pk.lzma"
