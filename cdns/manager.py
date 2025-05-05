@@ -483,6 +483,7 @@ class ServerManager:
             try:
                 while True:
                     try:
+                        # TODO: If socket limit exceeded, close all open sockets and warn user
                         # FIXME: What should the timeout be? Does this fix the issue?
                         events = sel.select(timeout=0)
                         for key, mask in events:
@@ -537,7 +538,19 @@ class ServerManager:
 
                                 self.resolver.addr = self.resolver_q.get()  # type: ignore
                                 logging.info("Resolver address: %s", self.resolver.addr)  # type: ignore
-
+                    except OSError as o:
+                        if o.errno == 24:
+                            # When I waked up my MacBook from sleep, the server
+                            # crashed. I got OSError: [Errno 24] Too many open files
+                            # from all the open sockets.
+                            # - ninjamar
+                            logging.error("Too many sockets open.")
+                            
+                        executor.shutdown(wait=True)
+                        self.cleanup()
+                        logging.error("Restarting system", exc_info=1)
+                        sys.exit()
+                        
                     except KeyboardInterrupt:
                         # Don't want the except call here to be called, I want the one outside the while loop
                         raise KeyboardInterrupt

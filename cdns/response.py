@@ -270,7 +270,13 @@ class ResponseHandler:
         # self.buf = pack_all_compressed(
         #    self.resp_header, self.resp_questions, self.resp_answers
         # )
-        self.bsend = self.resp.pack()
+
+        try:
+            self.bsend = self.resp.pack()
+        except:
+            logging.error("%s %s", self.buf, self.resp)
+            # print(self.buf, self.resp)
+            # raise Exception
         # print(self.buf)
 
         # TODO: This isn't sufficient

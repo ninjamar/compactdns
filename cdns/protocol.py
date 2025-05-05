@@ -207,6 +207,8 @@ def encode_label(type_: Literal["IPV4", "IPV6", "NAME", "LABEL"], label: str) ->
     Returns:
         The encoded label.
     """
+    if not label:
+        return b""
     # data, length
     if type_ == "IPV4":
         return socket.inet_aton(label)
@@ -245,6 +247,8 @@ def auto_encode_label(label):
     Returns:
         The encoded label.
     """
+    if not label:
+        return b""
     if all(x.isdigit() for x in label.replace(".", "")):
         type_ = "IPV4"
     elif ":" in label:
@@ -667,6 +671,9 @@ class DNSQuery:
                 self.header.arcount = len(self.additionals)
             else:
                 raise Exception("Invalid DNS header for query")
+
+        # TODO: Unable to pack valid DNS packets
+        # DNSQuery(header=DNSHeader(id_=13415, qr=0, opcode=0, aa=0, tc=0, rd=1, ra=0, z=0, rcode=0, qdcount=1, ancount=0, nscount=0, arcount=0), questions=[DNSQuestion(decoded_name='www.youtube.com', type_=65, class_=1)], answers=[], authorities=[], additionals=[]) DNSQuery(header=DNSHeader(id_=13415, qr=1, opcode=0, aa=0, tc=0, rd=0, ra=0, z=0, rcode=0, qdcount=1, ancount=2, nscount=0, arcount=0), questions=[DNSQuestion(decoded_name='www.youtube.com', type_=65, class_=1)], answers=[DNSAnswer(decoded_name='www.youtube.com', type_=5, class_=1, ttl=300, rdlength=22, decoded_rdata='youtube-ui.l.google.com'), DNSAnswer(decoded_name='youtube-ui.l.google.com', type_=65, class_=1, ttl=3600, rdlength=3, decoded_rdata='')], authorities=[], additionals=[])
 
         return pack_all_compressed(
             self.header,
