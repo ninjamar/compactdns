@@ -124,8 +124,8 @@ class RecordStorage:
         #    raise RecordError(f"Invalid record type. Given {type_}")
 
         base_domain = self.extractor.privatesuffix(record_domain)
-        values = []
 
+        values = []
         # Lookup record_domain via base_domain
         if base_domain in self.zones:
             # TODO: use ttl here -- can be none
@@ -188,7 +188,7 @@ class RecordStorage:
             zone = parse_zone(path)  # type: ignore
             self.zones[zone.domain] = zone
             return
-        raise Exception("Unable to load zone from file: invalid format")
+        raise Exception(f"Unable to load zone from file: invalid format. File path: {str(path)}")
 
     @_do_nothing_if_no_file
     def load_cache_from_file(self, path: Path | str) -> None:

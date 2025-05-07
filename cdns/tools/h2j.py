@@ -43,32 +43,29 @@ def main(host, target):
 
     rules = [v for rule in rules if (v := rule.strip().split("#")[0].strip().split())]
 
-    dump = []
+    dump = {}
     for ip, name in rules:
         root = extractor.privatesuffix(name)
-        if root == name:  # top level = block all
-            dump.append(
-                {
-                    "domain": root,
-                    "records": {
-                        root: {"A": [[ip]]},
-                        "*." + root: {"A": [[ip]]},
-                    },
-                }
-            )
+
+        if root not in dump:
+            dump[root] = {}
+        if "records" not in dump[root]:
+            dump[root]["records"] = {}
+        if root == name:  # top level = block all    
+            dump[root]["records"][root] = {"A": [[ip]]}
+            dump[root]["records"]["*." + root] = {"A": [[ip]]}
         else:
-            dump.append(
-                {
-                    "domain": root,
-                    "records": {
-                        name: {"A": [[ip]]},
-                        # "*." + root: {"A": [[ip]]},
-                    },
-                }
-            )
+            dump[root]["records"][name] = {"A": [[ip]]}
+    
+    new = []
+    for domain in dump.keys():
+        new.append({
+            "domain": domain,
+            **dump[domain]
+        })
 
     with open(target, "w") as f:
-        json.dump(dump, f)
+        json.dump(new, f)
 
 
 if __name__ == "__main__":
