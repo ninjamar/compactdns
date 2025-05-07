@@ -47,9 +47,18 @@ TEMPLATE = """
         <string>-c</string>
         <string>{config_path}</string>
     </array>
+
     <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>RunAtLoad</key>
     <true/>
 
+    <key>ThrottleInterval</key>
+    <integer>3</integer>
 
     <key>StandardOutPath</key>
     <string>/tmp/cdns-startup.log</string>
