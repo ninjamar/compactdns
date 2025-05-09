@@ -2,17 +2,56 @@
 requires = ["setuptools", "wheel", "mypy"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["cdns"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cdns*"]
 
 [project]
 name = "compactdns"
-version = "0.0.103"
-requires-python = ">=3.11"
+authors = [
+    { name="ninjamar" }
+]
+description = "CompactDNS (CDNS) is a minimalistic yet powerful DNS server designed for simplicity and speed."
+
+readme = "README.md"
+version = "0.1.0a1"
+
+
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+requires-python = ">=3.10"
 dependencies = [
     "publicsuffixlist>=1.0",
     "tomli>=1.0; python_version < '3.11'"
 ]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+
+    "Operating System :: MacOS",
+    "Operating System :: POSIX",
+    "Operating System :: Microsoft :: Windows",
+
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+
+    "Topic :: Communications",
+    "Topic :: Internet",
+    "Topic :: Internet :: Name Service (DNS)",
+    "Typing :: Typed",
+]
+keywords = ["dns", "privacy", "dns-server", "adblocker", "dns-over-tls"]
+
+
+[project.urls]
+
+Homepage = "https://github.com/ninjamar/compactdns"
+Repository = "https://github.com/ninjamar/compactdns"
+Issues = "https://github.com/ninjamar/compactdns/issues"
 
 [project.scripts]
 cdns = "cdns.cli:cli"

@@ -64,10 +64,22 @@ kwargs_defaults_initial = {
         "datefmt": _IFS(
             help_="Logging date format", type_=str, default="%Y-%m-%d %H:%M:%S"
         ),
-        "path": _IFS(
-            help_="Path to stdout/stderr (leave empty for console)",
+        "log": _IFS(
+            help_="Path to log file (leave empty for console)",
             type_=str,
             default=None,
+            path=True,
+        ),
+        "stdout": _IFS(
+            help_="Path to stdout/stderr (only needed if running as a service)",
+            type_=str,
+            default="/tmp/cdns-stdout.log",
+            path=True,
+        ),
+        "stderr": _IFS(
+            help_="Path to stdout/stderr (only needed if running as a service)",
+            type_=str,
+            default="/tmp/cdns-stderr.log",
             path=True,
         ),
     },
@@ -153,13 +165,12 @@ kwargs_defaults_initial = {
 kwargs_defaults: dict[str, _IFS] = flatten_dict(kwargs_defaults_initial)
 
 
-def get_kwargs(config_path, args=None, _no_args=False) -> dict[str, str | int | bool]:
+def get_kwargs(config_path, args=None) -> dict[str, str | int | bool]:
     """Normalize/process kwargs from a path.
 
     Args:
         config_path: Path to config.
-        args: Args to program. Only needed if _no_args is True. Defaults to None.
-        _no_args: Only needed if running from the main program. Defaults to False.
+        args: Args to program. Defaults to None.
 
     Raises:
         ValueError: Unknown configuration file format.
@@ -179,7 +190,7 @@ def get_kwargs(config_path, args=None, _no_args=False) -> dict[str, str | int | 
         else:
             raise ValueError("Unable to load configuration: unknown file format")
 
-    if not _no_args:
+    if args:
         kwargs.update(
             {k: v for k, v in vars(args).items() if v is not None and k != "subcommand"}
         )

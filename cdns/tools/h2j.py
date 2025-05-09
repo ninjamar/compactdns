@@ -51,18 +51,15 @@ def main(host, target):
             dump[root] = {}
         if "records" not in dump[root]:
             dump[root]["records"] = {}
-        if root == name:  # top level = block all    
+        if root == name:  # top level = block all
             dump[root]["records"][root] = {"A": [[ip]]}
             dump[root]["records"]["*." + root] = {"A": [[ip]]}
         else:
             dump[root]["records"][name] = {"A": [[ip]]}
-    
+
     new = []
     for domain in dump.keys():
-        new.append({
-            "domain": domain,
-            **dump[domain]
-        })
+        new.append({"domain": domain, **dump[domain]})
 
     with open(target, "w") as f:
         json.dump(new, f)

@@ -306,7 +306,7 @@ def parse_singular_json_obj(j: dict) -> DNSZone:
                 MXRecord(int(x["priority"]), x["exchange"])
                 for x in j["mx_records"][domain]
             ]
-    
+
     for domain in j["records"]:
         for type_ in j["records"][domain]:
             for v in j["records"][domain][type_]:

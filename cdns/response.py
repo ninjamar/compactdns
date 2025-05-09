@@ -7,8 +7,16 @@ import socket
 import struct
 from typing import Callable
 
-from .protocol import (DNSAnswer, DNSHeader, DNSQuery, DNSQuestion, RTypes,
-                       auto_decode_label, auto_encode_label, unpack_all)
+from .protocol import (
+    DNSAnswer,
+    DNSHeader,
+    DNSQuery,
+    DNSQuestion,
+    RTypes,
+    auto_decode_label,
+    auto_encode_label,
+    unpack_all,
+)
 from .resolver import BaseResolver, RecursiveResolver
 from .storage import RecordStorage
 

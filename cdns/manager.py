@@ -34,7 +34,7 @@ import ssl
 import struct
 import sys
 import threading
-import time
+import signal
 from multiprocessing import Queue
 from pathlib import Path
 from typing import Callable, Type, cast
@@ -77,12 +77,16 @@ class ServerManager:
             ssl_key_path: Path to SSL key file. . Defaults to None.
             ssl_cert_path: Path to SSL cert file. Defaults to None.
         """
+        self.shutdown_event = threading.Event()
+        signal.signal(signal.SIGTERM, self._sigterm_handler)
 
         # TODO: Make this better
         # Sockets
         self.host = host
         self.debug_shell_host = debug_shell_host
         self.tls_host = tls_host
+
+        self._selectors_list = []
 
         # Bind in _start_threaded_udp
         self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -166,6 +170,13 @@ class ServerManager:
         # I removed the dump cache daemon because the cache was designed
         # to only be in-memory. If the cache was written to a file, all
         # the TimedItem's would expire, meaning the dump would be useless.
+
+    def _sigterm_handler(self, stack, frame) -> None:
+        """
+        Handler for SIGTERM event.
+        """
+        logging.info("Recieved SIGTERM")
+        self.shutdown_event.set()
 
     @classmethod
     def from_config(cls, kwargs):
@@ -256,6 +267,9 @@ class ServerManager:
 
     def cleanup(self) -> None:
         """Handle destroying the sockets."""
+        for sel in self._selectors_list:
+            sel.close()
+
         self.udp_sock.close()
         self.tcp_sock.close()
 
@@ -303,8 +317,9 @@ class ServerManager:
         # TODO: Timeout
 
         sel = selectors.DefaultSelector()
-        sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE)
+        self._selectors_list.append(sel)
 
+        sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE)
         has_conn = True
         while has_conn:
             # Connection times out in two minutes
@@ -341,6 +356,8 @@ class ServerManager:
             conn, server_side=True, do_handshake_on_connect=False
         )  # handshake on connect is false because this socket is non-blocking
         sel = selectors.DefaultSelector()
+        self._selectors_list.append(sel)
+
         sel.register(tls, selectors.EVENT_READ | selectors.EVENT_WRITE)
 
         has_handshake = False
@@ -411,6 +428,10 @@ class ServerManager:
             conn: TCP connection
         """
 
+        old_stdout = sys.stdout
+        odl_stderr = sys.stderr
+        old_stdin = sys.stdin
+
         secret, addr = conn.recvfrom(len(self.debug_shell_secret))
         if secret.decode() != self.debug_shell_secret:
             conn.close()
@@ -424,9 +445,9 @@ class ServerManager:
         except SystemError:
             pass
         finally:
-            sys.stdout = sys.__stdout__
-            sys.stderr = sys.__stderr__
-            sys.stdin = sys.__stdin__
+            sys.stdout = old_stdout
+            sys.stderr = odl_stderr
+            sys.stdin = old_stdin
         conn.close()
 
     def start(self) -> None:
@@ -474,6 +495,8 @@ class ServerManager:
 
         # Select a value when READ is available
         sel = selectors.DefaultSelector()
+        self._selectors_list.append(sel)
+
         for obj in sockets:
             sel.register(obj, selectors.EVENT_READ)
 
@@ -481,94 +504,79 @@ class ServerManager:
             max_workers=self.max_workers
         ) as executor:
             try:
-                while True:
+                # Keep running until shutdown
+                while not self.shutdown_event.is_set():
                     try:
-                        # TODO: If socket limit exceeded, close all open sockets and warn user
-                        # FIXME: What should the timeout be? Does this fix the issue?
-                        events = sel.select(timeout=0)
-                        for key, mask in events:
-                            obj = key.fileobj  # type: ignore[assignment]
-                            if obj == self.udp_sock:
-                                # TODO: Should receiving data be in the thread? (what)
-                                query, addr = self.udp_sock.recvfrom(512)
-
-                                future = executor.submit(
-                                    self._handle_dns_query_udp, addr, query
-                                )
-                                future.add_done_callback(
-                                    self._handle_thread_pool_completion
-                                )
-                            elif obj == self.tcp_sock:
-                                conn, addr = self.tcp_sock.accept()
-                                # Make connection non-blocking
-                                conn.setblocking(False)
-
-                                future = executor.submit(
-                                    self._handle_dns_query_tcp, conn
-                                )
-                                future.add_done_callback(
-                                    self._handle_thread_pool_completion
-                                )
-                            # If self.use_tls is False, then sockets won't contain self.tls_sock
-                            elif obj == self.tls_sock:
-                                conn, addr = self.tls_sock.accept()
-                                conn.setblocking(False)
-                                future = executor.submit(
-                                    self._handle_dns_query_tls, conn
-                                )
-                                future.add_done_callback(
-                                    self._handle_thread_pool_completion
-                                )
-                            elif obj == self.debug_shell_sock:
-                                conn, addr = self.debug_shell_sock.accept()
-                                future = executor.submit(
-                                    self._handle_debug_shell_session, conn
-                                )
-                                future.add_done_callback(
-                                    self._handle_thread_pool_completion
-                                )
-
-                            elif obj == self.resolver_q._reader:  # type: ignore[attr-defined]
-                                # I'm no expert at mypy, but ignore the type because
-                                # we can assert that self.resolver.addr is used only if
-                                # hasattr(self.resolver, "attr")
-
-                                # TODO: Fix
-                                # TODO: Very indented here...
-
-                                self.resolver.addr = self.resolver_q.get()  # type: ignore
-                                logging.info("Resolver address: %s", self.resolver.addr)  # type: ignore
-                    except OSError as o:
-                        if o.errno == 24:
-                            # When I waked up my MacBook from sleep, the server
-                            # crashed. I got OSError: [Errno 24] Too many open files
-                            # from all the open sockets.
-                            # - ninjamar
-                            logging.error("Too many sockets open.")
-                            
-                        executor.shutdown(wait=True)
-                        self.cleanup()
-                        logging.error("Restarting system", exc_info=1)
-                        sys.exit()
-                        
+                        # Handle the requests here
+                        self._single_event(sel, executor)
                     except KeyboardInterrupt:
                         # Don't want the except call here to be called, I want the one outside the while loop
                         raise KeyboardInterrupt
+
                     except Exception as e:
                         logging.error("Error", exc_info=True)
 
+            # Once these errors are handled, the context manager finishes, so the executor already finishes
             except KeyboardInterrupt:
-                logging.info("KeyboardInterrupt: Server shutting down")
+                logging.info("Recieved KeyboardInterrupt")
 
-                # Shutdown all threads
-                # The with statement calls executor.shutdown(wait=True) already,
-                # so this code could be modifed to have the try-except outside
-                # of the with.
-                executor.shutdown(wait=True)
+            except OSError as o:
+                if o.errno == 24:
+                    # When I waked up my MacBook from sleep, the server
+                    # crashed. I got OSError: [Errno 24] Too many open files
+                    # from all the open sockets.
+                    # - ninjamar
+                    logging.error("Too many sockets open.")
 
-                self.cleanup()
+                logging.error("OSError", exc_info=True)
 
-                sys.exit()
+        self.cleanup()
+        logging.info("Server shutdown complete")
+
+    def _single_event(self, sel, executor):
+        """
+        Handle a single event.
+        """
+        # TODO: If socket limit exceeded, close all open sockets and warn user
+        # FIXME: What should the timeout be? Does this fix the issue?
+        # After 1 secs if no socket, the loop condition will be checked again
+        events = sel.select(timeout=1)
+        for key, mask in events:
+            obj = key.fileobj  # type: ignore[assignment]
+            if obj == self.udp_sock:
+                # TODO: Should receiving data be in the thread? (what)
+                query, addr = self.udp_sock.recvfrom(512)
+
+                future = executor.submit(self._handle_dns_query_udp, addr, query)
+                future.add_done_callback(self._handle_thread_pool_completion)
+            elif obj == self.tcp_sock:
+                conn, addr = self.tcp_sock.accept()
+                # Make connection non-blocking
+                conn.setblocking(False)
+
+                future = executor.submit(self._handle_dns_query_tcp, conn)
+                future.add_done_callback(self._handle_thread_pool_completion)
+            # If self.use_tls is False, then sockets won't contain self.tls_sock
+            elif obj == self.tls_sock:
+                conn, addr = self.tls_sock.accept()
+                conn.setblocking(False)
+                future = executor.submit(self._handle_dns_query_tls, conn)
+                future.add_done_callback(self._handle_thread_pool_completion)
+            elif obj == self.debug_shell_sock:
+                conn, addr = self.debug_shell_sock.accept()
+                future = executor.submit(self._handle_debug_shell_session, conn)
+                future.add_done_callback(self._handle_thread_pool_completion)
+
+            elif obj == self.resolver_q._reader:  # type: ignore[attr-defined]
+                # I'm no expert at mypy, but ignore the type because
+                # we can assert that self.resolver.addr is used only if
+                # hasattr(self.resolver, "attr")
+
+                # TODO: Fix
+                # TODO: Very indented here...
+
+                self.resolver.addr = self.resolver_q.get()  # type: ignore
+                logging.info("Resolver address: %s", self.resolver.addr)  # type: ignore
 
     def _handle_thread_pool_completion(self, future: concurrent.futures.Future) -> None:
         """Handle the result of a ThreadPoolExecutor.

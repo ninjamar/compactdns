@@ -10,8 +10,11 @@
 [logging]
 # Default log level. Valid options are DEBUG, INFO, WARNING, ERROR, and CRITICAL.
 loglevel = "INFO"
-# Path to standard output
-path = "./data/stdout.log"
+# Path to logs. Leave empty for stdout
+log = "./data/cdns.log"
+# These paths are only needed if running as as service
+# stdout = "./data/cdns-stdout.log"
+# stderr = "./data/cdns-stderr.log"
 
 [all]
 # Maximum number of threads/workers open for requests

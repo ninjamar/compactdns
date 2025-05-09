@@ -37,8 +37,12 @@ from publicsuffixlist import PublicSuffixList  # type: ignore
 from .cache import DNSCache
 from .protocol import RTypes
 from .utils import BiInt
-from .zones import (DNSZone, parse_multiple_json_zones,
-                    parse_singular_json_zone, parse_zone)
+from .zones import (
+    DNSZone,
+    parse_multiple_json_zones,
+    parse_singular_json_zone,
+    parse_zone,
+)
 
 
 class RecordError(Exception):
@@ -188,7 +192,9 @@ class RecordStorage:
             zone = parse_zone(path)  # type: ignore
             self.zones[zone.domain] = zone
             return
-        raise Exception(f"Unable to load zone from file: invalid format. File path: {str(path)}")
+        raise Exception(
+            f"Unable to load zone from file: invalid format. File path: {str(path)}"
+        )
 
     @_do_nothing_if_no_file
     def load_cache_from_file(self, path: Path | str) -> None:

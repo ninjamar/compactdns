@@ -1,5 +1,5 @@
 # CompactDNS (CDNS)
-CompactDNS (CDNS) is a privacy-oriented, bloat-free recursive DNS server.
+CompactDNS (CDNS) is a minimalistic yet powerful DNS server designed for simplicity and speed, offering local caching and both authoritative and forwarding capabilities.
 
 > In 2025, Google Chrome will remove adblockers with the impending Manifest V3 update. This change threaten the existance of software like UBlock Origin. Rather than abandoning Chrome, I explored alternative ways to block ads. This DNS server, CompactDns, was the result: it's lightweight, blazing fast, and can block ads. It also caches all requests on device, leading to a latency as low as 0 ms.
 > 

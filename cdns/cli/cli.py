@@ -53,8 +53,8 @@ def _configure_logging(kwargs) -> None:
         fmt=kwargs["logging.format"], datefmt=kwargs["logging.datefmt"]
     )
 
-    if kwargs["logging.path"]:
-        path = os.path.expanduser(kwargs["logging.path"])
+    if kwargs["logging.log"]:
+        path = os.path.expanduser(kwargs["logging.log"])
         handler: logging.Handler = logging.FileHandler(path)
     else:
         handler = logging.StreamHandler(sys.stdout)

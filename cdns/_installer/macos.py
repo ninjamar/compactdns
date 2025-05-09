@@ -28,6 +28,7 @@
 import os.path
 import sys
 from pathlib import Path
+from ..cli.kwargs import get_kwargs
 
 # Need to have exact binary path
 # /tmp/cdns-startup.log and /tmp/cdns-startup-err.log are use for logging
@@ -61,9 +62,9 @@ TEMPLATE = """
     <integer>3</integer>
 
     <key>StandardOutPath</key>
-    <string>/tmp/cdns-startup.log</string>
+    <string>{stdout_path}</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/cdns-startup-err.log</string>
+    <string>{stderr_path}</string>
 </dict>
 </plist>
 """
@@ -87,8 +88,12 @@ def generate_plist(config_path) -> str:
     Returns:
         The plist file contents.
     """
+    kwargs = get_kwargs(config_path)
     return TEMPLATE.format(
-        cdns_path=get_cdns_path(), config_path=Path(config_path).resolve()
+        cdns_path=get_cdns_path(),
+        config_path=Path(config_path).resolve(),
+        stdout_path=Path(kwargs["logging.stdout"]).resolve(),
+        stderr_path=Path(kwargs["logging.stderr"]).resolve(),
     )
 
 
