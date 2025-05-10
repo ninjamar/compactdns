@@ -7,7 +7,13 @@ CompactDNS (CDNS) is a minimalistic yet powerful DNS server designed for simplic
 
 ## Installation
 
-Install CDNS from source
+Install CDNS
+```bash
+pip install cdns
+```
+
+CDNS can also be installed from source
+
 ```bash
 git clone https://github.com/ninjamar/compactdns
 cd compactdns
@@ -34,7 +40,7 @@ cdns run [options]
 ```
 Configuration is stored in a `toml` or `json` file. See `config.toml` for an example configuration.
 ```bash
-cdns run --config onfig.toml
+cdns run --config config.toml
 ```
 The DNS protocol is typically run over port `53` for TCP and `853` for TLS. 
 
