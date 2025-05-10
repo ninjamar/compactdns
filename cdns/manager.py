@@ -29,12 +29,13 @@ import concurrent.futures
 import logging
 import secrets
 import selectors
+import signal
 import socket
 import ssl
 import struct
+import time
 import sys
 import threading
-import signal
 from multiprocessing import Queue
 from pathlib import Path
 from typing import Callable, Type, cast
@@ -172,9 +173,7 @@ class ServerManager:
         # the TimedItem's would expire, meaning the dump would be useless.
 
     def _sigterm_handler(self, stack, frame) -> None:
-        """
-        Handler for SIGTERM event.
-        """
+        """Handler for SIGTERM event."""
         logging.info("Recieved SIGTERM")
         self.shutdown_event.set()
 
@@ -499,16 +498,19 @@ class ServerManager:
 
         for obj in sockets:
             sel.register(obj, selectors.EVENT_READ)
-
+       
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=self.max_workers
         ) as executor:
             try:
+                # self.now = time.time()
+
                 # Keep running until shutdown
                 while not self.shutdown_event.is_set():
                     try:
                         # Handle the requests here
                         self._single_event(sel, executor)
+                        
                     except KeyboardInterrupt:
                         # Don't want the except call here to be called, I want the one outside the while loop
                         raise KeyboardInterrupt
@@ -534,9 +536,11 @@ class ServerManager:
         logging.info("Server shutdown complete")
 
     def _single_event(self, sel, executor):
-        """
-        Handle a single event.
-        """
+        """Handle a single event."""
+        # if self.now >= 10:
+        #    logging.info("Passed health check")
+        #    self.now = time.time()
+
         # TODO: If socket limit exceeded, close all open sockets and warn user
         # FIXME: What should the timeout be? Does this fix the issue?
         # After 1 secs if no socket, the loop condition will be checked again

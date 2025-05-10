@@ -277,8 +277,7 @@ class ZoneParser:
 
 
 def parse_singular_json_obj(j: dict) -> DNSZone:
-    """
-    Parse a singular zone from json.
+    """Parse a singular zone from json.
 
     Args:
         j: The json.
@@ -318,8 +317,7 @@ def parse_singular_json_obj(j: dict) -> DNSZone:
 
 
 def parse_multiple_json_zones(path: Path | str) -> dict[str, DNSZone]:
-    """
-    Parse multiple json zones from a file.
+    """Parse multiple json zones from a file.
 
     Args:
         path: Path to zone list.
@@ -335,8 +333,7 @@ def parse_multiple_json_zones(path: Path | str) -> dict[str, DNSZone]:
 
 
 def parse_singular_json_zone(path: Path | str) -> DNSZone:
-    """
-    Parse a singular json zone from a file.
+    """Parse a singular json zone from a file.
 
     Args:
         path: Path to json zone.

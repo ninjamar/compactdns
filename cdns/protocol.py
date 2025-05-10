@@ -156,8 +156,8 @@ RTypes = ImmutableBiDict(
     ],
 )
 
-_is_type_special = lambda type_: type_ in {2, 5, 12, 15}  # NS, CNAME, PTR, MX
-
+def _is_type_special(type_):
+    return type_ in {2, 5, 12, 15}  # NS, CNAME, PTR, MX
 
 @functools.lru_cache(maxsize=512)
 def encode_name_uncompressed(name: str) -> bytes:
