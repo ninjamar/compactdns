@@ -10,7 +10,7 @@
 [logging]
 # Default log level. Valid options are DEBUG, INFO, WARNING, ERROR, and CRITICAL.
 loglevel = "INFO"
-# Path to logs. Leave empty for stdout
+# Path to logs. Omit for stdout
 log = "./data/cdns.log"
 # These paths are only needed if running as as service
 # stdout = "./data/cdns-stdout.log"

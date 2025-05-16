@@ -14,7 +14,7 @@ authors = [
 description = "CompactDNS (CDNS) is a minimalistic yet powerful DNS server designed for simplicity and speed."
 
 readme = "README.md"
-version = "0.1.0a1.post1"
+version = "0.1.0a2"
 
 
 license = "MIT"

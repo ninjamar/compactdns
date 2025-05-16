@@ -38,7 +38,7 @@ from pathlib import Path
 from ..utils import flatten_dict, merge_defaults
 
 
-class _IFS:
+class K:
     def __init__(self, **kwargs):
         self.d = kwargs
 
@@ -51,62 +51,80 @@ class _IFS:
 # TODO: Merge with above (use tuple) and store type
 kwargs_defaults_initial = {
     "logging": {
-        "loglevel": _IFS(
+        "loglevel": K(
             help_="Log level to use. One of {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET'}",
             type_=str,
             default="INFO",
         ),
-        "format": _IFS(
+        "format": K(
             help_="Logging message format",
             type_=str,
             default="%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s",
         ),
-        "datefmt": _IFS(
+        "datefmt": K(
             help_="Logging date format", type_=str, default="%Y-%m-%d %H:%M:%S"
         ),
-        "log": _IFS(
+        "log": K(
             help_="Path to log file (leave empty for console)",
             type_=str,
             default=None,
             path=True,
         ),
-        "stdout": _IFS(
+        "stdout": K(
             help_="Path to stdout/stderr (only needed if running as a service)",
             type_=str,
-            default="/tmp/cdns-stdout.log",
+            default="stdout.log",
             path=True,
         ),
-        "stderr": _IFS(
+        "stderr": K(
             help_="Path to stdout/stderr (only needed if running as a service)",
             type_=str,
-            default="/tmp/cdns-stderr.log",
+            default="stderr.log",
             path=True,
         ),
+        "watcher_stdout": K(
+            help_="Path to watcher stdout/stderr (only needed if running as a service)",
+            type_=str,
+            default="wstdout.log",
+            path=True,
+        ),
+        "watcher_stderr": K(
+            help_="Path to watcher stdout/stderr (only needed if running as a service)",
+            type_=str,
+            default="wstderr.log",
+            path=True,
+        ),
+        "log_prefix": K(
+            help_="Log prefix. Make sure the format includes the trailing slash. If any other logging paths are None, then this option will be ignored. ",
+            type_=str,
+            default=None,
+            path=True
+        )
     },
     "all": {
-        "max_workers": _IFS(
+        "max_workers": K(
             help_="Max number of workers for the DNS server", type_=int, default=50
         ),
     },
     "servers": {
         "host": {
-            "host": _IFS(
+            "host": K(
                 help_="Address of the host (a.b.c.d)", type_=str, default="127.0.0.1"
             ),
-            "port": _IFS(help_="Port of server", type_=int, default=2053),
+            "port": K(help_="Port of server", type_=int, default=2053),
         },
         "tls": {
-            "host": _IFS(
+            "host": K(
                 help_="Host of DNS over TLS host (a.b.c.d)", type_=str, default=None
             ),
-            "port": _IFS(help_="Port of DNS over TLS", type_=int, default=2853),
-            "ssl_key": _IFS(
+            "port": K(help_="Port of DNS over TLS", type_=int, default=2853),
+            "ssl_key": K(
                 help_="Path to SSL key for DNS over TLS",
                 type_=str,
                 default=None,
                 path=True,
             ),
-            "ssl_cert": _IFS(
+            "ssl_cert": K(
                 help_="Path to SSL certificate for DNS over TL",
                 type_=str,
                 default=None,
@@ -115,54 +133,54 @@ kwargs_defaults_initial = {
         },
         # TODO: Make shell optional
         "debug_shell": {
-            "host": _IFS(
+            "host": K(
                 help_="Address of shell server (a.b.c.d)", type_=str, default=None
             ),
-            "port": _IFS(help_="Port of shell server", type_=int, default=2053),
+            "port": K(help_="Port of shell server", type_=int, default=2053),
         },
     },
     "resolver": {
-        "recursive": _IFS(help_="Is the resolver recursive?", type_=bool, default=True),
-        "list": _IFS(help_="A list of resolvers to use.", type_=list, default=None),
-        "add_system": _IFS(
+        "recursive": K(help_="Is the resolver recursive?", type_=bool, default=True),
+        "list": K(help_="A list of resolvers to use.", type_=list, default=None),
+        "add_system": K(
             help_="Add the system resolvers to the resolvers", type_=bool, default=False
         ),
     },
     "daemons": {
         "fastest_resolver": {
-            "use": _IFS(
+            "use": K(
                 help_="Should the fastest resolver daemon be used?",
                 type_=bool,
                 default=False,
             ),
-            "test_name": _IFS(
+            "test_name": K(
                 help_="Domain name for speed test query",
                 type_=str,
                 default="google.com",
             ),
-            "interval": _IFS(help_="Interval between tests", type_=int, default=120),
+            "interval": K(help_="Interval between tests", type_=int, default=120),
         }
     },
     "storage": {
-        "zone_dirs": _IFS(
+        "zone_dirs": K(
             help_="A list of paths to directories containing zones. (*.zone, *.json, *.all.json)",
             type_=list,
             default=None,
             path=True,
         ),
-        "zone_path": _IFS(
+        "zone_path": K(
             help_="Path to a pickled lzma zone", type_=str, default=None, path=True
         ),
-        "cache_path": _IFS(
+        "cache_path": K(
             help_="Path to a pickled lzma cache", type_=str, default=None, path=True
         ),
-        "preload_path": _IFS(
+        "preload_path": K(
             help_="Path to cache preload file", type_=str, default=None, path=True
         ),
     },
 }
 
-kwargs_defaults: dict[str, _IFS] = flatten_dict(kwargs_defaults_initial)
+kwargs_defaults: dict[str, K] = flatten_dict(kwargs_defaults_initial)
 
 
 def get_kwargs(config_path, args=None) -> dict[str, str | int | bool]:
@@ -200,6 +218,21 @@ def get_kwargs(config_path, args=None) -> dict[str, str | int | bool]:
         flatten_dict(kwargs),
     )
 
+    # HACK: There has to be a slash here. If this gets changed, update the help
+    # message for log_prefix above
+    
+    # If there is a log prefix, and other other stuff are not None
+    if kwargs["logging.log_prefix"] and kwargs["logging.log"] and kwargs["logging.stdout"] and kwargs["logging.stderr"] and kwargs["logging.watcher_stdout"] and kwargs["logging.watcher_stderr"]:
+        # Add the prefix
+        kwargs["logging.log"] = kwargs["logging.log_prefix"] + kwargs["logging.log"]
+        
+        kwargs["logging.stdout"] = kwargs["logging.log_prefix"] + kwargs["logging.stdout"]
+        kwargs["logging.stderr"] = kwargs["logging.log_prefix"] + kwargs["logging.stderr"]
+
+        kwargs["logging.watcher_stdout"] = kwargs["logging.log_prefix"] + kwargs["logging.watcher_stdout"]
+        kwargs["logging.watcher_stderr"] = kwargs["logging.log_prefix"] + kwargs["logging.watcher_stderr"]
+
+    # Normalize all the relative paths
     base_path = Path(config_path).parent
     paths = [k for k, v in kwargs_defaults.items() if v.d.get("path") is not None]
     for path in paths:
@@ -209,5 +242,5 @@ def get_kwargs(config_path, args=None) -> dict[str, str | int | bool]:
                 kwargs[path] = [(base_path / Path(x)).resolve() for x in kwargs[path]]
             else:
                 kwargs[path] = (base_path / Path(kwargs[path])).resolve()
-
+    
     return kwargs

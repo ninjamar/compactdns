@@ -63,19 +63,13 @@ CDNS can be set up to run in the background as a service:
 ```
 sudo cdns install -c /path/to/config
 ```
+This command will output instructions for starting and stopping the server. 
 
-This command writes a plist file to `/Library/LaunchDaemons/com.ninjamar.compactdns.plist`. 
+**Startup logs are written to `/tmp/cdns-startup.log` and `cdns-startup-err.log` .**
+> [!NOTE]
+> MacOS seems to occasionally be killing the server when the device wakes from sleep.
+> A program called `sleepwatcher` is required to fix this.
 
-
-Start the server:
-```bash
-sudo launchctl bootstrap system /Library/LaunchDaemons/com.ninjamar.compactdns.plist
-```
-Stop the server:
-```bash
-sudo launchctl bootout system /Library/LaunchDaemons/com.ninjamar.compactdns.plist
-```
-Startup logs are written to `/tmp/cdns-startup.log` and `cdns-startup-err.log` .
 
 **Ensure that all paths in the configuration file are relative to the path of the configuration file.**
 

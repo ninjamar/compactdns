@@ -29,7 +29,6 @@ import platform
 
 from . import macos
 
-MACOS_INSTALL_PATH = "/Library/LaunchDaemons/com.ninjamar.compactdns.plist"
 
 
 def install(config_path) -> None:
@@ -39,7 +38,7 @@ def install(config_path) -> None:
         config_path: Path to configuration file.
     """
     if platform.system() == "Darwin":
-        macos.main(config_path, MACOS_INSTALL_PATH)
+        macos.main(config_path)
     elif platform.system() == "Linux":
         raise NotImplementedError
     elif platform.system() == "Windows":
