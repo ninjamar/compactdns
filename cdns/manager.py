@@ -87,7 +87,7 @@ class ServerManager:
         self.debug_shell_host = debug_shell_host
         self.tls_host = tls_host
 
-        self._selectors_list = []
+        self._selectors_list: list[selectors.DefaultSelector] = []
 
         # Bind in _start_threaded_udp
         self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
