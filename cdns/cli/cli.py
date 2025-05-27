@@ -32,8 +32,8 @@ import logging
 import os
 import sys
 
-from .. import _installer, tools
-from ..manager import ServerManager
+from cdns import _installer, tools
+from cdns.manager import ServerManager
 from .kwargs import get_kwargs, kwargs_defaults
 
 

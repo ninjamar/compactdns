@@ -42,9 +42,14 @@ from typing import Callable, Type, cast
 
 from . import daemon
 from .resolver import BaseResolver, RecursiveResolver, UpstreamResolver
-from .response import ResponseHandler, _preload_hosts
+
+
 from .storage import RecordStorage
 from .utils import get_dns_servers
+
+
+from .response import make_response_handler, preload_hosts
+from .response import mixins
 
 MAX_WORKERS = 1000
 
@@ -130,6 +135,14 @@ class ServerManager:
         # Other config. TODO: Implement better configuration here
         self.execution_timeout = 0
         self.max_workers = max_workers
+
+        self.tracker = mixins.ResourceTrackerMixin() # also doubles as a dictionary
+        self.ResponseHandler = make_response_handler(
+            "ResponseHandler",
+            mixins=[mixins._TestMixin(), self.tracker],
+        )
+        
+
         self.storage = storage
 
         # Complicated resolver stuff
@@ -236,7 +249,7 @@ class ServerManager:
             with open(kwargs["storage.preload_path"]) as f:
                 hosts = [x.strip() for x in f.readlines() if not x.startswith("#")]
 
-            _preload_hosts(hosts, storage, resolver)
+            preload_hosts(hosts, storage, resolver)
 
         # HACK: This is what happens when it's 11 and I have to get the feature done
         if isinstance(kwargs["resolver.list"], list):
@@ -293,14 +306,16 @@ class ServerManager:
             logging.info("Cleanup: Writing zone to file %s", self.storage._zone_path)
             self.storage.write_zone_object_to_file(self.storage._zone_path)
 
-    def _handle_dns_query_udp(self, addr: tuple[str, int], query: bytes) -> None:
+    def _handle_dns_query_udp(
+        self, addr: tuple[str, int], query: bytes, rt_info=0
+    ) -> None:
         """Handle a DNS query over UDP.
 
         Args:
             addr: Address of client.
             query: Incoming DNS query.
         """
-        return ResponseHandler(
+        return self.ResponseHandler(
             storage=self.storage,
             resolver=self.resolver,
             udp_sock=self.udp_sock,
@@ -339,7 +354,7 @@ class ServerManager:
 
                     if not query:
                         has_conn = False
-                    return ResponseHandler(
+                    return self.ResponseHandler(
                         storage=self.storage,
                         resolver=self.resolver,
                         tcp_conn=conn,
@@ -498,7 +513,7 @@ class ServerManager:
 
         for obj in sockets:
             sel.register(obj, selectors.EVENT_READ)
-       
+
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=self.max_workers
         ) as executor:
@@ -510,7 +525,7 @@ class ServerManager:
                     try:
                         # Handle the requests here
                         self._single_event(sel, executor)
-                        
+
                     except KeyboardInterrupt:
                         # Don't want the except call here to be called, I want the one outside the while loop
                         raise KeyboardInterrupt
@@ -544,6 +559,11 @@ class ServerManager:
         # TODO: If socket limit exceeded, close all open sockets and warn user
         # FIXME: What should the timeout be? Does this fix the issue?
         # After 1 secs if no socket, the loop condition will be checked again
+
+        # if self.ResponseHandler.lcb.mixins.has(mixins.ResourceTrackerMixin):
+        #    if len(self.tracker.keys()) > 0:
+        #        logging.error("TRACKER: %s", self.tracker.get_elapsed())
+
         events = sel.select(timeout=1)
         for key, mask in events:
             obj = key.fileobj  # type: ignore[assignment]
@@ -564,10 +584,13 @@ class ServerManager:
             elif obj == self.tls_sock:
                 conn, addr = self.tls_sock.accept()
                 conn.setblocking(False)
+
                 future = executor.submit(self._handle_dns_query_tls, conn)
                 future.add_done_callback(self._handle_thread_pool_completion)
             elif obj == self.debug_shell_sock:
+                # TODO: Maybe only do this on DEBUG mode? But it might be pretty useful
                 conn, addr = self.debug_shell_sock.accept()
+
                 future = executor.submit(self._handle_debug_shell_session, conn)
                 future.add_done_callback(self._handle_thread_pool_completion)
 

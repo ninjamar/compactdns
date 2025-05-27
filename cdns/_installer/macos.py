@@ -35,8 +35,8 @@ import os.path
 import sys
 from pathlib import Path
 
-from ..cli.kwargs import get_kwargs
-from ..utils import colors
+from cdns.cli.kwargs import get_kwargs
+from cdns.utils import colors
 
 
 def get_cdns_path() -> str:

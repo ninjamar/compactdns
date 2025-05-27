@@ -1,3 +1,29 @@
+# compactdns
+# A lightweight DNS server with easy customization
+# https://github.com/ninjamar/compactdns
+# Copyright (c) 2025 ninjamar
+
+# MIT License
+
+# Copyright (c) 2025 ninjamar
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+
 import concurrent.futures
 import dataclasses
 import itertools
@@ -7,14 +33,17 @@ import socket
 import struct
 from typing import Callable
 
-from .protocol import (DNSAnswer, DNSHeader, DNSQuery, DNSQuestion, RTypes,
+from cdns.protocol import (DNSAnswer, DNSHeader, DNSQuery, DNSQuestion, RTypes,
                        auto_decode_label, auto_encode_label, unpack_all)
-from .resolver import BaseResolver, RecursiveResolver
-from .storage import RecordStorage
+from cdns.resolver import BaseResolver, RecursiveResolver
+from cdns.storage import RecordStorage
+
+from cdns.lcb import LCBMethods
 
 # TODO: Send back and check TC flag
 
 
+# TODO: Clear TODO's -- this function below isn't being used
 def _add_to_cache(cache, questions, answers):
     # For preloading
     # TODO: Implement
@@ -23,8 +52,8 @@ def _add_to_cache(cache, questions, answers):
     # TODO: Work on tests (hyperion or smtn)
     pass
 
-
-class ResponseHandler:
+# TODO: Override login to use broadcast system
+class BaseResponseHandler(LCBMethods):
     """A class to make a DNS response."""
 
     def __init__(
@@ -85,6 +114,9 @@ class ResponseHandler:
         Args:
             buf: Buffer to unpack.
         """
+
+        self.lcb.start()
+
         success = self._receive(buf)
         if success:
             self._process()
@@ -299,8 +331,9 @@ class ResponseHandler:
 
         if self.udp_sock and self.udp_addr:
             # Lock is unnecessary here since .sendto is thread safe (UDP is also connectionless)
-
+            # TODO: Release timer
             self.udp_sock.sendto(self.bsend, self.udp_addr)
+            self.lcb.end()
         elif self.tcp_conn:
             buf_len = struct.pack("!H", len(self.bsend))
 
@@ -311,18 +344,21 @@ class ResponseHandler:
             sel.select(timeout=0.1)
             try:
                 self.tcp_conn.sendall(buf_len + self.bsend)
+                self.lcb.end()
             finally:
                 self.tcp_conn.close()
                 sel.unregister(self.tcp_conn)
                 logging.debug("Closed TCP connection")
+        
+        
 
 
-def _preload_hosts(
+def preload_hosts(
     hosts: list[str], storage: RecordStorage, resolver: BaseResolver
 ) -> None:
     for host in hosts:
         # Monkeypatch the buffer, ignoring the fake socket connection
-        r = ResponseHandler(storage=storage, resolver=resolver, tcp_conn=True)  # type: ignore
+        r = BaseResponseHandler(storage=storage, resolver=resolver, tcp_conn=True)  # type: ignore
 
         # Don't send any data back
         r._send = lambda: None  # type: ignore

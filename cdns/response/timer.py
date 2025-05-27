@@ -25,20 +25,41 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import platform
+import time
 
-from . import macos
-
-
-def install(config_path) -> None:
-    """Install the background process for cdns.
+def _hasher(*args) -> int:
+    """
+    Hash a bunch of arguments.
 
     Args:
-        config_path: Path to configuration file.
+        *args: Arguments to hash.
+
+    Returns:
+        Hash of the arguments.
     """
-    if platform.system() == "Darwin":
-        macos.main(config_path)
-    elif platform.system() == "Linux":
-        raise NotImplementedError
-    elif platform.system() == "Windows":
-        raise NotImplementedError
+    h = 0
+    for arg in args:
+        # Use simple hash method now. In the future, this may be something better
+        h += hash(arg)
+
+    return h
+
+class ResourceTimer:
+    def __init__(self):
+        self.resources = {}
+
+    def start(self, *args):
+        self.resources[_hasher(*args)] = time.time()
+
+    def release(self, *args) -> int:
+        key = _hasher(*args)
+
+        value = self.resources[key]
+        elapsed = time.time() - value
+        del self.resources[key]
+
+        return elapsed
+
+    def release_all(self):
+        for key in list(self.resources.keys()):
+            del self.resources[key]

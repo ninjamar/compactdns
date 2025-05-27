@@ -23,22 +23,6 @@
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
-import platform
-
-from . import macos
 
 
-def install(config_path) -> None:
-    """Install the background process for cdns.
-
-    Args:
-        config_path: Path to configuration file.
-    """
-    if platform.system() == "Darwin":
-        macos.main(config_path)
-    elif platform.system() == "Linux":
-        raise NotImplementedError
-    elif platform.system() == "Windows":
-        raise NotImplementedError
+from .lcb import LCBMetaclass, LCBMethods, BaseMixin

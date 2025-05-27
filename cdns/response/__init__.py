@@ -23,22 +23,15 @@
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
 
-import platform
+from cdns.lcb import LCBMetaclass
+from .response import BaseResponseHandler, preload_hosts
+from .mixins import *
 
-from . import macos
+# __all__ = [""]
 
+def make_response_handler(name, mixins=None) -> BaseResponseHandler:
+    if mixins is None:
+        mixins = []
 
-def install(config_path) -> None:
-    """Install the background process for cdns.
-
-    Args:
-        config_path: Path to configuration file.
-    """
-    if platform.system() == "Darwin":
-        macos.main(config_path)
-    elif platform.system() == "Linux":
-        raise NotImplementedError
-    elif platform.system() == "Windows":
-        raise NotImplementedError
+    return LCBMetaclass(name, (BaseResponseHandler, ), {}, mixins=mixins)
