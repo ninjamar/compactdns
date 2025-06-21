@@ -7,7 +7,7 @@ where = ["."]
 include = ["cdns*"]
 
 [tool.setuptools.package-data]
-"cdns._installer.data" = ["*.plist"]
+"cdns._installer.data" = ["*"]
 
 [project]
 name = "compactdns"
@@ -17,7 +17,7 @@ authors = [
 description = "CompactDNS (CDNS) is a minimalistic yet powerful DNS server designed for simplicity and speed."
 
 readme = "README.md"
-version = "0.1.0a3"
+version = "0.1.0a4"
 
 
 license = "MIT"

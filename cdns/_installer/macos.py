@@ -45,7 +45,7 @@ def get_cdns_path() -> str:
     Returns:
         The path to the cdns executable.
     """
-    return sys.argv[0]
+    return os.path.abspath(sys.argv[0])
 
 class Installer:
     def __init__(self, config_path, kwargs):
@@ -62,6 +62,7 @@ class Installer:
         self.watch_shell_path = ir.files("cdns._installer.data") / "macos_watcher.sh"
 
         self.cdns_path = get_cdns_path()
+
         self.kwargs = kwargs
         self.config_path = config_path
 
@@ -123,7 +124,7 @@ class Installer:
         gid = grp.getgrnam("wheel").gr_gid
 
         os.chown("/etc/cdns/sleepwatcher-root.sh", uid, gid)
-        os.chmod("/etc/cdns/sleepwatcher-root.sh", 0o755)
+        os.chmod("/etc/cdns/sleepwatcher-root.sh", 0o755) # Just means 755 permission
 
         with open(self.watch_install_path, "w") as f:
             f.write(self.generate_watch_plist(sleepwatcher_path))
