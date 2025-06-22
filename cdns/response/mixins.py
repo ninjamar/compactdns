@@ -46,7 +46,7 @@ class ResourceTrackerMixin(dict, BaseMixin):
         if not target:
             raise TypeError("Need a valid target")
         
-        logging.error("Adding item to tracker")
+        logging.debug("Adding item to tracker")
 
         with lock:
             self[hash(target)] = time.time()
@@ -55,7 +55,7 @@ class ResourceTrackerMixin(dict, BaseMixin):
         if not target:
             raise TypeError("Need a valid target")
         
-        logging.error("Removing item from tracker")
+        logging.debug("Removing item from tracker")
         with lock:
             del self[hash(target)]
 

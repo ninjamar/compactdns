@@ -139,7 +139,7 @@ class ServerManager:
         self.tracker = mixins.ResourceTrackerMixin() # also doubles as a dictionary
         self.ResponseHandler = make_response_handler(
             "ResponseHandler",
-            mixins=[mixins._TestMixin(), self.tracker],
+            mixins=[self.tracker], # mixins._TestMixin()
         )
         
 

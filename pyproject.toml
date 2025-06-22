@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "wheel", "mypy"]
+requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
@@ -17,11 +17,11 @@ authors = [
 description = "CompactDNS (CDNS) is a minimalistic yet powerful DNS server designed for simplicity and speed."
 
 readme = "README.md"
-version = "0.1.0a5"
+version = "0.1.0a6"
 
 
-license = "MIT"
-license-files = ["LICEN[CS]E*"]
+license = { file = "LICENSE" }
+
 
 requires-python = ">=3.10"
 dependencies = [
