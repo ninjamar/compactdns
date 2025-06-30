@@ -79,11 +79,14 @@ Received abcdef on <cdns.lcb.lcb.f object at 0x10346f190>
 EVENT_START = "_start"
 EVENT_END = "_end"
 
+
 class BaseMixin:
     """
     Base mixin class.
     """
+
     events = []
+
     def __init__(self):
         pass
 
@@ -93,7 +96,6 @@ class BaseMixin:
         elif name == EVENT_END:
             return self.end(target, *args, **kwargs)
         return self.event
-        
 
     def start(self, target, *args, **kwargs):
         pass
@@ -103,6 +105,7 @@ class BaseMixin:
 
     def event(self, target, name, *args, **kwargs):
         pass
+
 
 class _MixinManager:
     def __init__(self, *mixins):
@@ -122,7 +125,7 @@ class _MixinManager:
 
     def __contains__(self, obj):
         return obj in self.mixins
-    
+
     def __iter__(self):
         yield from self.mixins.values()
 
@@ -141,21 +144,25 @@ class _Methods:
             if name in [EVENT_START, EVENT_END] or name in mixin.events:
                 mixin.receive(self.proxied_self, name, *args, **kwargs)
 
-    
     def start(self, *args, **kwargs) -> None:
         self.broadcast(EVENT_START, *args, **kwargs)
 
-    
     def end(self, *args, **kwargs) -> None:
         self.broadcast(EVENT_END, *args, **kwargs)
-
 
 
 class LCBMetaclass(type):
     """
     A metaclass to create a life cycle.
     """
-    def __new__(cls, clsname: str, bases: tuple[type, ...], attrs: dict[str, object], mixins: list[BaseMixin] = None) -> "LCBMetaclass":
+
+    def __new__(
+        cls,
+        clsname: str,
+        bases: tuple[type, ...],
+        attrs: dict[str, object],
+        mixins: list[BaseMixin] = None,
+    ) -> "LCBMetaclass":
         """
         Create and return a new class.
 
@@ -180,14 +187,16 @@ class LCBMetaclass(type):
         class _GetMethods:
             def __get__(self, instance, owner):
                 return _Methods(instance, mixins)
-        
+
         attrs["lcb"] = _GetMethods()
 
         cls = super().__new__(cls, clsname, bases, attrs)
         return cls
 
+
 class LCBMethods:
     """
     Stub class for type annotations of LCB.
     """
+
     lcb: _Methods = None

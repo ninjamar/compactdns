@@ -52,7 +52,7 @@ def _configure_logging(kwargs) -> None:
     formatter = logging.Formatter(
         fmt=kwargs["logging.format"], datefmt=kwargs["logging.datefmt"]
     )
-    
+
     if kwargs["logging.log"]:
         path = os.path.expanduser(kwargs["logging.log"])
         handler: logging.Handler = logging.FileHandler(path)

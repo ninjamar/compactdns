@@ -24,6 +24,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
+import logging
 import signal
 import socket
 import time
@@ -32,12 +33,15 @@ from pathlib import Path
 from typing import Callable
 
 from .protocol import DNSHeader, DNSQuery, DNSQuestion
+from .response.mixins import SmartEnsureLoadedMixin
 
 
 class BaseDaemon(Process):
     """All daemons inherit from this class."""
 
-    def __init__(self, interval, queue: "Queue | None", *p_args, **p_kwargs):
+    def __init__(
+        self, interval, queue: "Queue | None", udp_addr=None, *p_args, **p_kwargs
+    ):
         # waht. Queue | None fails, but putting quotes around or using Optional[Queue] works
         # Seems that Queue is a bound method (https://github.com/python/cpython/blob/main/Lib/multiprocessing/context.py#L100)
         #     def foo(q: Queue | None):
@@ -54,6 +58,7 @@ class BaseDaemon(Process):
         super().__init__(*p_args, **p_kwargs)
 
         self._interval = interval
+        self._udp_addr = udp_addr
 
         if not queue:
             self.queue: Queue = Queue()
@@ -82,6 +87,36 @@ class BaseDaemon(Process):
 
     def task(self):
         raise NotImplementedError
+
+
+class SmartEnsureLoadedDaemon(BaseDaemon):
+    # Also broken
+    def __init__(self, mixin: SmartEnsureLoadedMixin, top_readable_queue, **kwargs):
+        raise NotImplementedError
+        super().__init__(**kwargs)
+
+        self.mixin = mixin
+        self.top = None
+        self.top_queue = top_readable_queue
+
+    def task(self):
+        print("Running smart task")
+        # TODO: This only is set up for A records. I kept it that way because
+        # the majority of traffic uses these records.
+        if not self.top_queue.empty() or not self.top:
+            self.top = self.top_queue.get()
+
+        # top = self.mixin.get_top()
+        print("Top", self.top)
+
+        # Since this runs in a daemon, we cannot use preload_hosts to update the
+        # main thread. Instead, this daemon will send a request over UDP sockets
+        # to the server.
+        addr = self._udp_addr
+        for [decoded_name, hits] in self.top:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                query = DNSQuery(DNSHeader(), [DNSQuestion(decoded_name=decoded_name)])
+                sock.sendto(query.pack(), addr)
 
 
 class FastestResolverDaemon(BaseDaemon):

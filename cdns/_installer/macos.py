@@ -47,18 +47,24 @@ def get_cdns_path() -> str:
     """
     return os.path.abspath(sys.argv[0])
 
+
 class Installer:
     def __init__(self, config_path, kwargs):
         with ir.open_text("cdns._installer.data", "com.ninjamar.compactdns.plist") as f:
             self.MAIN_TEMPLATE = f.read()
-        with ir.open_text("cdns._installer.data", "com.ninjamar.sleepwatcher-root-cdns.plist") as f:
+        with ir.open_text(
+            "cdns._installer.data", "com.ninjamar.sleepwatcher-root-cdns.plist"
+        ) as f:
             self.WATCH_TEMPLATE = f.read()
 
         self.main_install_path = "/Library/LaunchDaemons/com.ninjamar.compactdns.plist"
-        self.watch_install_path = "/Library/LaunchDaemons/com.ninjamar.cdns-sleepwatcher-root.plist"
+        self.watch_install_path = (
+            "/Library/LaunchDaemons/com.ninjamar.cdns-sleepwatcher-root.plist"
+        )
 
-
-        self.watch_root_all_path = ir.files("cdns._installer.data") / "sleepwatcher-root.sh"
+        self.watch_root_all_path = (
+            ir.files("cdns._installer.data") / "sleepwatcher-root.sh"
+        )
         self.watch_shell_path = ir.files("cdns._installer.data") / "macos_watcher.sh"
 
         self.cdns_path = get_cdns_path()
@@ -66,11 +72,10 @@ class Installer:
         self.kwargs = kwargs
         self.config_path = config_path
 
-
     def generate_main_plist(self) -> str:
         if not self.kwargs["logging.stdout"] or not self.kwargs["logging.stderr"]:
             raise Exception("Need stdout/stderr paths")
-        
+
         return self.MAIN_TEMPLATE.format(
             cdns_path=self.cdns_path,
             config_path=Path(self.config_path).resolve(),
@@ -81,11 +86,13 @@ class Installer:
     def generate_watch_plist(self, sleepwatcher_path):
         return self.WATCH_TEMPLATE.format(
             sleepwatcher_path=sleepwatcher_path,
-            wakeup_path="/etc/cdns/sleepwatcher-root.sh"
+            wakeup_path="/etc/cdns/sleepwatcher-root.sh",
         )
 
     def install(self):
-        print(textwrap.dedent(f"""
+        print(
+            textwrap.dedent(
+                f"""
             CDNS has two components to install:
                 - The server daemon/background process (MAIN)
                 - A daemon to restart the server (WATCH)
@@ -96,12 +103,14 @@ class Installer:
             If sleepwatcher is installed, this installer will continue. If it isn't (or cannot be found in PATH),
             then this installer will quit. Re-run the installer when sleepwatcher has been installed.
         
-        """))
+        """
+            )
+        )
         sleepwatcher_path = shutil.which("sleepwatcher")
         if sleepwatcher_path is None:
             print(f"{colors.FAIL}Sleepwatcher cannot be found. Exiting.{colors.ENDC}")
             return
-        
+
         with open(self.main_install_path, "w") as f:
             f.write(self.generate_main_plist())
 
@@ -124,12 +133,14 @@ class Installer:
         gid = grp.getgrnam("wheel").gr_gid
 
         os.chown("/etc/cdns/sleepwatcher-root.sh", uid, gid)
-        os.chmod("/etc/cdns/sleepwatcher-root.sh", 0o755) # Just means 755 permission
+        os.chmod("/etc/cdns/sleepwatcher-root.sh", 0o755)  # Just means 755 permission
 
         with open(self.watch_install_path, "w") as f:
             f.write(self.generate_watch_plist(sleepwatcher_path))
-        
-        print(textwrap.dedent(f"""
+
+        print(
+            textwrap.dedent(
+                f"""
             MAIN has been written to {self.main_install_path}
             WATCH has been written to {self.watch_install_path}
 
@@ -140,7 +151,9 @@ class Installer:
             To stop both:
                 sudo launchctl bootout system {self.main_install_path}
                 sudo launchctl bootout system {self.watch_install_path}
-        """))
+        """
+            )
+        )
 
 
 def main(config_path) -> None:
@@ -152,6 +165,6 @@ def main(config_path) -> None:
     """
     # TODO: Assert config path exists
     kwargs = get_kwargs(config_path)
-    
+
     i = Installer(config_path, kwargs)
     i.install()

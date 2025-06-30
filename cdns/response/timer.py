@@ -27,6 +27,7 @@
 
 import time
 
+
 def _hasher(*args) -> int:
     """
     Hash a bunch of arguments.
@@ -43,6 +44,7 @@ def _hasher(*args) -> int:
         h += hash(arg)
 
     return h
+
 
 class ResourceTimer:
     def __init__(self):
