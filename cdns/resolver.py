@@ -30,10 +30,19 @@ import socket
 import threading
 from typing import cast
 
-from .protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
-                           DNSQuery, DNSQuestion, RTypes, auto_decode_label,
-                           get_ip_mode_from_rtype, get_rtype_from_ip_mode,
-                           unpack_all)
+from .protocol import (
+    DNSAdditional,
+    DNSAnswer,
+    DNSAuthority,
+    DNSHeader,
+    DNSQuery,
+    DNSQuestion,
+    RTypes,
+    auto_decode_label,
+    get_ip_mode_from_rtype,
+    get_rtype_from_ip_mode,
+    unpack_all,
+)
 
 
 class BaseForwarder:

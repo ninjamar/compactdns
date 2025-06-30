@@ -98,8 +98,8 @@ kwargs_defaults_initial = {
             help_="Log prefix. Make sure the format includes the trailing slash. If any other logging paths are None, then this option will be ignored. ",
             type_=str,
             default=None,
-            path=True
-        )
+            path=True,
+        ),
     },
     "all": {
         "max_workers": K(
@@ -220,17 +220,32 @@ def get_kwargs(config_path, args=None) -> dict[str, str | int | bool]:
 
     # HACK: There has to be a slash here. If this gets changed, update the help
     # message for log_prefix above
-    
+
     # If there is a log prefix, and other other stuff are not None
-    if kwargs["logging.log_prefix"] and kwargs["logging.log"] and kwargs["logging.stdout"] and kwargs["logging.stderr"] and kwargs["logging.watcher_stdout"] and kwargs["logging.watcher_stderr"]:
+    if (
+        kwargs["logging.log_prefix"]
+        and kwargs["logging.log"]
+        and kwargs["logging.stdout"]
+        and kwargs["logging.stderr"]
+        and kwargs["logging.watcher_stdout"]
+        and kwargs["logging.watcher_stderr"]
+    ):
         # Add the prefix
         kwargs["logging.log"] = kwargs["logging.log_prefix"] + kwargs["logging.log"]
-        
-        kwargs["logging.stdout"] = kwargs["logging.log_prefix"] + kwargs["logging.stdout"]
-        kwargs["logging.stderr"] = kwargs["logging.log_prefix"] + kwargs["logging.stderr"]
 
-        kwargs["logging.watcher_stdout"] = kwargs["logging.log_prefix"] + kwargs["logging.watcher_stdout"]
-        kwargs["logging.watcher_stderr"] = kwargs["logging.log_prefix"] + kwargs["logging.watcher_stderr"]
+        kwargs["logging.stdout"] = (
+            kwargs["logging.log_prefix"] + kwargs["logging.stdout"]
+        )
+        kwargs["logging.stderr"] = (
+            kwargs["logging.log_prefix"] + kwargs["logging.stderr"]
+        )
+
+        kwargs["logging.watcher_stdout"] = (
+            kwargs["logging.log_prefix"] + kwargs["logging.watcher_stdout"]
+        )
+        kwargs["logging.watcher_stderr"] = (
+            kwargs["logging.log_prefix"] + kwargs["logging.watcher_stderr"]
+        )
 
     # Normalize all the relative paths
     base_path = Path(config_path).parent
@@ -242,5 +257,5 @@ def get_kwargs(config_path, args=None) -> dict[str, str | int | bool]:
                 kwargs[path] = [(base_path / Path(x)).resolve() for x in kwargs[path]]
             else:
                 kwargs[path] = (base_path / Path(kwargs[path])).resolve()
-    
+
     return kwargs

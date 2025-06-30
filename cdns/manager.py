@@ -54,6 +54,16 @@ from .response import mixins
 MAX_WORKERS = 1000
 
 
+# TODO: Read these and implement changes
+# https://www.kegel.com/c10k.html
+# https://highscalability.com/the-secret-to-10-million-concurrent-connections-the-kernel-i/
+# https://www.datacamp.com/tutorial/python-garbage-collection
+# https://instagram-engineering.com/dismissing-python-garbage-collection-at-instagram-4dca40b29172
+
+# TODO: Figure out most used sites in a given time period, and preload those sites
+# TODO: If using a browser, show a custom block page and then have the option to continue (pass a bypass flag maybe?)
+
+
 class ServerManager:
     """A class to store a server session."""
 
@@ -136,12 +146,20 @@ class ServerManager:
         self.execution_timeout = 0
         self.max_workers = max_workers
 
-        self.tracker = mixins.ResourceTrackerMixin() # also doubles as a dictionary
+        self.tracker = mixins.ResourceTrackerMixin()  # also doubles as a dictionary
+
+        self.smart_mixin_input_queue = Queue()
+
+        # smart_mixin =  mixins.SmartEnsureLoadedMixin(self.smart_mixin_input_queue)
+
         self.ResponseHandler = make_response_handler(
             "ResponseHandler",
-            mixins=[self.tracker], # mixins._TestMixin()
+            # mixins=[smart_mixin, self.tracker],
+            mixins=[self.tracker],
         )
-        
+
+        # d = daemon.SmartEnsureLoadedDaemon(smart_mixin, self.smart_mixin_input_queue, interval=1, queue=Queue(), udp_addr=self.host)
+        # d.start()
 
         self.storage = storage
 
@@ -167,6 +185,7 @@ class ServerManager:
                     daemon_options["fastest_resolver.test_name"],
                     interval=daemon_options["fastest_resolver.interval"],
                     queue=self.resolver_q,
+                    udp_addr=self.host,
                 )
                 self.resolver_daemon.start()
                 self.resolver.addr = self.resolver_q.get(True)
@@ -428,6 +447,11 @@ class ServerManager:
             return self.storage.write_cache_to_file(path=Path(kwargs["path"]).resolve())
         elif cmd == "purge-cache":
             return self.storage.cache.purge()
+        elif cmd == "reset-rule-5-mins":
+            # Allow site now
+            # Set timer to 5 mins in future
+            # In 5 minutes, unallow site
+            pass
 
     def _handle_debug_shell_session(self, conn: socket.socket) -> None:
         """Handle a debug shell session. This function blocks the DNS queries,

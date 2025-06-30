@@ -30,8 +30,9 @@ from .mixins import *
 
 # __all__ = [""]
 
+
 def make_response_handler(name, mixins=None) -> BaseResponseHandler:
     if mixins is None:
         mixins = []
 
-    return LCBMetaclass(name, (BaseResponseHandler, ), {}, mixins=mixins)
+    return LCBMetaclass(name, (BaseResponseHandler,), {}, mixins=mixins)

@@ -33,8 +33,16 @@ import socket
 import struct
 from typing import Callable
 
-from cdns.protocol import (DNSAnswer, DNSHeader, DNSQuery, DNSQuestion, RTypes,
-                       auto_decode_label, auto_encode_label, unpack_all)
+from cdns.protocol import (
+    DNSAnswer,
+    DNSHeader,
+    DNSQuery,
+    DNSQuestion,
+    RTypes,
+    auto_decode_label,
+    auto_encode_label,
+    unpack_all,
+)
 from cdns.resolver import BaseResolver, RecursiveResolver
 from cdns.storage import RecordStorage
 
@@ -51,6 +59,7 @@ def _add_to_cache(cache, questions, answers):
     # TODO: Just ran mypy and it fails, so make it pass
     # TODO: Work on tests (hyperion or smtn)
     pass
+
 
 # TODO: Override login to use broadcast system
 class BaseResponseHandler(LCBMethods):
@@ -349,21 +358,23 @@ class BaseResponseHandler(LCBMethods):
                 self.tcp_conn.close()
                 sel.unregister(self.tcp_conn)
                 logging.debug("Closed TCP connection")
-        
-        
+
+
+def preload_host(host: str, storage: RecordStorage, resolver: BaseResolver) -> None:
+    # Monkeypatch the buffer, ignoring the fake socket connection
+    r = BaseResponseHandler(storage=storage, resolver=resolver, tcp_conn=True)  # type: ignore
+
+    # Don't send any data back
+    r._send = lambda: None  # type: ignore
+
+    r.buf = DNSQuery(
+        header=DNSHeader(qdcount=1), questions=[DNSQuestion(decoded_name=host)]
+    )
+    r._process()
 
 
 def preload_hosts(
     hosts: list[str], storage: RecordStorage, resolver: BaseResolver
 ) -> None:
     for host in hosts:
-        # Monkeypatch the buffer, ignoring the fake socket connection
-        r = BaseResponseHandler(storage=storage, resolver=resolver, tcp_conn=True)  # type: ignore
-
-        # Don't send any data back
-        r._send = lambda: None  # type: ignore
-
-        r.buf = DNSQuery(
-            header=DNSHeader(qdcount=1), questions=[DNSQuestion(decoded_name=host)]
-        )
-        r._process()
+        preload_host(host, storage, resolver)
