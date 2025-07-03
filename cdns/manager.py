@@ -24,6 +24,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
+import base64
 import code
 import concurrent.futures
 import logging
@@ -37,19 +38,16 @@ import struct
 import sys
 import threading
 import time
+import urllib.parse
 from pathlib import Path
 from typing import Callable, Type, cast
 
 import h2.config
 import h2.connection
 import h2.events
-
 import h11
-import base64
-import urllib.parse
 
 from . import daemon
-from .protocol.doh import parse_doh, parse_req
 from .resolver import BaseResolver, RecursiveResolver, UpstreamResolver
 from .response import make_response_handler, mixins, preload_hosts
 from .storage import RecordStorage
@@ -149,7 +147,7 @@ class ServerManager:
                 certfile="ignore/dohcert.pem", keyfile="ignore/dohkey.pem"
             )
             self.doh_ssl_ctx.set_alpn_protocols(
-                ["http/1.1", "h2"]
+                ["h2", "http/1.1"]
             )  # Need ALPN protocols for DoH
 
             self.DOH_GET_PATH = b"/dns-query"
@@ -403,57 +401,20 @@ class ServerManager:
                         tcp_conn=conn,
                     ).start(query)
 
-    def _handle_dns_query_http1(self, conn: socket.socket) -> None:
-        """Handle a DNS query over TCP.
+    def _handle_dns_query_tls(self, conn: socket.socket) -> None:
+        return self._perform_tls_handshake(
+            self.tls_ssl_ctx, conn, self._handle_dns_query_tcp
+        )
 
-        Args:
-            conn: TCP connection.
-        """
-        # TODO: Timeout
-        sel = selectors.DefaultSelector()
-        self._selectors_list.append(sel)
-
-        sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE)
-        has_conn = True
-
-        buffer = b""
-        while has_conn:
-            # Connection times out in two minutes
-            events = sel.select(timeout=60 * 2)
-            for key, mask in events:
-                # sock = key.fileobj
-                if conn.fileno() == -1:
-                    # Connection closed
-                    has_conn = False
-                    break
-                if mask & selectors.EVENT_READ:
-                    try:
-                        chunk = conn.recv(512)
-                        if not chunk:
-                            raise ConnectionResetError
-
-                        buffer += chunk
-
-                        if b"\r\n\r\n" not in buffer:  # no end, wait for more data
-                            break
-                        print(buffer)
-                        req = parse_req(buffer)
-                        print(req)
-                        query = parse_doh(req)
-
-                        self.ResponseHandler(
-                            storage=self.storage,  # TODO: In LCM init this should be automatically included
-                            resolver=self.resolver,
-                            doh_conn=conn,
-                        ).start(query)
-                    except:
-                        pass
+    def _handle_dns_query_doh(self, conn: socket.socket) -> None:
+        return self._perform_tls_handshake(self.doh_ssl_ctx, conn, self._doh_router)
 
     # TODO: A lot of underscores in names
-    def _handle_dns_query_doh(self, conn: ssl.SSLSocket) -> None:
+    def _doh_router(self, conn: ssl.SSLSocket) -> None:
         # Router
         # ALPN: ["http/1.1", "h2"]. If ALPN is unknown, then fallback to http/1.0
-        proto = conn.selected_alpn_protocol() or "http/1.0"
+        proto = conn.selected_alpn_protocol() or "http/1.1"
+
         if proto == "h2":  # http/2
             self._handle_doh_http2(conn)
         else:  # http/1
@@ -510,7 +471,7 @@ class ServerManager:
                         if not path.startswith(self.DOH_GET_PATH):
                             # Error invalid path
                             return self._send_doh_http1_error(
-                                h1, conn, http_version, 404
+                                h1conn, conn, http_version, 404
                             )  # page not found
 
                     elif method == b"POST":
@@ -573,7 +534,8 @@ class ServerManager:
                                 (b"Content-Length", str(len(data)).encode()),
                             ],
                             # Send back via same version
-                            http_version=http_version,
+                            # http_version=http_version,
+                            http_version=b"1.1",  # TODO: Does does this support 1.0?
                         )
                         # Send backk all stuff needed
                         conn.send(h1conn.send(resp))
@@ -586,13 +548,13 @@ class ServerManager:
                         doh_conn=conn,
                         # New field
                         doh_send_back=doh_send_back,
-                    )
+                    ).start(dns_data)
 
                     # TODO: Document
 
     def _send_doh_http1_error(
         self,
-        h1: h11.Connection,
+        h1conn: h11.Connection,
         conn: ssl.SSLSocket,
         http_version: bytes,
         status_code: int,
@@ -620,7 +582,6 @@ class ServerManager:
         conn.send(h2conn.data_to_send())
 
     def _handle_doh_http2(self, conn: ssl.SSLSocket) -> None:
-
         # Initiate connection
         config = h2.config.H2Configuration(client_side=False)
         h2conn = h2.connection.H2Connection(config)
@@ -656,7 +617,10 @@ class ServerManager:
                                 h2conn, conn, stream_id, 400
                             )
                     elif method == b"POST":
-                        if path != self.DOH_POST_PATH:
+                        if (
+                            path != self.DOH_POST_PATH
+                            or content_type != b"application/dns-message"
+                        ):
                             return self._send_doh_http2_error(
                                 h2conn, conn, stream_id, 400
                             )
@@ -712,53 +676,18 @@ class ServerManager:
                         doh_conn=conn,
                         # New field
                         doh_send_back=doh_send_back,
-                    )
+                    ).start(dns_data)
 
-    def a_handle_dns_query_doh(self, conn: socket.socket) -> None:
-        """Handle a DNS query over tls.
-
-        Args:
-            conn: The TLS connection.
-        """
-        tls = self.doh_ssl_ctx.wrap_socket(
-            conn, server_side=True, do_handshake_on_connect=False
-        )  # handshake on connect is false because this socket is non-blocking
-        sel = selectors.DefaultSelector()
-        self._selectors_list.append(sel)
-
-        sel.register(tls, selectors.EVENT_READ | selectors.EVENT_WRITE)
-
-        has_handshake = False
-        while not has_handshake:
-            # 2 second timeout for handshake
-            events = sel.select(timeout=2)
-            for key, mask in events:
-                try:
-                    tls.do_handshake()
-                    sel.unregister(tls)
-
-                    has_handshake = True
-                    break
-                except ssl.SSLWantReadError:
-                    # Wait until next time
-                    # TODO: Should this be here?
-                    pass
-                except ssl.SSLWantWriteError:
-                    # Wait for more data
-                    pass
-
-        # TODO: Should I be returning here?
-        return self._handle_dns_query_http(tls)
-
-    def _handle_dns_query_tls(
-        self, conn: socket.socket
+    # TODO: Rename these functions to match purposes
+    def _perform_tls_handshake(
+        self, ctx: ssl.SSLContext, conn: socket.socket, do_next
     ) -> None:  # TODO: Type annotations return
         """Handle a DNS query over tls.
 
         Args:
             conn: The TLS connection.
         """
-        tls = self.tls_ssl_ctx.wrap_socket(
+        tls = ctx.wrap_socket(
             conn, server_side=True, do_handshake_on_connect=False
         )  # handshake on connect is false because this socket is non-blocking
         sel = selectors.DefaultSelector()
@@ -785,7 +714,8 @@ class ServerManager:
                     pass
 
         # TODO: Should I be returning here?
-        return self._handle_dns_query_tcp(tls)
+
+        return do_next(tls)
 
     def command(self, cmd, **kwargs) -> None:
         """Call a command.

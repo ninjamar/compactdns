@@ -44,7 +44,6 @@ from cdns.protocol import (
     auto_encode_label,
     unpack_all,
 )
-from cdns.protocol.doh import HTTPRequest, make_response
 from cdns.resolver import BaseResolver, RecursiveResolver
 from cdns.storage import RecordStorage
 
@@ -73,7 +72,6 @@ class BaseResponseHandler(LCBMethods):
         udp_addr: tuple[str, int] | None = None,
         tcp_conn: socket.socket | None = None,
         doh_conn: socket.socket | None = None,
-        doh_req: HTTPRequest | None = None,
         doh_send_back=None,
     ) -> None:
         """Create a ResponseHandler instance. Use with either UDP or TCP.
@@ -101,7 +99,6 @@ class BaseResponseHandler(LCBMethods):
             self.tcp_conn = tcp_conn
         elif doh_conn and doh_send_back:
             self.doh_conn = doh_conn
-            # self.doh_req = doh_req
             self.doh_send_back = doh_send_back
         else:
             raise TypeError(
