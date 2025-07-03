@@ -24,16 +24,4 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
-from cdns.lcb import LCBMetaclass
-
-from .mixins import *
-from .response import BaseResponseHandler, preload_hosts
-
-# __all__ = [""]
-
-
-def make_response_handler(name, mixins=None) -> BaseResponseHandler:
-    if mixins is None:
-        mixins = []
-
-    return LCBMetaclass(name, (BaseResponseHandler,), {}, mixins=mixins)
+from .protocol import *

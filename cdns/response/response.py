@@ -33,6 +33,7 @@ import socket
 import struct
 from typing import Callable
 
+from cdns.lcb import LCBMethods
 from cdns.protocol import (
     DNSAnswer,
     DNSHeader,
@@ -43,10 +44,9 @@ from cdns.protocol import (
     auto_encode_label,
     unpack_all,
 )
+from cdns.protocol.doh import HTTPRequest, make_response
 from cdns.resolver import BaseResolver, RecursiveResolver
 from cdns.storage import RecordStorage
-
-from cdns.lcb import LCBMethods
 
 # TODO: Send back and check TC flag
 
@@ -72,6 +72,9 @@ class BaseResponseHandler(LCBMethods):
         udp_sock: socket.socket | None = None,
         udp_addr: tuple[str, int] | None = None,
         tcp_conn: socket.socket | None = None,
+        doh_conn: socket.socket | None = None,
+        doh_req: HTTPRequest | None = None,
+        doh_send_back=None,
     ) -> None:
         """Create a ResponseHandler instance. Use with either UDP or TCP.
 
@@ -81,9 +84,11 @@ class BaseResponseHandler(LCBMethods):
             udp_sock: UDP socket. Defaults to None.
             udp_addr: UDP address. Defaults to None.
             tcp_conn: TCP connection. Defaults to None.
+            doh_conn: DoH connection. Defaults to None.
+            doh_req: DoH request. Defaults to None.
 
         Raises:
-            TypeError: If UDP or TCP is not specified.
+            TypeError: If UDP, TCP or DoH is not specified.
         """
         self.udp_sock: socket.socket | None = None
         self.udp_addr: tuple[str, int] | None = None
@@ -94,8 +99,14 @@ class BaseResponseHandler(LCBMethods):
             self.udp_addr = udp_addr
         elif tcp_conn:
             self.tcp_conn = tcp_conn
+        elif doh_conn and doh_send_back:
+            self.doh_conn = doh_conn
+            # self.doh_req = doh_req
+            self.doh_send_back = doh_send_back
         else:
-            raise TypeError("Must pass either UDP socket or TCP connection")
+            raise TypeError(
+                "Must pass one of UDP socket, TCP connection, or DoH connection"
+            )
 
         self.bsend = b""  # TODO: Not to be confused with self.buf
 
@@ -358,6 +369,23 @@ class BaseResponseHandler(LCBMethods):
                 self.tcp_conn.close()
                 sel.unregister(self.tcp_conn)
                 logging.debug("Closed TCP connection")
+
+        elif self.doh_conn:
+            sel = selectors.DefaultSelector()
+            sel.register(self.doh_conn, selectors.EVENT_WRITE)
+
+            sel.select(timeout=0.1)
+
+            try:
+                self.doh_send_back(self.bsend)
+                # self.doh_conn.sendall(
+                #    make_response(self.doh_req), self.bsend
+                # )  # Pack data properly
+                self.lcb.end()
+            finally:
+                self.doh_conn.close()
+                self.unregister(self.doh_conn)
+                logging.debug("Closed DoH connection")
 
 
 def preload_host(host: str, storage: RecordStorage, resolver: BaseResolver) -> None:

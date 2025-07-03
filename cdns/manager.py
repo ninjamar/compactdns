@@ -27,29 +27,33 @@
 import code
 import concurrent.futures
 import logging
+import multiprocessing as mp
 import secrets
 import selectors
 import signal
 import socket
 import ssl
 import struct
-import time
 import sys
 import threading
-from multiprocessing import Queue
+import time
 from pathlib import Path
 from typing import Callable, Type, cast
 
+import h2.config
+import h2.connection
+import h2.events
+
+import h11
+import base64
+import urllib.parse
+
 from . import daemon
+from .protocol.doh import parse_doh, parse_req
 from .resolver import BaseResolver, RecursiveResolver, UpstreamResolver
-
-
+from .response import make_response_handler, mixins, preload_hosts
 from .storage import RecordStorage
 from .utils import get_dns_servers
-
-
-from .response import make_response_handler, preload_hosts
-from .response import mixins
 
 MAX_WORKERS = 1000
 
@@ -124,14 +128,34 @@ class ServerManager:
             self.tls_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.tls_sock.setblocking(False)
 
-            # TODO: SSL optional
-            self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            self.ssl_context.minimum_version = ssl.TLSVersion.TLSv1_3
-            self.ssl_context.load_cert_chain(
+            self.tls_ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            self.tls_ssl_ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+            self.tls_ssl_ctx.load_cert_chain(
                 certfile=ssl_cert_path, keyfile=ssl_key_path
             )
         else:
             self.use_tls = False
+
+        if True:  # TODO: Add condition for DoH
+            self.use_doh = True
+
+            self.doh_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.doh_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.doh_sock.setblocking(False)
+
+            self.doh_ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            self.doh_ssl_ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+            self.doh_ssl_ctx.load_cert_chain(
+                certfile="ignore/dohcert.pem", keyfile="ignore/dohkey.pem"
+            )
+            self.doh_ssl_ctx.set_alpn_protocols(
+                ["http/1.1", "h2"]
+            )  # Need ALPN protocols for DoH
+
+            self.DOH_GET_PATH = b"/dns-query"
+            self.DOH_POST_PATH = b"/dns-query"
+        else:
+            self.use_doh = False
 
         if self.debug_shell_host is not None:
             self.use_debug_shell = True
@@ -148,7 +172,7 @@ class ServerManager:
 
         self.tracker = mixins.ResourceTrackerMixin()  # also doubles as a dictionary
 
-        self.smart_mixin_input_queue = Queue()
+        self.smart_mixin_input_queue = mp.Queue()
 
         # smart_mixin =  mixins.SmartEnsureLoadedMixin(self.smart_mixin_input_queue)
 
@@ -174,7 +198,7 @@ class ServerManager:
 
         # The Queue will be registered in the selectors, but is never used
         # for the recursive resolver
-        self.resolver_q: Queue = Queue()
+        self.resolver_q: mp.Queue = mp.Queue()
 
         if isinstance(self.resolver, UpstreamResolver):
             assert resolver_list is not None
@@ -341,7 +365,7 @@ class ServerManager:
             udp_addr=addr,
         ).start(query)
 
-    def _handle_dns_query_tcp(self, conn: socket.socket) -> None:
+    def _handle_dns_query_tcp(self, conn: socket.socket | ssl.SSLSocket) -> None:
         """Handle a DNS query over TCP.
 
         Args:
@@ -379,13 +403,362 @@ class ServerManager:
                         tcp_conn=conn,
                     ).start(query)
 
-    def _handle_dns_query_tls(self, conn: socket.socket) -> None:
+    def _handle_dns_query_http1(self, conn: socket.socket) -> None:
+        """Handle a DNS query over TCP.
+
+        Args:
+            conn: TCP connection.
+        """
+        # TODO: Timeout
+        sel = selectors.DefaultSelector()
+        self._selectors_list.append(sel)
+
+        sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE)
+        has_conn = True
+
+        buffer = b""
+        while has_conn:
+            # Connection times out in two minutes
+            events = sel.select(timeout=60 * 2)
+            for key, mask in events:
+                # sock = key.fileobj
+                if conn.fileno() == -1:
+                    # Connection closed
+                    has_conn = False
+                    break
+                if mask & selectors.EVENT_READ:
+                    try:
+                        chunk = conn.recv(512)
+                        if not chunk:
+                            raise ConnectionResetError
+
+                        buffer += chunk
+
+                        if b"\r\n\r\n" not in buffer:  # no end, wait for more data
+                            break
+                        print(buffer)
+                        req = parse_req(buffer)
+                        print(req)
+                        query = parse_doh(req)
+
+                        self.ResponseHandler(
+                            storage=self.storage,  # TODO: In LCM init this should be automatically included
+                            resolver=self.resolver,
+                            doh_conn=conn,
+                        ).start(query)
+                    except:
+                        pass
+
+    # TODO: A lot of underscores in names
+    def _handle_dns_query_doh(self, conn: ssl.SSLSocket) -> None:
+        # Router
+        # ALPN: ["http/1.1", "h2"]. If ALPN is unknown, then fallback to http/1.0
+        proto = conn.selected_alpn_protocol() or "http/1.0"
+        if proto == "h2":  # http/2
+            self._handle_doh_http2(conn)
+        else:  # http/1
+            self._handle_doh_http1(conn)
+
+    def _handle_doh_http1(self, conn: ssl.SSLSocket):
+        # TODO: Document all of this
+        h1conn = h11.Connection(h11.SERVER)  # TODO: Use a better variable name for this
+        version = None
+        headers = {}
+        body = b""
+
+        path = None
+        method = None
+        http_version = None
+
+        # Exhaust all data
+        while True:
+            data = conn.recv(512)  # TODO: How much should be recieved in one pass?
+            if not data:
+                # No data
+                # TODO: Close connection when this happens
+                # TODO: Automatically close expired connections
+                raise ConnectionResetError
+
+            # h11 is a parser -- start parsing the data
+            h1conn.receive_data(data)
+
+            # Go through each event
+            for event in iter(h1conn.next_event, h11.NEED_DATA):
+                # This use of iter is called a sentinel pattern
+                # It is equivlent to:
+                # while True:
+                #     event = h1conn.next_event()
+                #     if event == h11.NEED_DATA:
+                #         break
+                # This pattern seems useful for IO, so I should use it more
+                # TODO: Refactor code to use the sentinel pattern
+
+                # Headers
+                if isinstance(event, h11.Request):
+                    # Get info
+                    path = event.target
+                    method = event.method
+                    http_version = event.http_version
+
+                    # Normalize headers
+                    # HTTP is case insensitive
+                    headers = {k.lower(): v for k, v in event.headers}
+
+                    if method == b"GET":
+
+                        # Validate path inside here
+                        if not path.startswith(self.DOH_GET_PATH):
+                            # Error invalid path
+                            return self._send_doh_http1_error(
+                                h1, conn, http_version, 404
+                            )  # page not found
+
+                    elif method == b"POST":
+
+                        # Error invalid path
+                        # TODO: Does path need to be removed slashed?
+                        if path != self.DOH_POST_PATH:
+                            return self._send_doh_http1_error(
+                                h1conn, conn, http_version, 404
+                            )  # page not found
+                        # Error invalid header
+                        if headers.get(b"content-type") != b"application/dns-message":
+                            return self._send_doh_http1_error(
+                                h1conn, conn, http_version, 400
+                            )  # malformed request
+
+                        # TODO: Does everything need to be validated here
+                    else:
+                        # Invalid method, send an error
+                        return self._send_doh_http1_error(
+                            h1conn, conn, http_version, 405
+                        )
+                # Recieve body
+                elif isinstance(event, h11.Data):
+                    # Only triggered for POST
+                    # Add body data
+                    body += event.data
+                # End of message
+                elif isinstance(event, h11.EndOfMessage):
+
+                    # Missing information
+                    if method is None or path is None or version is None:
+                        return self._send_doh_http1_error(
+                            h1conn, conn, http_version, 400
+                        )
+
+                    if method == b"GET":
+                        # Stored as /dns-query?dns=AABB
+                        # Get every thing after the ? in the url
+                        qs = path.decode().split("?", 1)[1]
+                        # Get the DNS part
+                        qs = urllib.parse.parse_qs(qs)["dns"][
+                            0
+                        ]  # TODO: What does this do
+                        dns_data = base64.urlsafe_b64decode(
+                            qs + "=" * (4 - len(qs) % 4) % 4  # Add equals padding
+                        )
+                    else:
+                        # POST data is stored in body
+                        dns_data = body
+
+                    # Utility function to send back
+                    def doh_send_back(data: bytes):
+                        # Create response
+                        resp = h11.Response(
+                            status_code=200,
+                            # Use appropriate headers
+                            headers=[
+                                (b"Content-Type", b"application/dns-message"),
+                                (b"Content-Length", str(len(data)).encode()),
+                            ],
+                            # Send back via same version
+                            http_version=http_version,
+                        )
+                        # Send backk all stuff needed
+                        conn.send(h1conn.send(resp))
+                        conn.send(h1conn.send(h11.Data(data)))
+                        conn.send(h1conn.send(h11.EndOfMessage()))
+
+                    self.ResponseHandler(
+                        storage=self.storage,
+                        resolver=self.resolver,
+                        doh_conn=conn,
+                        # New field
+                        doh_send_back=doh_send_back,
+                    )
+
+                    # TODO: Document
+
+    def _send_doh_http1_error(
+        self,
+        h1: h11.Connection,
+        conn: ssl.SSLSocket,
+        http_version: bytes,
+        status_code: int,
+    ) -> None:
+        # TODO: Document
+        resp = h11.Response(
+            status_code=status_code,
+            headers=[(b"Content-Length", b"0")],
+            http_version=http_version,
+            reason=b"Error",  # TODO: Customize
+        )
+        conn.send(h1conn.send(resp))
+        conn.send(h1conn.send(h11.EndOfMessage()))
+
+    def _send_doh_http2_error(
+        self,
+        h2conn: h2.connection.H2Connection,
+        conn: ssl.SSLSocket,
+        stream_id: int,
+        status: int,
+    ) -> None:
+        h2conn.send_headers(
+            stream_id, headers=[(b":status", str(status).encode())], end_stream=True
+        )
+        conn.send(h2conn.data_to_send())
+
+    def _handle_doh_http2(self, conn: ssl.SSLSocket) -> None:
+
+        # Initiate connection
+        config = h2.config.H2Configuration(client_side=False)
+        h2conn = h2.connection.H2Connection(config)
+        h2conn.initiate_connection()
+
+        conn.send(h2conn.data_to_send())
+
+        streams = {}
+
+        headers_map = {}
+
+        while True:
+            data = conn.recv(512)
+            if not data:
+                raise ConnectionResetError
+
+            for event in h2conn.receive_data(data):
+                stream_id = getattr(event, "stream_id", None)
+
+                if isinstance(event, h2.events.RequestReceived):
+                    # TODO: Type annotate everything
+                    headers = dict(event.headers)  # list of tuples of (key, value)
+                    path = headers[b":path"]
+                    method = headers[b":method"]
+
+                    # Only POST and responses needs content type
+                    content_type = headers.get(b"content-type", b"")
+
+                    # Routing
+                    if method == b"GET":
+                        if not path.startswith(self.DOH_GET_PATH):
+                            return self._send_doh_http2_error(
+                                h2conn, conn, stream_id, 400
+                            )
+                    elif method == b"POST":
+                        if path != self.DOH_POST_PATH:
+                            return self._send_doh_http2_error(
+                                h2conn, conn, stream_id, 400
+                            )
+                    else:
+                        return self._send_doh_http2_error(h2conn, conn, stream_id, 405)
+
+                    # Start of request, so setup storage
+                    streams[stream_id] = b""  # POST
+                    headers_map[stream_id] = (method, path)
+
+                elif isinstance(event, h2.events.DataReceived):
+                    # Only triggered for POST
+                    streams[stream_id] += event.data
+                    h2conn.acknowledge_received_data(
+                        event.flow_controlled_length, stream_id
+                    )
+
+                elif isinstance(event, h2.events.StreamEnded):
+                    # Get method and path from the headers
+                    method, path = headers_map.pop(stream_id)
+
+                    if method == b"GET":
+                        # Stored as /dns-query?dns=AABB
+                        # Get every thing after the ? in the url
+                        qs = path.decode().split("?", 1)[1]
+                        # Get the DNS part
+                        qs = urllib.parse.parse_qs(qs)["dns"][
+                            0
+                        ]  # TODO: What does this do
+                        dns_data = base64.urlsafe_b64decode(
+                            qs + "=" * (4 - len(qs) % 4) % 4  # Add equals padding
+                        )
+
+                    else:
+                        dns_data = streams.pop(stream_id)
+
+                    # Utility function to send back
+                    def doh_send_back(data: bytes):
+                        h2conn.send_headers(
+                            stream_id,
+                            headers=[
+                                (b":status", b"200"),
+                                (b":content-type", b"application/dns-message"),
+                                (b":content-length", str(len(data)).encode()),
+                            ],
+                        )
+                        h2conn.send_data(stream_id, data=data, end_stream=True)
+                        conn.send(h2conn.data_to_send())
+
+                    self.ResponseHandler(
+                        storage=self.storage,
+                        resolver=self.resolver,
+                        doh_conn=conn,
+                        # New field
+                        doh_send_back=doh_send_back,
+                    )
+
+    def a_handle_dns_query_doh(self, conn: socket.socket) -> None:
         """Handle a DNS query over tls.
 
         Args:
             conn: The TLS connection.
         """
-        tls = self.ssl_context.wrap_socket(
+        tls = self.doh_ssl_ctx.wrap_socket(
+            conn, server_side=True, do_handshake_on_connect=False
+        )  # handshake on connect is false because this socket is non-blocking
+        sel = selectors.DefaultSelector()
+        self._selectors_list.append(sel)
+
+        sel.register(tls, selectors.EVENT_READ | selectors.EVENT_WRITE)
+
+        has_handshake = False
+        while not has_handshake:
+            # 2 second timeout for handshake
+            events = sel.select(timeout=2)
+            for key, mask in events:
+                try:
+                    tls.do_handshake()
+                    sel.unregister(tls)
+
+                    has_handshake = True
+                    break
+                except ssl.SSLWantReadError:
+                    # Wait until next time
+                    # TODO: Should this be here?
+                    pass
+                except ssl.SSLWantWriteError:
+                    # Wait for more data
+                    pass
+
+        # TODO: Should I be returning here?
+        return self._handle_dns_query_http(tls)
+
+    def _handle_dns_query_tls(
+        self, conn: socket.socket
+    ) -> None:  # TODO: Type annotations return
+        """Handle a DNS query over tls.
+
+        Args:
+            conn: The TLS connection.
+        """
+        tls = self.tls_ssl_ctx.wrap_socket(
             conn, server_side=True, do_handshake_on_connect=False
         )  # handshake on connect is false because this socket is non-blocking
         sel = selectors.DefaultSelector()
@@ -519,6 +892,17 @@ class ServerManager:
                 self.tls_host[1],  # type: ignore
             )
 
+        if self.use_doh:
+            self.doh_host = ("127.0.0.1", 8443)
+            self.doh_sock.bind(self.doh_host)
+            self.doh_sock.listen(self.max_workers)
+
+            logging.info(
+                "DNS Server running at %s:%s via DNS over HTTPS",
+                self.doh_host[0],
+                self.doh_host[1],
+            )
+
         # Update these devices when it's readable
         sockets = [
             # HACK-TYPING: Queue._reader is an implementation detail
@@ -528,6 +912,8 @@ class ServerManager:
         ]
         if self.use_tls:
             sockets.append(self.tls_sock)
+        if self.use_doh:
+            sockets.append(self.doh_sock)
         if self.use_debug_shell:
             sockets.append(self.debug_shell_sock)
 
@@ -611,6 +997,14 @@ class ServerManager:
 
                 future = executor.submit(self._handle_dns_query_tls, conn)
                 future.add_done_callback(self._handle_thread_pool_completion)
+
+            elif obj == self.doh_sock:
+                conn, addr = self.doh_sock.accept()
+                conn.setblocking(False)
+
+                future = executor.submit(self._handle_dns_query_doh, conn)
+                future.add_done_callback(self._handle_thread_pool_completion)
+
             elif obj == self.debug_shell_sock:
                 # TODO: Maybe only do this on DEBUG mode? But it might be pretty useful
                 conn, addr = self.debug_shell_sock.accept()

@@ -25,4 +25,4 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
 
-from .lcb import LCBMetaclass, LCBMethods, BaseMixin
+from .lcb import BaseMixin, LCBMetaclass, LCBMethods

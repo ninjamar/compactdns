@@ -26,7 +26,9 @@ license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = [
     "publicsuffixlist>=1.0",
-    "tomli>=1.0; python_version < '3.11'"
+    "tomli>=1.0; python_version < '3.11'",
+    "h11>=0.10.0", # TODO: Is this ok
+    "h2>=4.2.0"
 ]
 
 classifiers = [

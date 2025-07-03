@@ -25,10 +25,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
 import logging
-import time
 import threading
-from cdns.lcb import LCBMetaclass, LCBMethods, BaseMixin
+import time
 
+from cdns.lcb import BaseMixin, LCBMetaclass, LCBMethods
 from cdns.protocol import *
 
 __all__ = ["ResourceTrackerMixin", "_TestMixin"]

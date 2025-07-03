@@ -125,7 +125,7 @@ kwargs_defaults_initial = {
                 path=True,
             ),
             "ssl_cert": K(
-                help_="Path to SSL certificate for DNS over TL",
+                help_="Path to SSL certificate for DNS over TLS",
                 type_=str,
                 default=None,
                 path=True,

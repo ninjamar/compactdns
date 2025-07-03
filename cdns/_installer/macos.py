@@ -25,14 +25,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import textwrap
-import shutil
-import pwd
 import grp
-import os
 import importlib.resources as ir
+import os
 import os.path
+import pwd
+import shutil
 import sys
+import textwrap
 from pathlib import Path
 
 from cdns.cli.kwargs import get_kwargs
