@@ -542,7 +542,7 @@ class ServerManager:
                         conn.send(h1conn.send(h11.Data(data)))
                         conn.send(h1conn.send(h11.EndOfMessage()))
 
-                    self.ResponseHandler(
+                    return self.ResponseHandler(
                         storage=self.storage,
                         resolver=self.resolver,
                         doh_conn=conn,
@@ -670,7 +670,7 @@ class ServerManager:
                         h2conn.send_data(stream_id, data=data, end_stream=True)
                         conn.send(h2conn.data_to_send())
 
-                    self.ResponseHandler(
+                    return self.ResponseHandler(
                         storage=self.storage,
                         resolver=self.resolver,
                         doh_conn=conn,
