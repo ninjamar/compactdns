@@ -29,28 +29,18 @@ import concurrent.futures
 import selectors
 import socket
 import ssl
-import threading
 import struct
-from typing import cast
+import threading
 from collections import namedtuple
-from enum import Enum
-
 from dataclasses import dataclass
+from enum import Enum
+from typing import cast
 
+from cdns.protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
+                           DNSQuery, DNSQuestion, RTypes, auto_decode_label,
+                           get_ip_mode_from_rtype, get_rtype_from_ip_mode,
+                           unpack_all)
 
-from cdns.protocol import (
-    DNSAdditional,
-    DNSAnswer,
-    DNSAuthority,
-    DNSHeader,
-    DNSQuery,
-    DNSQuestion,
-    RTypes,
-    auto_decode_label,
-    get_ip_mode_from_rtype,
-    get_rtype_from_ip_mode,
-    unpack_all,
-)
 from .base import BaseForwarder
 
 
@@ -61,6 +51,7 @@ class states(Enum):
     reading_data = 4
     done = 5
 
+
 @dataclass
 class ConnectionContext:
     future: concurrent.futures.Future
@@ -70,7 +61,6 @@ class ConnectionContext:
     in_buf: bytes
 
 
-
 class TCPForwarder(BaseForwarder):
     def __init__(self) -> None:
         self.sel = selectors.DefaultSelector()
@@ -78,9 +68,10 @@ class TCPForwarder(BaseForwarder):
 
         self.ctxs: dict[socket.socket, ConnectionContext] = {}
 
-        self.thread = threading.Thread(target=self._thread_handler) # TODO: Daemon true to false
+        self.thread = threading.Thread(
+            target=self._thread_handler
+        )  # TODO: Daemon true to false
         self.thread.start()
-
 
     def forward(
         self, query: DNSQuery, addr: tuple[str, int]
@@ -105,7 +96,7 @@ class TCPForwarder(BaseForwarder):
             future.set_exception(e)
             self._cleanup_sock(sock)
             return future
-        
+
         # Use a lock because ctxs is modified here
         # TODO: Enforce consistency
         with self.lock:
@@ -114,14 +105,14 @@ class TCPForwarder(BaseForwarder):
                 state=states.connecting,
                 out_buf=data,
                 in_len=None,
-                in_buf=None # TLDR; bytearray() is a mutuable version of bytes()
+                in_buf=None,  # TLDR; bytearray() is a mutuable version of bytes()
             )
 
             # Once the connection has been made, the selector will trigger
             self.sel.register(sock, selectors.EVENT_WRITE)
-        
+
         return future
-    
+
     def _thread_handler(self):
         while True:
             events = self.sel.select(timeout=1)
@@ -150,7 +141,7 @@ class TCPForwarder(BaseForwarder):
     def _cleanup_sock(self, sock: socket.socket):
         with self.lock:
             self.sel.unregister(sock)
-            self.ctxs.pop(sock, None) # no error if sock not found
+            self.ctxs.pop(sock, None)  # no error if sock not found
         sock.close()
 
     def _sock_writeable(self, sock: socket.socket, ctx: ConnectionContext):
@@ -161,7 +152,6 @@ class TCPForwarder(BaseForwarder):
                 raise OSError(err, "Socket connection failed")
             ctx.state = states.sending
 
-        
         # Send as much data as possible
         sent = sock.send(ctx.out_buf)
         # Remove sent data from buffer
@@ -175,7 +165,7 @@ class TCPForwarder(BaseForwarder):
             length = sock.recv(2)
             if not length:
                 raise ConnectionResetError
-            
+
             ctx.in_len = struct.unpack("!H", length)[0]
             ctx.state = states.reading_data
 
@@ -183,9 +173,9 @@ class TCPForwarder(BaseForwarder):
             buf = sock.recv(ctx.in_len)
             if not buf:
                 raise ConnectionResetError
-            
+
             ctx.in_buf = buf
-            
+
             ctx.state = states.done
 
             ctx.future.set_result(ctx.in_buf)
@@ -195,11 +185,8 @@ class TCPForwarder(BaseForwarder):
 
 if __name__ == "__main__":
     f = TCPForwarder()
-    q = DNSQuery(
-        DNSHeader(),
-        [DNSQuestion(decoded_name="google.com")]
-    )
-    res = f.forward(q, ("127.0.0.1", 5353)) # Simple echo server in ignore/echo.py
-    
+    q = DNSQuery(DNSHeader(), [DNSQuestion(decoded_name="google.com")])
+    res = f.forward(q, ("127.0.0.1", 5353))  # Simple echo server in ignore/echo.py
+
     result = res.result()
     print(result.hex())

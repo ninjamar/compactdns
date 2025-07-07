@@ -29,28 +29,20 @@ import concurrent.futures
 import selectors
 import socket
 import ssl
-import threading
 import struct
-from typing import cast
+import threading
 from collections import namedtuple
 from enum import Enum
+from typing import cast
 
-
-from cdns.protocol import (
-    DNSAdditional,
-    DNSAnswer,
-    DNSAuthority,
-    DNSHeader,
-    DNSQuery,
-    DNSQuestion,
-    RTypes,
-    auto_decode_label,
-    get_ip_mode_from_rtype,
-    get_rtype_from_ip_mode,
-    unpack_all,
-)
-from .base import BaseResolver
+from cdns.protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
+                           DNSQuery, DNSQuestion, RTypes, auto_decode_label,
+                           get_ip_mode_from_rtype, get_rtype_from_ip_mode,
+                           unpack_all)
 from cdns.resolver import forwarders
+
+from .base import BaseResolver
+
 
 class UpstreamResolver(BaseResolver):
     """A class to resolve from upstream."""

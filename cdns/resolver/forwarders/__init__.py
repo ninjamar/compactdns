@@ -25,7 +25,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from .udp import UdpForwarder
-from .tls import TLSForwarder
-from .tcp import TCPForwarder
 from .doh import DoHForwarder
+from .tcp import TCPForwarder
+from .tls import TLSForwarder
+from .udp import UdpForwarder

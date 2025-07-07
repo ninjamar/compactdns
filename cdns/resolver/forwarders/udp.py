@@ -29,27 +29,19 @@ import concurrent.futures
 import selectors
 import socket
 import ssl
-import threading
 import struct
-from typing import cast
+import threading
 from collections import namedtuple
 from enum import Enum
+from typing import cast
 
+from cdns.protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
+                           DNSQuery, DNSQuestion, RTypes, auto_decode_label,
+                           get_ip_mode_from_rtype, get_rtype_from_ip_mode,
+                           unpack_all)
 
-from cdns.protocol import (
-    DNSAdditional,
-    DNSAnswer,
-    DNSAuthority,
-    DNSHeader,
-    DNSQuery,
-    DNSQuestion,
-    RTypes,
-    auto_decode_label,
-    get_ip_mode_from_rtype,
-    get_rtype_from_ip_mode,
-    unpack_all,
-)
 from .base import BaseForwarder
+
 
 class UdpForwarder(BaseForwarder):
     """Forwarder using UDP."""
@@ -66,7 +58,9 @@ class UdpForwarder(BaseForwarder):
 
         self.lock = threading.Lock()
 
-        self.thread = threading.Thread(target=self._thread_handler) # TODO: Daemon true or false
+        self.thread = threading.Thread(
+            target=self._thread_handler
+        )  # TODO: Daemon true or false
         self.thread.daemon = True
         self.thread.start()
 
@@ -78,7 +72,7 @@ class UdpForwarder(BaseForwarder):
 
         while True:
             events = self.sel.select(timeout=1)  # TODO: Timeout
-            with self.lock: # TODO: Lock here?
+            with self.lock:  # TODO: Lock here?
                 for key, mask in events:
                     # TODO: Try except
                     sock = cast(socket.socket, key.fileobj)

@@ -34,16 +34,8 @@ import struct
 from typing import Callable
 
 from cdns.lcb import LCBMethods
-from cdns.protocol import (
-    DNSAnswer,
-    DNSHeader,
-    DNSQuery,
-    DNSQuestion,
-    RTypes,
-    auto_decode_label,
-    auto_encode_label,
-    unpack_all,
-)
+from cdns.protocol import (DNSAnswer, DNSHeader, DNSQuery, DNSQuestion, RTypes,
+                           auto_decode_label, auto_encode_label, unpack_all)
 from cdns.resolver import BaseResolver, RecursiveResolver
 from cdns.storage import RecordStorage
 
