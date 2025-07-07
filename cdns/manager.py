@@ -48,7 +48,7 @@ import h2.events
 import h11
 
 from . import daemon
-from .resolver import BaseResolver, RecursiveResolver, UpstreamResolver
+from .resolver.resolvers import BaseResolver, RecursiveResolver, UpstreamResolver
 from .response import make_response_handler, mixins, preload_hosts
 from .storage import RecordStorage
 from .utils import get_dns_servers
@@ -395,6 +395,9 @@ class ServerManager:
 
                     if not query:
                         has_conn = False
+                        # TODO: Should an error be raised here?
+
+                        break # TODO: Is this fine
                     return self.ResponseHandler(
                         storage=self.storage,
                         resolver=self.resolver,
