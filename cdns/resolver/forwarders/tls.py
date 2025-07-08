@@ -36,7 +36,8 @@ from typing import cast
 
 from cdns.protocol import *
 
-from .tcp import TCPForwarder, states as _states
+from .tcp import TCPForwarder
+from .tcp import states as _states
 
 
 class states(_states):
@@ -65,4 +66,3 @@ class TLSForwarder(TCPForwarder):
 
     def _sock_readable(self, sock, ctx):
         return super()._sock_readable(sock, ctx)
-    

@@ -56,8 +56,7 @@ class UdpForwarder(BaseForwarder):
         self.lock = threading.Lock()
 
         self.thread = threading.Thread(
-            target=self._thread_handler,
-            daemon=True
+            target=self._thread_handler, daemon=True
         )  # TODO: Daemon true or false
         self.thread.daemon = True
         self.thread.start()

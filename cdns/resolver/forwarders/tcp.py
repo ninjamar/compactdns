@@ -29,8 +29,11 @@ import concurrent.futures
 import selectors
 import socket
 import struct
+
 from cdns.protocol import *
+
 from .streams import BaseStreamForwarder, ConnectionContext, states
+
 
 class TCPForwarder(BaseStreamForwarder):
     def forward(

@@ -29,8 +29,8 @@ import concurrent.futures
 import selectors
 import socket
 import threading
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
 from typing import cast
 
 from cdns.protocol import *
@@ -42,6 +42,7 @@ class states:
     """
     Enumeration of different connection states.
     """
+
     connecting = 1
     sending = 2
     reading_len = 3
@@ -54,6 +55,7 @@ class ConnectionContext:
     """
     A dataclass to store information about a connection.
     """
+
     future: concurrent.futures.Future
     state: states
     out_buf: bytes
@@ -69,8 +71,7 @@ class BaseStreamForwarder(BaseForwarder):
         self._ctxs: dict[socket.socket, ConnectionContext] = {}
 
         self._thread = threading.Thread(
-            target=self._thread_handler,
-            daemon=True
+            target=self._thread_handler, daemon=True
         )  # TODO: Daemon true to false
         self._thread.start()
 
