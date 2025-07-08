@@ -28,123 +28,43 @@
 import concurrent.futures
 import selectors
 import socket
-import ssl
 import struct
-import threading
-from collections import namedtuple
-from dataclasses import dataclass
-from enum import Enum
-from typing import cast
+from cdns.protocol import *
+from .streams import BaseStreamForwarder, ConnectionContext, states
 
-from cdns.protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
-                           DNSQuery, DNSQuestion, RTypes, auto_decode_label,
-                           get_ip_mode_from_rtype, get_rtype_from_ip_mode,
-                           unpack_all)
-
-from .base import BaseForwarder
-
-
-class states(Enum):
-    connecting = 1
-    sending = 2
-    reading_len = 3
-    reading_data = 4
-    done = 5
-
-
-@dataclass
-class ConnectionContext:
-    future: concurrent.futures.Future
-    state: states
-    out_buf: bytes
-    in_len: int
-    in_buf: bytes
-
-
-class TCPForwarder(BaseForwarder):
-    def __init__(self) -> None:
-        self.sel = selectors.DefaultSelector()
-        self.lock = threading.Lock()
-
-        self.ctxs: dict[socket.socket, ConnectionContext] = {}
-
-        self.thread = threading.Thread(
-            target=self._thread_handler
-        )  # TODO: Daemon true to false
-        self.thread.start()
-
+class TCPForwarder(BaseStreamForwarder):
     def forward(
         self, query: DNSQuery, addr: tuple[str, int]
     ) -> concurrent.futures.Future[bytes]:
-        p = query.pack()
-        data = struct.pack("!H", len(p)) + p
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setblocking(False)
 
         future = concurrent.futures.Future()
 
+        p = query.pack()
+        data = struct.pack("!H", len(p)) + p
+
+        sock = self._create_socket()
+
         try:
-            sock.connect(addr)
-        # This does seem counter-intuitive, but it is necessary. Calling
-        # sock.connnect() starts the connection, but it will not finish immediately,
-        # because the socket is non-blocking. However, the connection process will
-        # start.
-        except BlockingIOError:
-            pass
+            self._connect(sock, addr)
         except Exception as e:
             future.set_exception(e)
             self._cleanup_sock(sock)
             return future
 
-        # Use a lock because ctxs is modified here
-        # TODO: Enforce consistency
-        with self.lock:
-            self.ctxs[sock] = ConnectionContext(
+        self._register_connection(
+            sock,
+            ConnectionContext(
                 future=future,
                 state=states.connecting,
                 out_buf=data,
                 in_len=None,
                 in_buf=None,  # TLDR; bytearray() is a mutuable version of bytes()
-            )
-
-            # Once the connection has been made, the selector will trigger
-            self.sel.register(sock, selectors.EVENT_WRITE)
-
+            ),
+            selectors.EVENT_WRITE,
+        )
         return future
 
-    def _thread_handler(self):
-        while True:
-            events = self.sel.select(timeout=1)
-            for key, mask in events:
-                sock = cast(socket.socket, key.fileobj)
-
-                ctx = self.ctxs.get(sock)
-                if not ctx:
-                    # Keep waiting
-                    continue
-
-                try:
-                    if mask & selectors.EVENT_READ:
-                        self._sock_readable(sock, ctx)
-                    elif mask & selectors.EVENT_WRITE:
-                        self._sock_writeable(sock, ctx)
-                except Exception as e:
-                    ctx.future.set_exception(e)
-                    self._cleanup_sock(sock)
-
-    def cleanup(self):
-        with self.lock:
-            for sock in list(self.ctxs.keys()):
-                self._cleanup_sock(sock)
-
-    def _cleanup_sock(self, sock: socket.socket):
-        with self.lock:
-            self.sel.unregister(sock)
-            self.ctxs.pop(sock, None)  # no error if sock not found
-        sock.close()
-
-    def _sock_writeable(self, sock: socket.socket, ctx: ConnectionContext):
+    def _handle_writeable(self, sock: socket.socket, ctx: ConnectionContext):
         # TODO: Document this whole thing somewhere
         if ctx.state == states.connecting:
             err = sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
@@ -160,7 +80,7 @@ class TCPForwarder(BaseForwarder):
             ctx.state = states.reading_len
             self.sel.modify(sock, selectors.EVENT_READ)
 
-    def _sock_readable(self, sock: socket.socket, ctx: ConnectionContext):
+    def _handle_readable(self, sock: socket.socket, ctx: ConnectionContext):
         if ctx.state == states.reading_len:
             length = sock.recv(2)
             if not length:

@@ -34,13 +34,35 @@ from collections import namedtuple
 from enum import Enum
 from typing import cast
 
-from cdns.protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
-                           DNSQuery, DNSQuestion, RTypes, auto_decode_label,
-                           get_ip_mode_from_rtype, get_rtype_from_ip_mode,
-                           unpack_all)
+from cdns.protocol import *
 
-from .base import BaseForwarder
+from .tcp import TCPForwarder, states as _states
 
 
-class TLSForwarder(BaseForwarder):
-    pass
+class states(_states):
+    ssl_handshake = 6
+
+
+class TLSForwarder(TCPForwarder):
+    # TCP Forwarder but with SSL layer
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, query, addr):
+        return super().forward(query, addr)
+
+    def _thread_handler(self):
+        return super()._thread_handler()
+
+    def cleanup(self):
+        return super().cleanup()
+
+    def _cleanup_sock(self, sock):
+        return super()._cleanup_sock(sock)
+
+    def _sock_writeable(self, sock, ctx):
+        return super()._sock_writeable(sock, ctx)
+
+    def _sock_readable(self, sock, ctx):
+        return super()._sock_readable(sock, ctx)
+    

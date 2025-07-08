@@ -35,10 +35,7 @@ from collections import namedtuple
 from enum import Enum
 from typing import cast
 
-from cdns.protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
-                           DNSQuery, DNSQuestion, RTypes, auto_decode_label,
-                           get_ip_mode_from_rtype, get_rtype_from_ip_mode,
-                           unpack_all)
+from cdns.protocol import *
 
 from .base import BaseForwarder
 
@@ -59,7 +56,8 @@ class UdpForwarder(BaseForwarder):
         self.lock = threading.Lock()
 
         self.thread = threading.Thread(
-            target=self._thread_handler
+            target=self._thread_handler,
+            daemon=True
         )  # TODO: Daemon true or false
         self.thread.daemon = True
         self.thread.start()
