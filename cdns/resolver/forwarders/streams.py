@@ -43,11 +43,12 @@ class states:
     Enumeration of different connection states.
     """
 
-    connecting = 1
-    sending = 2
-    reading_len = 3
-    reading_data = 4
-    done = 5
+    connecting = 0
+    sending = 1
+    reading_len = 2
+    reading_data = 3
+    done = 4
+
 
 
 @dataclass
@@ -61,6 +62,7 @@ class ConnectionContext:
     out_buf: bytes
     in_len: int
     in_buf: bytes
+    addr: str
 
 
 class BaseStreamForwarder(BaseForwarder):
@@ -75,7 +77,7 @@ class BaseStreamForwarder(BaseForwarder):
         )  # TODO: Daemon true to false
         self._thread.start()
 
-    def _create_socket(self):
+    def _create_socket(self, addr=None):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setblocking(False)
         return sock
@@ -115,9 +117,9 @@ class BaseStreamForwarder(BaseForwarder):
 
                 try:
                     if mask & selectors.EVENT_READ:
-                        self._handle_readable(sock, ctx)
+                        self._handle_read(sock, ctx)
                     elif mask & selectors.EVENT_WRITE:
-                        self._handle_writeable(sock, ctx)
+                        self._handle_write(sock, ctx)
                 except Exception as e:
                     ctx.future.set_exception(e)
                     self._cleanup_sock(sock)
@@ -133,8 +135,8 @@ class BaseStreamForwarder(BaseForwarder):
             self._ctxs.pop(sock, None)  # no error if sock not found
         sock.close()
 
-    def _handle_writeable(self, sock: socket.socket, ctx: ConnectionContext):
+    def _handle_write(self, sock: socket.socket, ctx: ConnectionContext):
         raise NotImplementedError
 
-    def _handle_readable(self, sock: socket.socket, ctx: ConnectionContext):
+    def _handle_read(self, sock: socket.socket, ctx: ConnectionContext):
         raise NotImplementedError

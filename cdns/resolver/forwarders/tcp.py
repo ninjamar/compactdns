@@ -45,7 +45,7 @@ class TCPForwarder(BaseStreamForwarder):
         p = query.pack()
         data = struct.pack("!H", len(p)) + p
 
-        sock = self._create_socket()
+        sock = self._create_socket(addr)
 
         try:
             self._connect(sock, addr)
@@ -62,43 +62,56 @@ class TCPForwarder(BaseStreamForwarder):
                 out_buf=data,
                 in_len=None,
                 in_buf=None,  # TLDR; bytearray() is a mutuable version of bytes()
+                addr=addr
             ),
             selectors.EVENT_WRITE,
         )
         return future
 
-    def _handle_writeable(self, sock: socket.socket, ctx: ConnectionContext):
+    def _check_connection(self, sock):
+        err = sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+        if err != 0:
+            raise OSError(err, "Socket connection failed")
+        
+    def _handle_write(self, sock: socket.socket, ctx: ConnectionContext):
+        print("TCP: writeable", ctx.state)
         # TODO: Document this whole thing somewhere
         if ctx.state == states.connecting:
-            err = sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
-            if err != 0:
-                raise OSError(err, "Socket connection failed")
+            self._check_connection(sock)
+            print("TCP: changing state to sending")
             ctx.state = states.sending
+            # Return here -- in TLS, we want to make sure we do the handshale.
+            # Since the selector is still writeable, this function will get
+            # called to trigger the next part.
+        elif ctx.state == states.sending:
 
-        # Send as much data as possible
-        sent = sock.send(ctx.out_buf)
-        # Remove sent data from buffer
-        ctx.out_buf = ctx.out_buf[sent:]
-        if not ctx.out_buf:
-            ctx.state = states.reading_len
-            self.sel.modify(sock, selectors.EVENT_READ)
+            # Send as much data as possible
+            sent = sock.send(ctx.out_buf)
+            # Remove sent data from buffer
+            ctx.out_buf = ctx.out_buf[sent:]
+            if not ctx.out_buf:
+                print("TCP: changing state to reading len")
+                ctx.state = states.reading_len
+                self.sel.modify(sock, selectors.EVENT_READ)
 
-    def _handle_readable(self, sock: socket.socket, ctx: ConnectionContext):
+    def _handle_read(self, sock: socket.socket, ctx: ConnectionContext):
+        print("TCP: readable", ctx.state)
         if ctx.state == states.reading_len:
             length = sock.recv(2)
             if not length:
                 raise ConnectionResetError
 
             ctx.in_len = struct.unpack("!H", length)[0]
+            print("TCP: changing state to reading data")
             ctx.state = states.reading_data
 
-        if ctx.state == states.reading_data:
+        elif ctx.state == states.reading_data:
             buf = sock.recv(ctx.in_len)
             if not buf:
                 raise ConnectionResetError
 
             ctx.in_buf = buf
-
+            print("TCP: changing state to done")
             ctx.state = states.done
 
             ctx.future.set_result(ctx.in_buf)

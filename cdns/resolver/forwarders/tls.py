@@ -41,7 +41,8 @@ from .tcp import states as _states
 
 
 class states(_states):
-    ssl_handshake = 6
+    ssl_handshake = 5
+
 
 
 class TLSForwarder(TCPForwarder):
@@ -49,20 +50,86 @@ class TLSForwarder(TCPForwarder):
     def __init__(self):
         super().__init__()
 
+        self.tls_ctx = ssl.create_default_context()
+
     def forward(self, query, addr):
         return super().forward(query, addr)
+    
+    def _create_socket(self, addr):
+        sock =  super()._create_socket()
+        # sock = self.tls_ctx.wrap_socket(sock, do_handshake_on_connect=False, server_hostname=addr[0]) # addr: ("127.0.0.1", 53)
+        return sock
 
-    def _thread_handler(self):
-        return super()._thread_handler()
+    def _connect(self, sock, addr):
+        return super()._connect(sock, addr)
+    
+    def _register_connection(self, sock, context, events):
+        # 
+        # context.state = states.ssl_handshake
+        events = selectors.EVENT_READ | selectors.EVENT_WRITE
 
-    def cleanup(self):
-        return super().cleanup()
+        return super()._register_connection(sock, context, events)
 
-    def _cleanup_sock(self, sock):
-        return super()._cleanup_sock(sock)
+    def _handle_ssl_handshake(self, sock, ctx):
+        print("TLS: ssl handshake", ctx.state)
+        print(type(sock), sock._sslobj)
+        try:
+            sock.do_handshake()
+            ctx.state = states.sending
+        except ssl.SSLWantReadError:
+            # This could just be pass, but it is fine to delegate to the appropriate
+            # functions here.
+            self.sel.modify(sock, selectors.EVENT_READ)
+        except ssl.SSLWantWriteError:
+            self.sel.modify(sock, selectors.EVENT_WRITE)
+    
+    # Instead of doing parent logic, do the error checking and state-setting
+            # manually. Previously, the parent would be called, which would set
+            # the state to sending at the end. Even though this TLS function would
+            # set the state back to ssl_handshake, a race condition would still
+            # fire. So, the parent function isn't called, and the state never
+            # goes from connecting -> sending -> ssl_handshake. Now it is
+            # connecting -> ssl_handshake
 
-    def _sock_writeable(self, sock, ctx):
-        return super()._sock_writeable(sock, ctx)
+    def _handle_write(self, sock, ctx):
+        print("TLS: writeable", ctx.state)
+        if ctx.state == states.connecting:
+            super()._handle_write(sock, ctx)
 
-    def _sock_readable(self, sock, ctx):
-        return super()._sock_readable(sock, ctx)
+            
+            wrapped = self.tls_ctx.wrap_socket(sock, do_handshake_on_connect=False, server_hostname=ctx.addr[0]) # addr: ("127.0.0.1", 53)
+            # Move context from sock to wrapped
+            self._ctxs[wrapped] = self._ctxs.pop(sock)
+            # Move selectors from sock to wrapped
+            self.sel.unregister(sock)
+            self.sel.register(wrapped, selectors.EVENT_READ | selectors.EVENT_WRITE)
+
+            # After connection, wrap the socket
+            ctx.state = states.ssl_handshake
+            #self._check_connection(sock)
+            #print("TLS: Changing state to handshake")
+            #ctx.state = states.ssl_handshake
+
+        elif ctx.state == states.ssl_handshake:
+            return self._handle_ssl_handshake(sock, ctx)
+        
+        else:
+            return super()._handle_write(sock, ctx)
+
+    def _handle_read(self, sock, ctx):
+        print("TLS: readable", ctx.state)
+        if ctx.state == states.ssl_handshake:
+            return self._handle_ssl_handshake(sock, ctx)
+        else:
+            return super()._handle_read(sock, ctx)
+
+if __name__ == "__main__":
+    # HACK: Monkeypatch for testing. In production, the server should be trusted
+    ssl.create_default_context = ssl._create_unverified_context
+
+    f = TLSForwarder()
+    q = DNSQuery(DNSHeader(), [DNSQuestion(decoded_name="google.com")])
+    res = f.forward(q, ("127.0.0.1", 5353))  # Simple echo server in ignore/echo.py
+
+    result = res.result()
+    print(result.hex())
