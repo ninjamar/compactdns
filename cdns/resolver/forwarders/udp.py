@@ -55,10 +55,11 @@ class UdpForwarder(BaseForwarder):
 
         self.lock = threading.Lock()
 
+        self.shutdown_event = threading.Event()
+
         self.thread = threading.Thread(
-            target=self._thread_handler, daemon=True
+            target=self._thread_handler
         )  # TODO: Daemon true or false
-        self.thread.daemon = True
         self.thread.start()
 
     def _thread_handler(self) -> None:
@@ -67,7 +68,7 @@ class UdpForwarder(BaseForwarder):
 
         # TODO: Add a way to use TLS for forwarding (use_secure_forwarder=True)
 
-        while True:
+        while not self.shutdown_event.is_set():
             events = self.sel.select(timeout=1)  # TODO: Timeout
             with self.lock:  # TODO: Lock here?
                 for key, mask in events:
@@ -121,5 +122,7 @@ class UdpForwarder(BaseForwarder):
         return future
 
     def cleanup(self):
-        for sock in self.pending_requests.keys():
-            sock.close()
+        with self.lock:
+            for sock in self.pending_requests.keys():
+                sock.close()
+        self.shutdown_event.set()

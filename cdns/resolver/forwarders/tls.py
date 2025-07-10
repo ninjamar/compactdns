@@ -69,13 +69,21 @@ class TLSForwarder(TCPForwarder):
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
 
         return super()._register_connection(sock, context, events)
-
+    """
+    FLOW:
+        [x] connection - READ/WRITE
+        [x] ssl - READ/WRITE
+        [x] send - WRITE
+        [x] read_len - READ
+        [x] read_body - READ
+    """
     def _handle_ssl_handshake(self, sock, ctx):
-        print("TLS: ssl handshake", ctx.state)
-        print(type(sock), sock._sslobj)
+        # print("TLS: ssl handshake", ctx.state)
+        # print(type(sock), sock._sslobj)
         try:
             sock.do_handshake()
             ctx.state = states.sending
+            self.sel.modify(sock, selectors.EVENT_WRITE)
         except ssl.SSLWantReadError:
             # This could just be pass, but it is fine to delegate to the appropriate
             # functions here.
@@ -84,15 +92,15 @@ class TLSForwarder(TCPForwarder):
             self.sel.modify(sock, selectors.EVENT_WRITE)
     
     # Instead of doing parent logic, do the error checking and state-setting
-            # manually. Previously, the parent would be called, which would set
-            # the state to sending at the end. Even though this TLS function would
-            # set the state back to ssl_handshake, a race condition would still
-            # fire. So, the parent function isn't called, and the state never
-            # goes from connecting -> sending -> ssl_handshake. Now it is
-            # connecting -> ssl_handshake
+    # manually. Previously, the parent would be called, which would set
+    # the state to sending at the end. Even though this TLS function would
+    # set the state back to ssl_handshake, a race condition would still
+    # fire. So, the parent function isn't called, and the state never
+    # goes from connecting -> sending -> ssl_handshake. Now it is
+    # connecting -> ssl_handshake
 
     def _handle_write(self, sock, ctx):
-        print("TLS: writeable", ctx.state)
+        # print("TLS: writeable", ctx.state)
         if ctx.state == states.connecting:
             super()._handle_write(sock, ctx)
 
@@ -106,9 +114,9 @@ class TLSForwarder(TCPForwarder):
 
             # After connection, wrap the socket
             ctx.state = states.ssl_handshake
-            #self._check_connection(sock)
-            #print("TLS: Changing state to handshake")
-            #ctx.state = states.ssl_handshake
+            # self._check_connection(sock)
+            # print("TLS: Changing state to handshake")
+            # ctx.state = states.ssl_handshake
 
         elif ctx.state == states.ssl_handshake:
             return self._handle_ssl_handshake(sock, ctx)
@@ -117,11 +125,16 @@ class TLSForwarder(TCPForwarder):
             return super()._handle_write(sock, ctx)
 
     def _handle_read(self, sock, ctx):
-        print("TLS: readable", ctx.state)
-        if ctx.state == states.ssl_handshake:
-            return self._handle_ssl_handshake(sock, ctx)
-        else:
-            return super()._handle_read(sock, ctx)
+        try:
+            # print("TLS: readable", ctx.state)
+            if ctx.state == states.ssl_handshake:
+                return self._handle_ssl_handshake(sock, ctx)
+            else:
+                return super()._handle_read(sock, ctx)
+        except ssl.SSLWantReadError:
+            self.sel.modify(sock, selectors.EVENT_READ)
+        except ssl.SSLWantWriteError:
+            self.sel.modify(sock, selectors.EVENT_WRITE)
 
 if __name__ == "__main__":
     # HACK: Monkeypatch for testing. In production, the server should be trusted
@@ -133,3 +146,5 @@ if __name__ == "__main__":
 
     result = res.result()
     print(result.hex())
+
+    f.cleanup()

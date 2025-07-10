@@ -84,28 +84,37 @@ class TCPForwarder(BaseStreamForwarder):
             # Since the selector is still writeable, this function will get
             # called to trigger the next part.
         elif ctx.state == states.sending:
-
+            print("Sent")
             # Send as much data as possible
             sent = sock.send(ctx.out_buf)
             # Remove sent data from buffer
-            ctx.out_buf = ctx.out_buf[sent:]
-            if not ctx.out_buf:
-                print("TCP: changing state to reading len")
-                ctx.state = states.reading_len
-                self.sel.modify(sock, selectors.EVENT_READ)
+            #ctx.out_buf = ctx.out_buf[sent:]
+            #if not ctx.out_buf:
+            print("TCP: changing state to reading len")
+            ctx.state = states.reading_len
+            self.sel.modify(sock, selectors.EVENT_READ)
 
     def _handle_read(self, sock: socket.socket, ctx: ConnectionContext):
-        print("TCP: readable", ctx.state)
+        # print("TCP: readable", ctx.state)
         if ctx.state == states.reading_len:
             length = sock.recv(2)
             if not length:
                 raise ConnectionResetError
 
             ctx.in_len = struct.unpack("!H", length)[0]
+
             print("TCP: changing state to reading data")
             ctx.state = states.reading_data
 
+
+            # Need to read data immediatly. Sometimes the server will send the
+            # response as soon as possible, so the selector will not be triggered
+            self.sel.modify(sock, selectors.EVENT_READ)
+
+            return self._handle_read(sock, ctx)
+
         elif ctx.state == states.reading_data:
+            print("reading data")
             buf = sock.recv(ctx.in_len)
             if not buf:
                 raise ConnectionResetError

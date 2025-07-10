@@ -27,6 +27,7 @@
 
 import concurrent.futures
 import selectors
+import signal
 import socket
 import threading
 from dataclasses import dataclass
@@ -72,10 +73,15 @@ class BaseStreamForwarder(BaseForwarder):
 
         self._ctxs: dict[socket.socket, ConnectionContext] = {}
 
+        self.shutdown_event = threading.Event()
+
         self._thread = threading.Thread(
-            target=self._thread_handler, daemon=True
+            target=self._thread_handler
         )  # TODO: Daemon true to false
         self._thread.start()
+
+    def _sigterm_handler(self, stack, frame):
+        self.shutdown_event.set()
 
     def _create_socket(self, addr=None):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -105,8 +111,10 @@ class BaseStreamForwarder(BaseForwarder):
         raise NotImplementedError
 
     def _thread_handler(self):
-        while True:
+        while not self.shutdown_event.is_set():
+            # print("Waiting for events events")
             events = self.sel.select(timeout=1)
+            # print("Events received", events)
             for key, mask in events:
                 sock = cast(socket.socket, key.fileobj)
 
@@ -129,11 +137,13 @@ class BaseStreamForwarder(BaseForwarder):
             for sock in list(self._ctxs.keys()):
                 self._cleanup_sock(sock)
 
+        self.shutdown_event.set()
+
     def _cleanup_sock(self, sock: socket.socket):
         with self.lock:
             self.sel.unregister(sock)
             self._ctxs.pop(sock, None)  # no error if sock not found
-        sock.close()
+            sock.close()
 
     def _handle_write(self, sock: socket.socket, ctx: ConnectionContext):
         raise NotImplementedError
