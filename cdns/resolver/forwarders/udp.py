@@ -40,7 +40,7 @@ from cdns.protocol import *
 from .base import BaseForwarder
 
 
-class UdpForwarder(BaseForwarder):
+class UDPForwarder(BaseForwarder):
     """Forwarder using UDP."""
 
     def __init__(self) -> None:

@@ -38,7 +38,7 @@ from cdns.manager import ServerManager
 from .kwargs import get_kwargs, kwargs_defaults
 
 
-def _configure_logging(kwargs) -> None:
+def _configure_logging(kwargs: dict[str, str | int | bool]) -> None:
     """Configure the logger.
 
     Args:
@@ -56,7 +56,7 @@ def _configure_logging(kwargs) -> None:
 
     if kwargs["logging.log"]:
         path = os.path.expanduser(kwargs["logging.log"])
-        handler: logging.Handler = logging.FileHandler(path)
+        handler: logging.Handler = logging.FileHandler(path) # type: ignore
     else:
         handler = logging.StreamHandler(sys.stdout)
 

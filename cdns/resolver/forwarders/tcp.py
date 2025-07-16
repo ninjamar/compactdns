@@ -40,7 +40,7 @@ class TCPForwarder(BaseStreamForwarder):
         self, query: DNSQuery, addr: tuple[str, int]
     ) -> concurrent.futures.Future[bytes]:
 
-        future = concurrent.futures.Future()
+        future: concurrent.futures.Future[bytes] = concurrent.futures.Future()
 
         p = query.pack()
         data = struct.pack("!H", len(p)) + p
@@ -62,7 +62,7 @@ class TCPForwarder(BaseStreamForwarder):
                 out_buf=data,
                 in_len=None,
                 in_buf=None,  # TLDR; bytearray() is a mutuable version of bytes()
-                addr=addr
+                addr=addr,
             ),
             selectors.EVENT_WRITE,
         )
@@ -72,7 +72,7 @@ class TCPForwarder(BaseStreamForwarder):
         err = sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
         if err != 0:
             raise OSError(err, "Socket connection failed")
-        
+
     def _handle_write(self, sock: socket.socket, ctx: ConnectionContext):
         print("TCP: writeable", ctx.state)
         # TODO: Document this whole thing somewhere
@@ -88,8 +88,8 @@ class TCPForwarder(BaseStreamForwarder):
             # Send as much data as possible
             sent = sock.send(ctx.out_buf)
             # Remove sent data from buffer
-            #ctx.out_buf = ctx.out_buf[sent:]
-            #if not ctx.out_buf:
+            # ctx.out_buf = ctx.out_buf[sent:]
+            # if not ctx.out_buf:
             print("TCP: changing state to reading len")
             ctx.state = states.reading_len
             self.sel.modify(sock, selectors.EVENT_READ)
@@ -105,7 +105,6 @@ class TCPForwarder(BaseStreamForwarder):
 
             print("TCP: changing state to reading data")
             ctx.state = states.reading_data
-
 
             # Need to read data immediatly. Sometimes the server will send the
             # response as soon as possible, so the selector will not be triggered

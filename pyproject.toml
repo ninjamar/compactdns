@@ -60,3 +60,13 @@ Issues = "https://github.com/ninjamar/compactdns/issues"
 
 [project.scripts]
 cdns = "cdns.cli:cli"
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "darglint>=1.8.1",
+    "isort>=6.0.1",
+    "radon>=6.0.1",
+    "ruff>=0.12.2",
+    "ty>=0.0.1a14",
+]

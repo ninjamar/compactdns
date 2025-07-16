@@ -35,19 +35,10 @@ from collections import namedtuple
 from enum import Enum
 from typing import cast
 
-from cdns.protocol import (
-    DNSAdditional,
-    DNSAnswer,
-    DNSAuthority,
-    DNSHeader,
-    DNSQuery,
-    DNSQuestion,
-    RTypes,
-    auto_decode_label,
-    get_ip_mode_from_rtype,
-    get_rtype_from_ip_mode,
-    unpack_all,
-)
+from cdns.protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
+                           DNSQuery, DNSQuestion, RTypes, auto_decode_label,
+                           get_ip_mode_from_rtype, get_rtype_from_ip_mode,
+                           unpack_all)
 from cdns.resolver import forwarders
 
 from .base import BaseResolver
@@ -63,7 +54,7 @@ class UpstreamResolver(BaseResolver):
             addr: Address of the upstream.
         """
         self.addr = addr
-        self.forwarder = forwarders.UdpForwarder()
+        self.forwarder = forwarders.UDPForwarder()
 
     def send(self, query: DNSQuery) -> concurrent.futures.Future[DNSQuery]:
         """Send a query to the upstream.

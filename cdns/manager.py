@@ -47,8 +47,10 @@ import h2.connection
 import h2.events
 import h11
 
+from collections.abc import Callable
 from . import daemon
-from .resolver.resolvers import BaseResolver, RecursiveResolver, UpstreamResolver
+from .resolver.resolvers import (BaseResolver, RecursiveResolver,
+                                 UpstreamResolver)
 from .response import make_response_handler, mixins, preload_hosts
 from .storage import RecordStorage
 from .utils import get_dns_servers
@@ -592,9 +594,9 @@ class ServerManager:
 
         conn.send(h2conn.data_to_send())
 
-        streams = {}
+        streams: dict[int, bytes] = {}
 
-        headers_map = {}
+        headers_map: dict[int, tuple[bytes, bytes]] = {}
 
         while True:
             data = conn.recv(512)
@@ -602,7 +604,10 @@ class ServerManager:
                 raise ConnectionResetError
 
             for event in h2conn.receive_data(data):
-                stream_id = getattr(event, "stream_id", None)
+                stream_id: int = getattr(event, "stream_id", None)
+                if not stream_id:
+                    # TODO: Is this the right error?
+                    raise ConnectionResetError
 
                 if isinstance(event, h2.events.RequestReceived):
                     # TODO: Type annotate everything
@@ -635,6 +640,8 @@ class ServerManager:
                     headers_map[stream_id] = (method, path)
 
                 elif isinstance(event, h2.events.DataReceived):
+                    if not event.data:
+                        raise ConnectionResetError
                     # Only triggered for POST
                     streams[stream_id] += event.data
                     h2conn.acknowledge_received_data(
@@ -661,7 +668,7 @@ class ServerManager:
                         dns_data = streams.pop(stream_id)
 
                     # Utility function to send back
-                    def doh_send_back(data: bytes):
+                    def doh_send_back(data: bytes) -> None:
                         h2conn.send_headers(
                             stream_id,
                             headers=[
@@ -683,7 +690,7 @@ class ServerManager:
 
     # TODO: Rename these functions to match purposes
     def _perform_tls_handshake(
-        self, ctx: ssl.SSLContext, conn: socket.socket, do_next
+        self, ctx: ssl.SSLContext, conn: socket.socket, do_next: Callable[[ssl.SSLSocket], None]
     ) -> None:  # TODO: Type annotations return
         """Handle a DNS query over tls.
 
@@ -720,7 +727,7 @@ class ServerManager:
 
         return do_next(tls)
 
-    def command(self, cmd, **kwargs) -> None:
+    def command(self, cmd: str, **kwargs) -> None:
         """Call a command.
 
         | Command Name | Description | Arguments |
@@ -893,7 +900,7 @@ class ServerManager:
         self.cleanup()
         logging.info("Server shutdown complete")
 
-    def _single_event(self, sel, executor):
+    def _single_event(self, sel: selectors.BaseSelector, executor: concurrent.futures.Executor) -> None:
         """Handle a single event."""
         # if self.now >= 10:
         #    logging.info("Passed health check")

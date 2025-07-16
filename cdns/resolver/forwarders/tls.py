@@ -6,7 +6,6 @@
 # MIT License
 
 # Copyright (c) 2025 ninjamar
-
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
@@ -44,7 +43,6 @@ class states(_states):
     ssl_handshake = 5
 
 
-
 class TLSForwarder(TCPForwarder):
     # TCP Forwarder but with SSL layer
     def __init__(self):
@@ -54,21 +52,22 @@ class TLSForwarder(TCPForwarder):
 
     def forward(self, query, addr):
         return super().forward(query, addr)
-    
+
     def _create_socket(self, addr):
-        sock =  super()._create_socket()
+        sock = super()._create_socket()
         # sock = self.tls_ctx.wrap_socket(sock, do_handshake_on_connect=False, server_hostname=addr[0]) # addr: ("127.0.0.1", 53)
         return sock
 
     def _connect(self, sock, addr):
         return super()._connect(sock, addr)
-    
+
     def _register_connection(self, sock, context, events):
-        # 
+        #
         # context.state = states.ssl_handshake
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
 
         return super()._register_connection(sock, context, events)
+
     """
     FLOW:
         [x] connection - READ/WRITE
@@ -77,6 +76,7 @@ class TLSForwarder(TCPForwarder):
         [x] read_len - READ
         [x] read_body - READ
     """
+
     def _handle_ssl_handshake(self, sock, ctx):
         # print("TLS: ssl handshake", ctx.state)
         # print(type(sock), sock._sslobj)
@@ -90,7 +90,7 @@ class TLSForwarder(TCPForwarder):
             self.sel.modify(sock, selectors.EVENT_READ)
         except ssl.SSLWantWriteError:
             self.sel.modify(sock, selectors.EVENT_WRITE)
-    
+
     # Instead of doing parent logic, do the error checking and state-setting
     # manually. Previously, the parent would be called, which would set
     # the state to sending at the end. Even though this TLS function would
@@ -104,8 +104,9 @@ class TLSForwarder(TCPForwarder):
         if ctx.state == states.connecting:
             super()._handle_write(sock, ctx)
 
-            
-            wrapped = self.tls_ctx.wrap_socket(sock, do_handshake_on_connect=False, server_hostname=ctx.addr[0]) # addr: ("127.0.0.1", 53)
+            wrapped = self.tls_ctx.wrap_socket(
+                sock, do_handshake_on_connect=False, server_hostname=ctx.addr[0]
+            )  # addr: ("127.0.0.1", 53)
             # Move context from sock to wrapped
             self._ctxs[wrapped] = self._ctxs.pop(sock)
             # Move selectors from sock to wrapped
@@ -120,10 +121,10 @@ class TLSForwarder(TCPForwarder):
 
         elif ctx.state == states.ssl_handshake:
             return self._handle_ssl_handshake(sock, ctx)
-        
+
         else:
             return super()._handle_write(sock, ctx)
-
+    
     def _handle_read(self, sock, ctx):
         try:
             # print("TLS: readable", ctx.state)
@@ -136,9 +137,10 @@ class TLSForwarder(TCPForwarder):
         except ssl.SSLWantWriteError:
             self.sel.modify(sock, selectors.EVENT_WRITE)
 
+
 if __name__ == "__main__":
     # HACK: Monkeypatch for testing. In production, the server should be trusted
-    ssl.create_default_context = ssl._create_unverified_context
+    ssl.create_default_context = ssl._create_unverified_context # type: ignore
 
     f = TLSForwarder()
     q = DNSQuery(DNSHeader(), [DNSQuestion(decoded_name="google.com")])
@@ -148,3 +150,7 @@ if __name__ == "__main__":
     print(result.hex())
 
     f.cleanup()
+
+# [x] TODO: Make thread exit cleanly using .cleanup
+# TODO: Integrate forwarders config for changing options
+# TODO: Add DoH forwarder -- http 1 and http 2

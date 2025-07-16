@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Callable
 
 from .protocol import DNSHeader, DNSQuery, DNSQuestion
-from .response.mixins import SmartEnsureLoadedMixin
+# from .response.mixins import SmartEnsureLoadedMixin
 
 
 class BaseDaemon(Process):
@@ -89,34 +89,34 @@ class BaseDaemon(Process):
         raise NotImplementedError
 
 
-class SmartEnsureLoadedDaemon(BaseDaemon):
-    # Also broken
-    def __init__(self, mixin: SmartEnsureLoadedMixin, top_readable_queue, **kwargs):
-        raise NotImplementedError
-        super().__init__(**kwargs)
+# class SmartEnsureLoadedDaemon(BaseDaemon):
+#     # Also broken
+#     def __init__(self, mixin: SmartEnsureLoadedMixin, top_readable_queue, **kwargs):
+#         raise NotImplementedError
+#         super().__init__(**kwargs)
 
-        self.mixin = mixin
-        self.top = None
-        self.top_queue = top_readable_queue
+#         self.mixin = mixin
+#         self.top = None
+#         self.top_queue = top_readable_queue
 
-    def task(self):
-        print("Running smart task")
-        # TODO: This only is set up for A records. I kept it that way because
-        # the majority of traffic uses these records.
-        if not self.top_queue.empty() or not self.top:
-            self.top = self.top_queue.get()
+#     def task(self):
+#         print("Running smart task")
+#         # TODO: This only is set up for A records. I kept it that way because
+#         # the majority of traffic uses these records.
+#         if not self.top_queue.empty() or not self.top:
+#             self.top = self.top_queue.get()
 
-        # top = self.mixin.get_top()
-        print("Top", self.top)
+#         # top = self.mixin.get_top()
+#         print("Top", self.top)
 
-        # Since this runs in a daemon, we cannot use preload_hosts to update the
-        # main thread. Instead, this daemon will send a request over UDP sockets
-        # to the server.
-        addr = self._udp_addr
-        for [decoded_name, hits] in self.top:
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-                query = DNSQuery(DNSHeader(), [DNSQuestion(decoded_name=decoded_name)])
-                sock.sendto(query.pack(), addr)
+#         # Since this runs in a daemon, we cannot use preload_hosts to update the
+#         # main thread. Instead, this daemon will send a request over UDP sockets
+#         # to the server.
+#         addr = self._udp_addr
+#         for [decoded_name, hits] in self.top:
+#             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+#                 query = DNSQuery(DNSHeader(), [DNSQuestion(decoded_name=decoded_name)])
+#                 sock.sendto(query.pack(), addr)
 
 
 class FastestResolverDaemon(BaseDaemon):

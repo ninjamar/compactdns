@@ -24,6 +24,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
+# type: ignore
+# I've ignored this file because it will take a lot of time to do type annotations
+# TODO: Add type annotations
 
 """
 LifeCycle-Broadcast (LCB) Framework
@@ -75,6 +78,7 @@ Ended on <cdns.lcb.lcb.foo object at 0x10346f190>
 Received abcdef on <cdns.lcb.lcb.f object at 0x10346f190>
 """
 
+from typing import Any
 
 EVENT_START = "_start"
 EVENT_END = "_end"
@@ -85,25 +89,22 @@ class BaseMixin:
     Base mixin class.
     """
 
-    events = []
+    events: list[str] = []
 
-    def __init__(self):
-        pass
-
-    def receive(self, target, name, *args, **kwargs):
+    def receive(self, target: Any, name: str, *args, **kwargs) -> Any:
         if name == EVENT_START:
             return self.start(target, *args, **kwargs)
         elif name == EVENT_END:
             return self.end(target, *args, **kwargs)
-        return self.event
+        return self.event(target, *args, **kwargs)
 
-    def start(self, target, *args, **kwargs):
+    def start(self, target: Any, *args, **kwargs) -> Any:
         pass
 
-    def end(self, target, *args, **kwargs):
+    def end(self, target: Any, *args, **kwargs) -> Any:
         pass
 
-    def event(self, target, name, *args, **kwargs):
+    def event(self, target: Any, name, *args, **kwargs) -> Any:
         pass
 
 

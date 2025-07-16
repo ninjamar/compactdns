@@ -33,18 +33,12 @@ import socket
 import struct
 from typing import Callable
 
-from cdns.lcb import LCBMethods
-from cdns.protocol import (
-    DNSAnswer,
-    DNSHeader,
-    DNSQuery,
-    DNSQuestion,
-    RTypes,
-    auto_decode_label,
-    auto_encode_label,
-    unpack_all,
-)
-from cdns.resolver import BaseResolver, RecursiveResolver
+# Because lcb.py has a type ignore at the top, mypy doesn't know the methods
+from cdns.lcb import LCBMethods # type: ignore
+from cdns.protocol import (DNSAnswer, DNSHeader, DNSQuery, DNSQuestion, RTypes,
+                           auto_decode_label, auto_encode_label, unpack_all)
+from cdns.resolver.resolvers.base import BaseResolver
+from cdns.resolver.resolvers.recursive import RecursiveResolver
 from cdns.storage import RecordStorage
 
 # TODO: Send back and check TC flag

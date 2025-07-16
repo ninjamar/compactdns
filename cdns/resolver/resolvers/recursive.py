@@ -35,19 +35,10 @@ from collections import namedtuple
 from enum import Enum
 from typing import cast
 
-from cdns.protocol import (
-    DNSAdditional,
-    DNSAnswer,
-    DNSAuthority,
-    DNSHeader,
-    DNSQuery,
-    DNSQuestion,
-    RTypes,
-    auto_decode_label,
-    get_ip_mode_from_rtype,
-    get_rtype_from_ip_mode,
-    unpack_all,
-)
+from cdns.protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
+                           DNSQuery, DNSQuestion, RTypes, auto_decode_label,
+                           get_ip_mode_from_rtype, get_rtype_from_ip_mode,
+                           unpack_all)
 from cdns.resolver import forwarders
 
 from .base import BaseResolver
@@ -62,7 +53,7 @@ class RecursiveResolver(BaseResolver):
 
     def __init__(self) -> None:
         """Create an instance of RecursiveResolver."""
-        self.forwarder = forwarders.UdpForwarder()
+        self.forwarder = forwarders.UDPForwarder()
         self.executor = concurrent.futures.ThreadPoolExecutor()
         """Server = root server send request to server (enable timeout) receive
         response parse response if the response has ip address of domain return
@@ -183,7 +174,7 @@ class RecursiveResolver(BaseResolver):
             to_future.set_result(error_query)
 
     def _resolve(
-        self, query: DNSQuery, server_addr: tuple[str, int]
+        self, query: DNSQuery, server_addr: tuple[str, int], auto_detect_forwarder=True
     ) -> concurrent.futures.Future[DNSQuery]:
         """Resolve a query recursively.
 
@@ -203,7 +194,7 @@ class RecursiveResolver(BaseResolver):
         self.executor.submit(send)
         return future
 
-    def send(self, query: DNSQuery) -> concurrent.futures.Future[DNSQuery]:
+    def send(self, query: DNSQuery, auto_detect_forwarder=True) -> concurrent.futures.Future[DNSQuery]:
         """Send a query to the resolver.
 
         Args:
@@ -226,7 +217,7 @@ class RecursiveResolver(BaseResolver):
         elif t == RTypes.AAAA:
             ip_size = 16
 
-        return self._resolve(query, server_addr)
+        return self._resolve(query, server_addr, auto_detect_forwarder)
 
     def cleanup(self):
         """Cleanup any loose ends."""

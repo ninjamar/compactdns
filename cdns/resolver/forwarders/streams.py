@@ -51,7 +51,6 @@ class states:
     done = 4
 
 
-
 @dataclass
 class ConnectionContext:
     """

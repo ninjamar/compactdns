@@ -166,3 +166,16 @@ dig @A.B.C.D -p PORT example.com
 ## License
 
 This project is licensed under the MIT License. See the LICENSE file for details.
+
+## Contributing
+
+### Workflow
+
+Make sure the following tools have been applied:
+- black
+- isort
+  
+Make sure all code passes:
+- mypy
+- darglint
+- ruff
