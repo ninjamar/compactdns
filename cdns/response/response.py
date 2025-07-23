@@ -67,6 +67,7 @@ class BaseResponseHandler(LCBMethods):
         tcp_conn: socket.socket | None = None,
         doh_conn: socket.socket | None = None,
         doh_send_back=None,
+        tls: bool | None = None
     ) -> None:
         """Create a ResponseHandler instance. Use with either UDP or TCP.
 
@@ -91,6 +92,7 @@ class BaseResponseHandler(LCBMethods):
             self.udp_addr = udp_addr
         elif tcp_conn:
             self.tcp_conn = tcp_conn
+            self.tls = tls
         elif doh_conn and doh_send_back:
             self.doh_conn = doh_conn
             self.doh_send_back = doh_send_back
@@ -200,6 +202,7 @@ class BaseResponseHandler(LCBMethods):
 
             # TODO: Should this be exposed?
             # future = self.resolver.send(to_send, ip_mode)
+            self.new._method = self._find_method()
             future = self.resolver.send(self.new)
             # send = pack_all_compressed(self.new_header, self.new_questions)
             # future = self.forwarder(send)
@@ -210,6 +213,19 @@ class BaseResponseHandler(LCBMethods):
 
             self._post_process()
 
+    def _find_method(self):
+        if self.udp_sock and self.udp_addr:
+            return "udp" # TODO: Use enum or something
+        if self.tcp_conn:
+            if self.tls:
+                return "tls"
+            else:
+                return "tcp"
+        if self.doh_conn and self.doh_send_back:
+            return "doh"
+    
+        raise
+    
     def _forwarding_done_handler(
         self, future: concurrent.futures.Future[DNSQuery]
     ) -> None:

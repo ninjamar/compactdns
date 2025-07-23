@@ -633,6 +633,8 @@ class DNSQuery:
     authorities: list[DNSAuthority] = dataclasses.field(default_factory=list)
     additionals: list[DNSAdditional] = dataclasses.field(default_factory=list)
 
+    _method: str = None # This is used internally, and is never packed or loaded
+
     @classmethod
     def from_bytes(self, buf: bytes) -> "DNSQuery":
         """Create an instance of DNSQuery from bytes.

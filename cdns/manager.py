@@ -404,6 +404,8 @@ class ServerManager:
                         storage=self.storage,
                         resolver=self.resolver,
                         tcp_conn=conn,
+                        # Easy way to add TLS mode without refactoring a lot of previous code
+                        tls=isinstance(conn, ssl.SSLSocket)
                     ).start(query)
 
     def _handle_dns_query_tls(self, conn: socket.socket) -> None:

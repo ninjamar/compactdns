@@ -47,13 +47,21 @@ from .base import BaseResolver
 # ROOT_SERVERS = [p + ".ROOT-SERVERS.NET" for p in string.ascii_uppercase[:13]]
 ROOT_SERVERS = [("198.41.0.4", 53)]
 
-
+FORWARDERS = {
+    "doh": forwarders.DoHForwarder,
+    "tcp": forwarders.TCPForwarder,
+    "tls": forwarders.TLSForwarder,
+    "udp": forwarders.UDPForwarder
+}
 class RecursiveResolver(BaseResolver):
     """Resolve a request recursively."""
 
     def __init__(self) -> None:
         """Create an instance of RecursiveResolver."""
-        self.forwarder = forwarders.UDPForwarder()
+
+        # Activate the forwarder
+        self.forwarders_list: dict[str, forwarders.BaseForwarder] = {k: v() for k, v in FORWARDERS.items()}
+
         self.executor = concurrent.futures.ThreadPoolExecutor()
         """Server = root server send request to server (enable timeout) receive
         response parse response if the response has ip address of domain return
@@ -185,14 +193,19 @@ class RecursiveResolver(BaseResolver):
         Returns:
             Future that fufils when there's a response.
         """
+        # Add auto detect forwarder
         future: concurrent.futures.Future[DNSQuery] = concurrent.futures.Future()
 
         def send():
-            response = self.forwarder.forward(query, server_addr)
+            # response = self.forwarder.forward(query, server_addr)
+            response = self._get_forwarder(query).forward(query, server_addr)
             response.add_done_callback(lambda f: self._resolve_done(f, query, future))
 
         self.executor.submit(send)
         return future
+    
+    def _get_forwarder(self, query: DNSQuery):
+        return self.forwarders_list[query._method]
 
     def send(self, query: DNSQuery, auto_detect_forwarder=True) -> concurrent.futures.Future[DNSQuery]:
         """Send a query to the resolver.
@@ -210,15 +223,16 @@ class RecursiveResolver(BaseResolver):
 
         # TODO: Make sure only one question is being sent at a time
         # Detect ip_mode
-
+        """
         t = query.questions[0].type_
         if t == RTypes.A:
             ip_size = 4
         elif t == RTypes.AAAA:
             ip_size = 16
-
+        """
         return self._resolve(query, server_addr, auto_detect_forwarder)
 
     def cleanup(self):
         """Cleanup any loose ends."""
-        self.forwarder.cleanup()
+        for forwarder in self.forwarders_list.values():
+            forwarder.cleanup()
