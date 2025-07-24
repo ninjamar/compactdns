@@ -76,6 +76,18 @@ recursive = true
 # How often to check the latency of each server.
 # interval = 100
 
+tls_endpoints = [
+    ["1.1.1.1", 853]
+]
+# For DoH support, a list of endpoints are required
+doh_endpoints = [
+    ["one.one.one.one", 433]
+]
+
+# TLS is not supported. The root servers only suppprt TCP and UDP. For DoH to
+# work, doh_endpoints is passed. It makes no sene to include TLS.
+forwarding_mode = "auto" # One of TCP, UDP, DOH, AUTO
+
 [storage]
 # A list of paths to directories containing zone files.
 zone_dirs = [

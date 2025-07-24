@@ -279,7 +279,18 @@ class ServerManager:
             tls_host = (kwargs["servers.tls.host"], int(kwargs["servers.tls.port"]))
 
         if kwargs["resolver.recursive"]:
-            resolver = RecursiveResolver()
+            if kwargs["resolver.doh_endpoints"] is not None:
+                doh_endpoints = [tuple(item) for item in kwargs["resolver.doh_endpoints"]]
+            else:
+                doh_endpoints = None
+
+            if kwargs["resolver.tls_endpoints"] is not None:
+                tls_endpoints = [tuple(item) for item in kwargs["resolver.tls_endpoints"]]
+            else:
+                tls_endpoints = None
+                
+            # TODO: Normalize case for arguments
+            resolver = RecursiveResolver(forwarding_mode=kwargs["resolver.forwarding_mode"].lower(), doh_endpoints=doh_endpoints, tls_endpoints=tls_endpoints)
         else:
             resolver = UpstreamResolver(("", 53))
 

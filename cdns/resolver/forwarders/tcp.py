@@ -25,6 +25,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import logging
 import concurrent.futures
 import selectors
 import socket
@@ -74,28 +75,29 @@ class TCPForwarder(BaseStreamForwarder):
             raise OSError(err, "Socket connection failed")
 
     def _handle_write(self, sock: socket.socket, ctx: ConnectionContext):
-        print("TCP: writeable", ctx.state)
+        # TODO: use logging here
+        logging.debug("TCP: writeable %s", ctx.state)
         # TODO: Document this whole thing somewhere
         if ctx.state == states.connecting:
             self._check_connection(sock)
-            print("TCP: changing state to sending")
+            logging.debug("TCP: changing state to sending")
             ctx.state = states.sending
             # Return here -- in TLS, we want to make sure we do the handshale.
             # Since the selector is still writeable, this function will get
             # called to trigger the next part.
         elif ctx.state == states.sending:
-            print("Sent")
+            logging.debug("TCP: Sent")
             # Send as much data as possible
             sent = sock.send(ctx.out_buf)
             # Remove sent data from buffer
             # ctx.out_buf = ctx.out_buf[sent:]
             # if not ctx.out_buf:
-            print("TCP: changing state to reading len")
+            logging.debug("TCP: changing state to reading len")
             ctx.state = states.reading_len
             self.sel.modify(sock, selectors.EVENT_READ)
 
     def _handle_read(self, sock: socket.socket, ctx: ConnectionContext):
-        # print("TCP: readable", ctx.state)
+        logging.debug("TCP: readable %s", ctx.state)
         if ctx.state == states.reading_len:
             length = sock.recv(2)
             if not length:
@@ -103,7 +105,7 @@ class TCPForwarder(BaseStreamForwarder):
 
             ctx.in_len = struct.unpack("!H", length)[0]
 
-            print("TCP: changing state to reading data")
+            logging.debug("TCP: changing state to reading data")
             ctx.state = states.reading_data
 
             # Need to read data immediatly. Sometimes the server will send the
@@ -119,7 +121,7 @@ class TCPForwarder(BaseStreamForwarder):
                 raise ConnectionResetError
 
             ctx.in_buf = buf
-            print("TCP: changing state to done")
+            logging.debug("TCP: changing state to done")
             ctx.state = states.done
 
             ctx.future.set_result(ctx.in_buf)

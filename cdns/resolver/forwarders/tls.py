@@ -51,6 +51,7 @@ class TLSForwarder(TCPForwarder):
         self.tls_ctx = ssl.create_default_context()
 
     def forward(self, query, addr):
+        print("FORWARDING TO", addr)
         return super().forward(query, addr)
 
     def _create_socket(self, addr):
@@ -90,14 +91,6 @@ class TLSForwarder(TCPForwarder):
             self.sel.modify(sock, selectors.EVENT_READ)
         except ssl.SSLWantWriteError:
             self.sel.modify(sock, selectors.EVENT_WRITE)
-
-    # Instead of doing parent logic, do the error checking and state-setting
-    # manually. Previously, the parent would be called, which would set
-    # the state to sending at the end. Even though this TLS function would
-    # set the state back to ssl_handshake, a race condition would still
-    # fire. So, the parent function isn't called, and the state never
-    # goes from connecting -> sending -> ssl_handshake. Now it is
-    # connecting -> ssl_handshake
 
     def _handle_write(self, sock, ctx):
         # print("TLS: writeable", ctx.state)

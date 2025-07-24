@@ -42,7 +42,7 @@ from cdns.protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
 from cdns.resolver import forwarders
 
 from .base import BaseResolver
-
+from .upstream import UpstreamResolver
 # TODO: Load root server from url, write root server to disk and cache it
 # ROOT_SERVERS = [p + ".ROOT-SERVERS.NET" for p in string.ascii_uppercase[:13]]
 ROOT_SERVERS = [("198.41.0.4", 53)]
@@ -56,8 +56,21 @@ FORWARDERS = {
 class RecursiveResolver(BaseResolver):
     """Resolve a request recursively."""
 
-    def __init__(self) -> None:
+    def __init__(self, forwarding_mode: str="UDP", tls_endpoints: list|None=None, doh_endpoints: list| None=None) -> None:
         """Create an instance of RecursiveResolver."""
+
+        # HACK: Specify forwarding_mode on a case-by-case basis using a dictionary.
+
+        # TODO: Simplify structure here
+        if tls_endpoints is None:
+            self.tls_endpoints = []
+        else:
+            self.tls_endpoints = tls_endpoints
+        if doh_endpoints is None:
+            self.doh_endpoints = []
+        else:
+            self.doh_endpoints = doh_endpoints
+        self.forwarding_mode = forwarding_mode
 
         # Activate the forwarder
         self.forwarders_list: dict[str, forwarders.BaseForwarder] = {k: v() for k, v in FORWARDERS.items()}
@@ -198,14 +211,34 @@ class RecursiveResolver(BaseResolver):
 
         def send():
             # response = self.forwarder.forward(query, server_addr)
-            response = self._get_forwarder(query).forward(query, server_addr)
+            # TODO: Auto detect server addr
+            f = self._get_forwarder(query)
+            response = f.forward(query, server_addr)
             response.add_done_callback(lambda f: self._resolve_done(f, query, future))
 
         self.executor.submit(send)
         return future
+
+    def _get_method(self, query: DNSQuery) -> str:
+        if self.forwarding_mode == "auto":
+            return query._method
+        return self.forwarding_mode
     
-    def _get_forwarder(self, query: DNSQuery):
-        return self.forwarders_list[query._method]
+    def _get_forwarder(self, query: DNSQuery) -> forwarders.BaseForwarder:
+        return self.forwarders_list[self._get_method(query)]
+
+    
+    def get_server(self, query: DNSQuery) -> tuple[str, int]:
+        # HACK: Make this function return a working endpoint. Also, make sure to
+        # rotate these endpoints if a ping test fails for one of them.
+        method = self._get_method(query)
+        if method == "doh":
+            return self.doh_endpoints[0]
+        if method == "tls":
+            return self.tls_endpoints[0]
+        return ROOT_SERVERS[0]
+
+        
 
     def send(self, query: DNSQuery, auto_detect_forwarder=True) -> concurrent.futures.Future[DNSQuery]:
         """Send a query to the resolver.
@@ -219,7 +252,13 @@ class RecursiveResolver(BaseResolver):
         # TODO: In future take in DNS query, then query each question
         # TODO: Make a flowchart for this
 
-        server_addr = ROOT_SERVERS[0]  # TODO: Could be random
+        server_addr = self.get_server(query)
+
+        # Even if we use TLS or DoH, there is no need to use an upstream resolver,
+        # because the RecursiveResolver only follows links IF AVAILABLE. If the
+        # response is given, then the resolver will not continue further
+
+        # Server addr here is the culprit
 
         # TODO: Make sure only one question is being sent at a time
         # Detect ip_mode

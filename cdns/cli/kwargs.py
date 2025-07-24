@@ -145,6 +145,9 @@ kwargs_defaults_initial = {
         "add_system": K(
             help_="Add the system resolvers to the resolvers", type_=bool, default=False
         ),
+        "forwarding_mode": K(help_="Method to forward queries (UDP, TCP, TLS, DoH, AUTO).", type_=str, default="AUTO"),
+        "doh_endpoints": K(help_="A list of DoH endpoints", type_=list, default=None),
+        "tls_endpoints": K(help_="A list of TLS endpoints", type_=list, default=None),
     },
     "daemons": {
         "fastest_resolver": {
