@@ -117,7 +117,7 @@ class TLSForwarder(TCPForwarder):
 
         else:
             return super()._handle_write(sock, ctx)
-    
+
     def _handle_read(self, sock, ctx):
         try:
             # print("TLS: readable", ctx.state)
@@ -133,7 +133,7 @@ class TLSForwarder(TCPForwarder):
 
 if __name__ == "__main__":
     # HACK: Monkeypatch for testing. In production, the server should be trusted
-    ssl.create_default_context = ssl._create_unverified_context # type: ignore
+    ssl.create_default_context = ssl._create_unverified_context  # type: ignore
 
     f = TLSForwarder()
     q = DNSQuery(DNSHeader(), [DNSQuestion(decoded_name="google.com")])

@@ -34,7 +34,7 @@ import struct
 from typing import Callable
 
 # Because lcb.py has a type ignore at the top, mypy doesn't know the methods
-from cdns.lcb import LCBMethods # type: ignore
+from cdns.lcb import LCBMethods  # type: ignore
 from cdns.protocol import (DNSAnswer, DNSHeader, DNSQuery, DNSQuestion, RTypes,
                            auto_decode_label, auto_encode_label, unpack_all)
 from cdns.resolver.resolvers.base import BaseResolver
@@ -67,7 +67,7 @@ class BaseResponseHandler(LCBMethods):
         tcp_conn: socket.socket | None = None,
         doh_conn: socket.socket | None = None,
         doh_send_back=None,
-        tls: bool | None = None
+        tls: bool | None = None,
     ) -> None:
         """Create a ResponseHandler instance. Use with either UDP or TCP.
 
@@ -215,7 +215,7 @@ class BaseResponseHandler(LCBMethods):
 
     def _find_method(self):
         if self.udp_sock and self.udp_addr:
-            return "udp" # TODO: Use enum or something
+            return "udp"  # TODO: Use enum or something
         if self.tcp_conn:
             if self.tls:
                 return "tls"
@@ -223,9 +223,9 @@ class BaseResponseHandler(LCBMethods):
                 return "tcp"
         if self.doh_conn and self.doh_send_back:
             return "doh"
-    
+
         raise
-    
+
     def _forwarding_done_handler(
         self, future: concurrent.futures.Future[DNSQuery]
     ) -> None:

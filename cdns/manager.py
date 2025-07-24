@@ -39,6 +39,7 @@ import sys
 import threading
 import time
 import urllib.parse
+from collections.abc import Callable
 from pathlib import Path
 from typing import Callable, Type, cast
 
@@ -47,7 +48,6 @@ import h2.connection
 import h2.events
 import h11
 
-from collections.abc import Callable
 from . import daemon
 from .resolver.resolvers import (BaseResolver, RecursiveResolver,
                                  UpstreamResolver)
@@ -280,17 +280,25 @@ class ServerManager:
 
         if kwargs["resolver.recursive"]:
             if kwargs["resolver.doh_endpoints"] is not None:
-                doh_endpoints = [tuple(item) for item in kwargs["resolver.doh_endpoints"]]
+                doh_endpoints = [
+                    tuple(item) for item in kwargs["resolver.doh_endpoints"]
+                ]
             else:
                 doh_endpoints = None
 
             if kwargs["resolver.tls_endpoints"] is not None:
-                tls_endpoints = [tuple(item) for item in kwargs["resolver.tls_endpoints"]]
+                tls_endpoints = [
+                    tuple(item) for item in kwargs["resolver.tls_endpoints"]
+                ]
             else:
                 tls_endpoints = None
-                
+
             # TODO: Normalize case for arguments
-            resolver = RecursiveResolver(forwarding_mode=kwargs["resolver.forwarding_mode"].lower(), doh_endpoints=doh_endpoints, tls_endpoints=tls_endpoints)
+            resolver = RecursiveResolver(
+                forwarding_mode=kwargs["resolver.forwarding_mode"].lower(),
+                doh_endpoints=doh_endpoints,
+                tls_endpoints=tls_endpoints,
+            )
         else:
             resolver = UpstreamResolver(("", 53))
 
@@ -416,7 +424,7 @@ class ServerManager:
                         resolver=self.resolver,
                         tcp_conn=conn,
                         # Easy way to add TLS mode without refactoring a lot of previous code
-                        tls=isinstance(conn, ssl.SSLSocket)
+                        tls=isinstance(conn, ssl.SSLSocket),
                     ).start(query)
 
     def _handle_dns_query_tls(self, conn: socket.socket) -> None:
@@ -703,7 +711,10 @@ class ServerManager:
 
     # TODO: Rename these functions to match purposes
     def _perform_tls_handshake(
-        self, ctx: ssl.SSLContext, conn: socket.socket, do_next: Callable[[ssl.SSLSocket], None]
+        self,
+        ctx: ssl.SSLContext,
+        conn: socket.socket,
+        do_next: Callable[[ssl.SSLSocket], None],
     ) -> None:  # TODO: Type annotations return
         """Handle a DNS query over tls.
 
@@ -913,7 +924,9 @@ class ServerManager:
         self.cleanup()
         logging.info("Server shutdown complete")
 
-    def _single_event(self, sel: selectors.BaseSelector, executor: concurrent.futures.Executor) -> None:
+    def _single_event(
+        self, sel: selectors.BaseSelector, executor: concurrent.futures.Executor
+    ) -> None:
         """Handle a single event."""
         # if self.now >= 10:
         #    logging.info("Passed health check")

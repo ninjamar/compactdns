@@ -25,8 +25,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import logging
 import concurrent.futures
+import logging
 import selectors
 import socket
 import struct

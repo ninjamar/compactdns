@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Callable
 
 from .protocol import DNSHeader, DNSQuery, DNSQuestion
+
 # from .response.mixins import SmartEnsureLoadedMixin
 
 

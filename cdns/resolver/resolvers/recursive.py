@@ -43,6 +43,7 @@ from cdns.resolver import forwarders
 
 from .base import BaseResolver
 from .upstream import UpstreamResolver
+
 # TODO: Load root server from url, write root server to disk and cache it
 # ROOT_SERVERS = [p + ".ROOT-SERVERS.NET" for p in string.ascii_uppercase[:13]]
 ROOT_SERVERS = [("198.41.0.4", 53)]
@@ -51,12 +52,19 @@ FORWARDERS = {
     "doh": forwarders.DoHForwarder,
     "tcp": forwarders.TCPForwarder,
     "tls": forwarders.TLSForwarder,
-    "udp": forwarders.UDPForwarder
+    "udp": forwarders.UDPForwarder,
 }
+
+
 class RecursiveResolver(BaseResolver):
     """Resolve a request recursively."""
 
-    def __init__(self, forwarding_mode: str="UDP", tls_endpoints: list|None=None, doh_endpoints: list| None=None) -> None:
+    def __init__(
+        self,
+        forwarding_mode: str = "UDP",
+        tls_endpoints: list | None = None,
+        doh_endpoints: list | None = None,
+    ) -> None:
         """Create an instance of RecursiveResolver."""
 
         # HACK: Specify forwarding_mode on a case-by-case basis using a dictionary.
@@ -73,7 +81,9 @@ class RecursiveResolver(BaseResolver):
         self.forwarding_mode = forwarding_mode
 
         # Activate the forwarder
-        self.forwarders_list: dict[str, forwarders.BaseForwarder] = {k: v() for k, v in FORWARDERS.items()}
+        self.forwarders_list: dict[str, forwarders.BaseForwarder] = {
+            k: v() for k, v in FORWARDERS.items()
+        }
 
         self.executor = concurrent.futures.ThreadPoolExecutor()
         """Server = root server send request to server (enable timeout) receive
@@ -223,11 +233,10 @@ class RecursiveResolver(BaseResolver):
         if self.forwarding_mode == "auto":
             return query._method
         return self.forwarding_mode
-    
+
     def _get_forwarder(self, query: DNSQuery) -> forwarders.BaseForwarder:
         return self.forwarders_list[self._get_method(query)]
 
-    
     def get_server(self, query: DNSQuery) -> tuple[str, int]:
         # HACK: Make this function return a working endpoint. Also, make sure to
         # rotate these endpoints if a ping test fails for one of them.
@@ -238,9 +247,9 @@ class RecursiveResolver(BaseResolver):
             return self.tls_endpoints[0]
         return ROOT_SERVERS[0]
 
-        
-
-    def send(self, query: DNSQuery, auto_detect_forwarder=True) -> concurrent.futures.Future[DNSQuery]:
+    def send(
+        self, query: DNSQuery, auto_detect_forwarder=True
+    ) -> concurrent.futures.Future[DNSQuery]:
         """Send a query to the resolver.
 
         Args:

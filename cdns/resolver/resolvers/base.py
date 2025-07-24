@@ -40,6 +40,7 @@ from cdns.protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
                            get_ip_mode_from_rtype, get_rtype_from_ip_mode,
                            unpack_all)
 
+
 class BaseResolver:
     """Base class for resolvers."""
 

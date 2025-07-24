@@ -56,7 +56,7 @@ def _configure_logging(kwargs: dict[str, str | int | bool]) -> None:
 
     if kwargs["logging.log"]:
         path = os.path.expanduser(kwargs["logging.log"])
-        handler: logging.Handler = logging.FileHandler(path) # type: ignore
+        handler: logging.Handler = logging.FileHandler(path)  # type: ignore
     else:
         handler = logging.StreamHandler(sys.stdout)
 

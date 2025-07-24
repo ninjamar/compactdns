@@ -28,7 +28,7 @@ import logging
 import threading
 import time
 
-from cdns.lcb import BaseMixin, LCBMetaclass, LCBMethods # type: ignore
+from cdns.lcb import BaseMixin, LCBMetaclass, LCBMethods  # type: ignore
 from cdns.protocol import *
 
 __all__ = ["ResourceTrackerMixin", "_TestMixin"]
