@@ -51,7 +51,6 @@ class TLSForwarder(TCPForwarder):
         self.tls_ctx = ssl.create_default_context()
 
     def forward(self, query, addr):
-        print("FORWARDING TO", addr)
         return super().forward(query, addr)
 
     def _create_socket(self, addr):
