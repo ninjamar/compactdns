@@ -26,21 +26,23 @@
 # SOFTWARE.
 
 import concurrent.futures
+import logging
 import selectors
 import socket
 import ssl
 import struct
-import h11
-import logging
-import h2
 import threading
 from collections import namedtuple
 from enum import Enum
 from typing import cast
 
+import h2
+import h11
+
 from cdns.protocol import *
 
 from .base import BaseForwarder
+
 
 class HttpOneForwarder(BaseForwarder):
     def __init__(self, use_tls=True):
@@ -88,11 +90,11 @@ class HttpOneForwarder(BaseForwarder):
                                         # Start of message
                                         continue
                                     elif isinstance(event, h11.Data):
-                                        buffer += event.data # decoded data
+                                        buffer += event.data  # decoded data
                                         pass
                                     elif isinstance(event, h11.EndOfMessage):
                                         break
-                                
+
                                 future.set_result(buffer)
                             except Exception as e:
                                 future.set_exception(e)
@@ -100,11 +102,16 @@ class HttpOneForwarder(BaseForwarder):
                                 self.sel.unregister(sock)
                                 sock.close()
 
-
-    def forward(self, query: DNSQuery, addr: tuple[str, int], host: str, path: str = "/dns-query") -> concurrent.futures.Future[bytes]:
+    def forward(
+        self,
+        query: DNSQuery,
+        addr: tuple[str, int],
+        host: str,
+        path: str = "/dns-query",
+    ) -> concurrent.futures.Future[bytes]:
 
         # TODO: Resolve host using DNS. This might require me creating a public API.
-        future: concurrent.futures.Future[bytes] = concurrent.futures. Future()
+        future: concurrent.futures.Future[bytes] = concurrent.futures.Future()
         try:
 
             to_send = query.pack()
@@ -114,7 +121,7 @@ class HttpOneForwarder(BaseForwarder):
             if self.use_tls:
                 ssl_ctx = ssl.create_default_context()
                 sock = ssl_ctx.wrap_socket(sock, server_hostname=host)
-            
+
             sock.setblocking(False)
 
             conn = h11.Connection(h11.CLIENT)
@@ -126,7 +133,7 @@ class HttpOneForwarder(BaseForwarder):
                     ("Content-Type", "application/dns-message"),
                     ("Content-Length", str(len(to_send))),
                     ("Connection", "close"),
-                ]
+                ],
             )
 
             header = conn.send(request)
@@ -144,40 +151,47 @@ class HttpOneForwarder(BaseForwarder):
                 sock.close()
             except:
                 pass
-        
+
         return future
 
     def cleanup(self):
         with self.lock:
-            for sock in self.pending_requests.keys(): # explicit
+            for sock in self.pending_requests.keys():  # explicit
                 sock.close()
-        
-        self.shutdown_event.set()
 
+        self.shutdown_event.set()
 
 
 class HttpTwoForwarder(BaseForwarder):
     def __init__(self):
         pass
-    def forward(self, query: DNSQuery, addr: tuple[str, int]) -> concurrent.futures.Future[bytes]:
+
+    def forward(
+        self, query: DNSQuery, addr: tuple[str, int]
+    ) -> concurrent.futures.Future[bytes]:
         pass
+
     def cleanup(self):
         pass
+
 
 class DoHForwarder(BaseForwarder):
     def __init__(self):
         pass
-    def forward(self, query: DNSQuery, addr: tuple[str, int]) -> concurrent.futures.Future[bytes]:
-        pass
-    def cleanup(self):
+
+    def forward(
+        self, query: DNSQuery, addr: tuple[str, int]
+    ) -> concurrent.futures.Future[bytes]:
         pass
 
+    def cleanup(self):
+        pass
 
 
 if __name__ == "__main__":
     query = DNSQuery(questions=[DNSQuestion(decoded_name="google.com")])
     f = HttpOneForwarder()
-    
+
     future = f.forward(query, ("1.1.1.1", 443), host="cloudflare-dns.com")
 
     result = future.result()

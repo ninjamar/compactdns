@@ -28,7 +28,9 @@
 
 class BaseForwarder:
     """Base forwarder class."""
+
     def forward(self, query, addr):
         pass
+
     def cleanup(self):
         pass
