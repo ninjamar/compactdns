@@ -24,10 +24,3 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
-from .base import BaseForwarder
-from .doh.doh import DoHForwarder  # TODO: There is an import here
-from .streams import BaseStreamForwarder
-from .tcp import TCPForwarder
-from .tls import TLSForwarder
-from .udp import UDPForwarder

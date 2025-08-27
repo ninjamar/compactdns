@@ -25,9 +25,30 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from .base import BaseForwarder
-from .doh.doh import DoHForwarder  # TODO: There is an import here
-from .streams import BaseStreamForwarder
-from .tcp import TCPForwarder
-from .tls import TLSForwarder
-from .udp import UDPForwarder
+import concurrent.futures
+import logging
+import selectors
+import socket
+import ssl
+import struct
+import threading
+from collections import namedtuple
+from enum import Enum
+from typing import cast
+
+from cdns.protocol import *
+
+from ..base import BaseForwarder
+
+
+class DoHForwarder(BaseForwarder):
+    def __init__(self):
+        pass
+
+    def forward(
+        self, query: DNSQuery, addr: tuple[str, int]
+    ) -> concurrent.futures.Future[bytes]:
+        pass
+
+    def cleanup(self):
+        pass

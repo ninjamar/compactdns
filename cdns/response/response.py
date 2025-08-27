@@ -35,8 +35,16 @@ from typing import Callable
 
 # Because lcb.py has a type ignore at the top, mypy doesn't know the methods
 from cdns.lcb import LCBMethods  # type: ignore
-from cdns.protocol import (DNSAnswer, DNSHeader, DNSQuery, DNSQuestion, RTypes,
-                           auto_decode_label, auto_encode_label, unpack_all)
+from cdns.protocol import (
+    DNSAnswer,
+    DNSHeader,
+    DNSQuery,
+    DNSQuestion,
+    RTypes,
+    auto_decode_label,
+    auto_encode_label,
+    unpack_all,
+)
 from cdns.resolver.resolvers.base import BaseResolver
 from cdns.resolver.resolvers.recursive import RecursiveResolver
 from cdns.storage import RecordStorage
