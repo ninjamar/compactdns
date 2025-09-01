@@ -36,20 +36,37 @@ from collections import namedtuple
 from enum import Enum
 from typing import cast
 import h11
-
+from dataclasses import dataclass
 from cdns.protocol import *
 
 from ..base import BaseForwarder
+
+class states:
+    ssl_handshake = 0
+
+    connecting = 1
+    h11_process = 2
+    cleanup = 3
+
+@dataclass
+class ConnectionContext:
+    """
+    A dataclass to store information about a connection.
+    """
+
+    future: concurrent.futures.Future
+    state: states
+    h1conn: h11.Connection | None
+    buf: bytes | None
 
 
 class HttpOneForwarder(BaseForwarder):
     def __init__(self, use_tls=True):
         if not use_tls:
             logging.warning("Not using TLS for DoH endpoint")
+
         self.sel = selectors.DefaultSelector()
-        self.pending_requests: dict[
-            socket.socket, tuple[concurrent.futures.Future, h11.connection.H1Connection, bytes]
-        ] = {}
+        self.pending_requests: dict[socket.socket, ConnectionContext] = {}
 
         self.use_tls = use_tls
 
@@ -62,6 +79,104 @@ class HttpOneForwarder(BaseForwarder):
         )  # TODO: Daemon true or false
         self.thread.start()
 
+    def handle_state(self, sock: ssl.SSLContext, ctx: ConnectionContext):
+        # Returns true if we need to continue
+        if ctx.state == states.ssl_handshake:
+            try:
+                sock.do_handshake()
+            except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
+                return
+
+            self.sel.modify(sock, selectors.EVENT_READ)
+            ctx.state = states.connecting
+            return
+
+        elif ctx.state == states.connecting:
+            # Connect to socket by recieving data and making a h11.Connection
+
+            # Should hopefully allow for smoother operation by receiving less data
+            if ctx.h1conn is not None or ctx.buf is not None:
+                raise Exception("ctx.h1conn and ctx.buf both need to be None")
+            
+            ctx.h1conn = h11.Connection(h11.CLIENT)
+            ctx.state = states.h11_process
+
+            ctx.buf = b""
+
+            self.sel.modify(sock, selectors.EVENT_READ)
+            return
+        elif ctx.state == states.h11_process:
+            
+            # This is the most critical part of making the server run
+            # asynchronously. So, each event is processed once, then
+            # the loop will be broken.
+
+            """
+            Check if event
+            If there is no event:
+                Receive data
+                Get events
+                Store events
+            Else:
+                Get event
+                Handle event
+            
+            Break
+            """
+            event = ctx.h1conn.next_event()
+
+            if event == h11.NEED_DATA:
+                try:
+                    data = sock.recv(512)
+                    if not data:
+                        # Cleanup socket (no data to recv = done)
+                        ctx.state = states.cleanup
+
+                except (BlockingIOError, ssl.SSLWantReadError):
+                    # Do not close socket because there could still be more data
+                    # TODO: ssl.SSLWantRead error shouldn't be called
+                    return
+
+                ctx.h1conn.receive_data(data)
+            else:
+                if isinstance(event, h11.Request):
+                    # In /test/servers/http_echo.py, there is request information stored.
+                    # So far, none of this data is used.
+                    return
+                elif isinstance(event, h11.Data):
+                    ctx.buf += event.data
+
+                    return
+
+                elif isinstance(event, h11.EndOfMessage):
+                    ctx.future.set_result(ctx.buf)
+                    """
+                    # Send back
+                    # Create response
+                    resp = h11.Response(
+                        status_code=200,
+                        # Use appropriate headers
+                        headers=[
+                            (b"Content-Type", b"application/dns-message"),
+                            (b"Content-Length", str(len(ctx.buf)).encode()),
+                        ],
+                        # Send back via same version
+                        # http_version=http_version,
+                        http_version=b"1.1",  # TODO: Does does this support 1.0?
+                    )
+                    # Send backk all stuff needed
+                    sock.send(ctx.h1conn.send(resp))
+                    sock.send(ctx.h1conn.send(h11.Data(ctx.buf)))
+                    sock.send(ctx.h1conn.send(h11.EndOfMessage()))
+                    """
+
+                    return
+                
+        elif ctx.state == states.cleanup:
+            self.sel.unregister(sock)
+            sock.close()
+            return
+
     def _thread_handler(self):
         while not self.shutdown_event.is_set():
             events = self.sel.select(timeout=1)  # TODO: Timeout
@@ -69,42 +184,18 @@ class HttpOneForwarder(BaseForwarder):
                 for key, mask in events:
                     if mask & selectors.EVENT_READ:
                         # TODO: Try except
-                        sock = cast(socket.socket, key.fileobj)
+                        sock = cast(ssl.SSLContext, key.fileobj)
                         # Don't error if no key
                         # future = self.pending_requests.pop(sock, None)
-                        future, conn, buffer = self.pending_requests.get(sock)
+                        ctx = self.pending_requests.get(sock)
+                        if not ctx:
+                            continue
                         # TODO: Conn is stored in pending_requests
-                        if future:
-                            try:
-                                try:
-                                    data = sock.recv(4096)
-                                    if not data:
-                                        future.set_result(buffer)
-                                        self.sel.unregister(sock)
-                                        sock.close()
-                                except (BlockingIOError, ssl.SSLWantReadError):
-                                    break
 
-                                conn.receive_data(data)
-
-                                event = conn.next_event()
-                                if isinstance(event, h11.Response):
-                                    # Start of message
-                                    continue
-                                elif isinstance(event, h11.Data):
-                                    buffer += event.data  # decoded data
-                                    pass
-                                elif isinstance(event, h11.EndOfMessage):
-                                    self.pending_requests.pop(sock)
-                                    future.set_result(buffer)
-
-                                    self.sel.unregister(sock)
-                                    sock.close()
-
-                            except Exception as e:
-                                future.set_exception(e)
-                                self.sel.unregister(sock)
-                                sock.close()
+                        result = self.handle_state(sock, ctx)
+                        if result: # TODO: This doesn't do anything
+                            continue
+                        
 
     def forward(
         self,
@@ -151,7 +242,8 @@ class HttpOneForwarder(BaseForwarder):
 
             with self.lock:
                 self.sel.register(sock, selectors.EVENT_READ)
-                self.pending_requests[sock] = (future, h11.Connection(h11.CLIENT), b"")
+                #self.pending_requests[sock] = (future, h11.Connection(h11.CLIENT), b"")
+                self.pending_requests[sock] = ConnectionContext(future, states.ssl_handshake, None, None)
 
         except Exception as e:
             future.set_exception(e)
@@ -173,6 +265,8 @@ class HttpOneForwarder(BaseForwarder):
 if __name__ == "__main__":
     import sys
     
+    # TODO: Remove ssl_ctx param from .forward
+    ssl.create_default_context = ssl._create_unverified_context  # type: ignore
 
     ssl_ctx = ssl.create_default_context()
     ssl_ctx.check_hostname = False
@@ -189,5 +283,5 @@ if __name__ == "__main__":
 
     f.cleanup()
 
-    #resp = DNSQuery.from_bytes(result)
-    #print(resp)
+    resp = DNSQuery.from_bytes(result)
+    print(resp)

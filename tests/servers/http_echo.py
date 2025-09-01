@@ -55,10 +55,15 @@ def _handle_doh_http1(conn: ssl.SSLSocket):
 
     # Exhaust all data
     while True:
-        data = conn.recv(512)  # TODO: How much should be recieved in one pass?
+        try:
+            data = conn.recv(512)  # TODO: How much should be recieved in one pass?
+        except (ssl.SSLWantReadError):
+            break
+
         if not data:
             raise ConnectionResetError
-
+        
+        # This probably streams data
         h1conn.receive_data(data)
 
         for event in iter(h1conn.next_event, h11.NEED_DATA):
@@ -96,6 +101,7 @@ def _handle_doh_http1(conn: ssl.SSLSocket):
 
                 doh_send_back(body)
                 # TODO: Document
+                break
 
 def _send_doh_http1_error(
     h1conn: h11.Connection,
@@ -135,7 +141,11 @@ def _handle_doh_http2(conn: ssl.SSLSocket) -> None:
     streams: dict[int, bytes] = {}
 
     while True:
-        data = conn.recv(512)
+        try:
+            data = conn.recv(512)
+        except (ssl.SSLWantReadError):
+            pass
+
         if not data:
             raise ConnectionResetError
 
@@ -170,6 +180,7 @@ def _handle_doh_http2(conn: ssl.SSLSocket) -> None:
                     conn.send(h2conn.data_to_send())
 
                 doh_send_back(streams.pop(stream_id))
+                break
 
 def _doh_router(conn: ssl.SSLSocket) -> None:
     # Router
