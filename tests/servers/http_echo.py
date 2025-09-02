@@ -32,6 +32,7 @@ import h11
 import ssl
 import base64
 import urllib
+import threading
 import socket
 
 import h2.config
@@ -40,7 +41,39 @@ import h2.events
 from typing import Callable
 
 
+PKT_SIZE = 1024
+
+# TODO: Make sure ALL selectors are freed
+# TODO: Use a single global selector
 _selectors_list: list[selectors.DefaultSelector] = []
+
+_thread_local = threading.local()
+
+class SmartSelector(selectors.DefaultSelector):
+    """
+    A smart selector used with get_current_thread_selector()
+    """
+    def register_or_modify(self, fileobj, events, data=None):
+        """Register or modify a selector."""
+        try:
+            return self.register(fileobj, events, data)
+        except KeyError:
+            return self.modify(fileobj, events, data)
+        
+def get_current_thread_selector() -> SmartSelector:
+    """
+    Get the selector for the current thread. This allows each thread to have its
+    own selector.
+
+    CAVEAT: When looping over events, make sure to get the CORRECT event.
+    CAVEAT: Each socket can only be registered once,
+
+    Returns:
+        The selector for the current thread.
+    """
+    if not hasattr(_thread_local, "sel"):
+        _thread_local.sel = SmartSelector()
+    return _thread_local.sel
 
 def _handle_doh_http1(conn: ssl.SSLSocket):
     # TODO: Document all of this
@@ -53,55 +86,66 @@ def _handle_doh_http1(conn: ssl.SSLSocket):
     method = None
     http_version = None
 
+    sel = get_current_thread_selector()
+
+    sel.register_or_modify(conn, selectors.EVENT_READ)
     # Exhaust all data
     while True:
-        try:
-            data = conn.recv(512)  # TODO: How much should be recieved in one pass?
-        except (ssl.SSLWantReadError):
-            break
+        events = sel.select(timeout=1)
+        for key, mask in events:
+            if key.fileobj == conn: # is or equals
+                try:
+                    data = conn.recv(PKT_SIZE)  # TODO: How much should be recieved in one pass?
+                except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
+                    break # leave for loop, not continue on next iteration
 
-        if not data:
-            raise ConnectionResetError
-        
-        # This probably streams data
-        h1conn.receive_data(data)
+                if not data:
+                    raise ConnectionResetError
+                
+                # This probably streams data
+                h1conn.receive_data(data)
 
-        for event in iter(h1conn.next_event, h11.NEED_DATA):
-            # This use of iter is called a sentinel pattern
-            if isinstance(event, h11.Request):
-                # Get info
-                path = event.target
-                method = event.method
-                http_version = event.http_version
+                for event in iter(h1conn.next_event, h11.NEED_DATA):
+                    # This use of iter is called a sentinel pattern
+                    if isinstance(event, h11.Request):
+                        # Get info
+                        path = event.target
+                        method = event.method
+                        http_version = event.http_version
 
-                # Normalize headers
-                # HTTP is case insensitive
-                headers = {k.lower(): v for k, v in event.headers}
-            elif isinstance(event, h11.Data):
-                body += event.data
-            elif isinstance(event, h11.EndOfMessage):
-                # Utility function to send back
-                def doh_send_back(data: bytes):
-                    # Create response
-                    resp = h11.Response(
-                        status_code=200,
-                        # Use appropriate headers
-                        headers=[
-                            (b"Content-Type", b"application/dns-message"),
-                            (b"Content-Length", str(len(data)).encode()),
-                        ],
-                        # Send back via same version
-                        # http_version=http_version,
-                        http_version=b"1.1",  # TODO: Does does this support 1.0?
-                    )
-                    # Send backk all stuff needed
-                    conn.send(h1conn.send(resp))
-                    conn.send(h1conn.send(h11.Data(data)))
-                    conn.send(h1conn.send(h11.EndOfMessage()))
+                        # Normalize headers
+                        # HTTP is case insensitive
 
-                doh_send_back(body)
-                # TODO: Document
-                break
+                        # TODO: Ensure this is bytes
+                        headers = {k.lower(): v for k, v in event.headers}
+                    elif isinstance(event, h11.Data):
+                        body += event.data
+                    elif isinstance(event, h11.EndOfMessage):
+                        # Utility function to send back
+                        def doh_send_back(data: bytes):
+                            # Create response
+                            resp = h11.Response(
+                                status_code=200,
+                                # Use appropriate headers
+                                headers=[
+                                    (b"Content-Type", b"application/dns-message"),
+                                    (b"Content-Length", str(len(data)).encode()),
+                                ],
+                                # Send back via same version
+                                # http_version=http_version,
+                                http_version=b"1.1",  # TODO: Does does this support 1.0?
+                            )
+                            # Send backk all stuff needed
+                            conn.send(h1conn.send(resp))
+                            conn.send(h1conn.send(h11.Data(data)))
+                            conn.send(h1conn.send(h11.EndOfMessage()))
+
+                        doh_send_back(body)
+                        # TODO: Document
+                        conn.shutdown(socket.SHUT_RDWR)
+                        conn.close()
+
+                        return
 
 def _send_doh_http1_error(
     h1conn: h11.Connection,
@@ -140,47 +184,63 @@ def _handle_doh_http2(conn: ssl.SSLSocket) -> None:
 
     streams: dict[int, bytes] = {}
 
+
+    sel = get_current_thread_selector()
+    sel.register_or_modify(conn, selectors.EVENT_READ)
+    # Exhaust all data
+
     while True:
-        try:
-            data = conn.recv(512)
-        except (ssl.SSLWantReadError):
-            pass
+        events = sel.select(timeout=1)
+        for key, mask in events:
+            if key.fileobj == conn:
+                try:
+                    data = conn.recv(PKT_SIZE)
+                except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
+                    break
 
-        if not data:
-            raise ConnectionResetError
-
-        for event in h2conn.receive_data(data):
-            stream_id: int = getattr(event, "stream_id", None)
-            if not stream_id:
-                raise ConnectionResetError
-
-            if isinstance(event, h2.events.RequestReceived):
-                streams[stream_id] = b""  # POST
-
-            elif isinstance(event, h2.events.DataReceived):
-                if not event.data:
+                if not data:
                     raise ConnectionResetError
-                streams[stream_id] += event.data
-                h2conn.acknowledge_received_data(
-                    event.flow_controlled_length, stream_id
-                )
 
-            elif isinstance(event, h2.events.StreamEnded):
-                # Utility function to send back
-                def doh_send_back(data: bytes) -> None:
-                    h2conn.send_headers(
-                        stream_id,
-                        headers=[
-                            (b":status", b"200"),
-                            (b":content-type", b"application/dns-message"),
-                            (b":content-length", str(len(data)).encode()),
-                        ],
-                    )
-                    h2conn.send_data(stream_id, data=data, end_stream=True)
-                    conn.send(h2conn.data_to_send())
+                for event in h2conn.receive_data(data):
+                    stream_id: int = getattr(event, "stream_id", None)
 
-                doh_send_back(streams.pop(stream_id))
-                break
+                    # Not all events have a stream_id
+                    if stream_id is None:
+                        continue
+                    # if not stream_id:
+                    #    raise ConnectionResetError
+
+                    if isinstance(event, h2.events.RequestReceived):
+                        streams[stream_id] = b""  # POST
+
+                    elif isinstance(event, h2.events.DataReceived):
+                        if not event.data:
+                            raise ConnectionResetError
+                        streams[stream_id] += event.data
+                        h2conn.acknowledge_received_data(
+                            event.flow_controlled_length, stream_id
+                        )
+
+                    elif isinstance(event, h2.events.StreamEnded):
+                        # Utility function to send back
+                        def doh_send_back(data: bytes) -> None:
+                            h2conn.send_headers(
+                                stream_id,
+                                headers=[
+                                    (b":status", b"200"),
+                                    (b":content-type", b"application/dns-message"),
+                                    (b":content-length", str(len(data)).encode()),
+                                ],
+                            )
+                            h2conn.send_data(stream_id, data=data, end_stream=True)
+                            conn.send(h2conn.data_to_send())
+
+                        doh_send_back(streams.pop(stream_id))
+
+                        conn.shutdown(socket.SHUT_RDWR)
+                        conn.close()
+
+                        return
 
 def _doh_router(conn: ssl.SSLSocket) -> None:
     # Router
@@ -195,7 +255,6 @@ def _doh_router(conn: ssl.SSLSocket) -> None:
 def _perform_tls_handshake(
     ctx: ssl.SSLContext,
     conn: socket.socket,
-    do_next: Callable[[ssl.SSLSocket], None],
 ) -> Callable:  # TODO: Type annotations return
     """Handle a DNS query over tls.
 
@@ -205,35 +264,37 @@ def _perform_tls_handshake(
     tls = ctx.wrap_socket(
         conn, server_side=True, do_handshake_on_connect=False
     )  # handshake on connect is false because this socket is non-blocking
-    sel = selectors.DefaultSelector()
+    sel = get_current_thread_selector()
     _selectors_list.append(sel)
 
-    sel.register(tls, selectors.EVENT_READ | selectors.EVENT_WRITE)
+    sel.register_or_modify(tls, selectors.EVENT_READ | selectors.EVENT_WRITE)
 
     has_handshake = False
+
     while not has_handshake:
         # 2 second timeout for handshake
         events = sel.select(timeout=2)
         for key, mask in events:
-            try:
-                tls.do_handshake()
-                sel.unregister(tls)
+            if key.fileobj == tls:
+                try:
+                    tls.do_handshake()
+                    sel.unregister(tls)
 
-                has_handshake = True
-                break
-            except ssl.SSLWantReadError:
-                # Wait until next time
-                pass
-            except ssl.SSLWantWriteError:
-                # Wait for more data
-                pass
+                    has_handshake = True
+                    break
+                except ssl.SSLWantReadError:
+                    # Wait until next time
+                    pass
+                except ssl.SSLWantWriteError:
+                    # Wait for more data
+                    pass
 
     # TODO: Should I be returning here?
-
-    return do_next(tls)
+    return tls
     
 def _handle_dns_query_doh(ssl_ctx, conn: socket.socket) -> None:
-    return _perform_tls_handshake(ssl_ctx, conn, _doh_router)
+    tls = _perform_tls_handshake(ssl_ctx, conn)
+    return _doh_router(tls)
 
 
 def cleanup():
@@ -260,24 +321,26 @@ if __name__ == "__main__":
     doh_sock.bind((sys.argv[1], int(sys.argv[2])))
     doh_sock.listen()
 
-    sel = selectors.DefaultSelector()
-    sel.register(doh_sock, selectors.EVENT_READ)
+    sel = get_current_thread_selector()
+    sel.register_or_modify(doh_sock, selectors.EVENT_READ)
 
 
     try:
         while True:
             events = sel.select(timeout=1)
             for key, mask in events:
-                if mask & selectors.EVENT_READ:
-                    conn, addr = doh_sock.accept()
-                    conn.setblocking(False)
+                if key.fileobj == doh_sock:
+                    if mask & selectors.EVENT_READ:
+                        conn, addr = doh_sock.accept()
+                        conn.setblocking(False)
 
-                    print("Recieved data")
+                        print("Recieved data")
 
-                    _handle_dns_query_doh(doh_ssl_ctx, conn)
+                        _handle_dns_query_doh(doh_ssl_ctx, conn)
 
-                    print("Data echoed back")
+                        print("Data echoed back")
     except Exception as e:
         raise e
     finally:
+        sel.close()
         cleanup()

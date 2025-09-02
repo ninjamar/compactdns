@@ -125,7 +125,7 @@ class HttpOneForwarder(BaseForwarder):
             """
             event = ctx.h1conn.next_event()
 
-            if event == h11.NEED_DATA:
+            if event is h11.NEED_DATA:
                 try:
                     data = sock.recv(512)
                     if not data:
@@ -184,7 +184,7 @@ class HttpOneForwarder(BaseForwarder):
                 for key, mask in events:
                     if mask & selectors.EVENT_READ:
                         # TODO: Try except
-                        sock = cast(ssl.SSLContext, key.fileobj)
+                        sock = cast(ssl.SSLSocket, key.fileobj)
                         # Don't error if no key
                         # future = self.pending_requests.pop(sock, None)
                         ctx = self.pending_requests.get(sock)
@@ -218,7 +218,7 @@ class HttpOneForwarder(BaseForwarder):
                 if not ssl_ctx:
                     ssl_ctx = ssl.create_default_context()
                 # TODO: Set alpn protocol
-                ssl_ctx.set_alpn_protocols(["http/1"])
+                ssl_ctx.set_alpn_protocols(["http/1.1"])
                 sock = ssl_ctx.wrap_socket(sock, server_hostname=host)
 
             sock.setblocking(False)
@@ -235,6 +235,7 @@ class HttpOneForwarder(BaseForwarder):
                 ],
             )
 
+            # TODO: Wait for socket ready
             header = conn.send(request)
             body = conn.send(h11.Data(data=to_send))
             end = conn.send(h11.EndOfMessage())
