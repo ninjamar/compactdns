@@ -40,40 +40,10 @@ import h2.connection
 import h2.events
 from typing import Callable
 
+from cdns.smartselector import get_current_thread_selector
+
 
 PKT_SIZE = 1024
-
-# TODO: Make sure ALL selectors are freed
-# TODO: Use a single global selector
-_selectors_list: list[selectors.DefaultSelector] = []
-
-_thread_local = threading.local()
-
-class SmartSelector(selectors.DefaultSelector):
-    """
-    A smart selector used with get_current_thread_selector()
-    """
-    def register_or_modify(self, fileobj, events, data=None):
-        """Register or modify a selector."""
-        try:
-            return self.register(fileobj, events, data)
-        except KeyError:
-            return self.modify(fileobj, events, data)
-        
-def get_current_thread_selector() -> SmartSelector:
-    """
-    Get the selector for the current thread. This allows each thread to have its
-    own selector.
-
-    CAVEAT: When looping over events, make sure to get the CORRECT event.
-    CAVEAT: Each socket can only be registered once,
-
-    Returns:
-        The selector for the current thread.
-    """
-    if not hasattr(_thread_local, "sel"):
-        _thread_local.sel = SmartSelector()
-    return _thread_local.sel
 
 def _handle_doh_http1(conn: ssl.SSLSocket):
     # TODO: Document all of this
@@ -265,7 +235,6 @@ def _perform_tls_handshake(
         conn, server_side=True, do_handshake_on_connect=False
     )  # handshake on connect is false because this socket is non-blocking
     sel = get_current_thread_selector()
-    _selectors_list.append(sel)
 
     sel.register_or_modify(tls, selectors.EVENT_READ | selectors.EVENT_WRITE)
 
@@ -296,10 +265,6 @@ def _handle_dns_query_doh(ssl_ctx, conn: socket.socket) -> None:
     tls = _perform_tls_handshake(ssl_ctx, conn)
     return _doh_router(tls)
 
-
-def cleanup():
-    for selector in _selectors_list:
-        selector.close()
     
 if __name__ == "__main__":
     doh_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -343,4 +308,3 @@ if __name__ == "__main__":
         raise e
     finally:
         sel.close()
-        cleanup()
