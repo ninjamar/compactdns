@@ -38,6 +38,7 @@ from typing import cast
 import h11
 from dataclasses import dataclass
 from cdns.protocol import *
+from cdns.smartselector import get_current_thread_selector
 
 from ..base import BaseForwarder
 
@@ -65,7 +66,7 @@ class HttpOneForwarder(BaseForwarder):
         if not use_tls:
             logging.warning("Not using TLS for DoH endpoint")
 
-        self.sel = selectors.DefaultSelector()
+        self.sel = get_current_thread_selector()
         self.pending_requests: dict[socket.socket, ConnectionContext] = {}
 
         self.use_tls = use_tls
@@ -182,20 +183,21 @@ class HttpOneForwarder(BaseForwarder):
             events = self.sel.select(timeout=1)  # TODO: Timeout
             with self.lock:  # TODO: Lock here?
                 for key, mask in events:
-                    if mask & selectors.EVENT_READ:
-                        # TODO: Try except
-                        sock = cast(ssl.SSLSocket, key.fileobj)
-                        # Don't error if no key
-                        # future = self.pending_requests.pop(sock, None)
-                        ctx = self.pending_requests.get(sock)
-                        if not ctx:
-                            continue
-                        # TODO: Conn is stored in pending_requests
+                    if key.fileobj in self.pending_requests.keys():
+                        if mask & selectors.EVENT_READ:
+                            # TODO: Try except
+                            sock = cast(ssl.SSLSocket, key.fileobj)
+                            # Don't error if no key
+                            # future = self.pending_requests.pop(sock, None)
+                            ctx = self.pending_requests.get(sock)
+                            if not ctx:
+                                continue
+                            # TODO: Conn is stored in pending_requests
 
-                        result = self.handle_state(sock, ctx)
-                        if result: # TODO: This doesn't do anything
-                            continue
-                        
+                            result = self.handle_state(sock, ctx)
+                            if result: # TODO: This doesn't do anything
+                                continue
+                            
 
     def forward(
         self,
@@ -242,7 +244,7 @@ class HttpOneForwarder(BaseForwarder):
             sock.sendall(header + body + end)
 
             with self.lock:
-                self.sel.register(sock, selectors.EVENT_READ)
+                self.sel.register_or_modify(sock, selectors.EVENT_READ)
                 #self.pending_requests[sock] = (future, h11.Connection(h11.CLIENT), b"")
                 self.pending_requests[sock] = ConnectionContext(future, states.ssl_handshake, None, None)
 

@@ -35,6 +35,7 @@ from enum import Enum
 from typing import cast
 
 from cdns.protocol import *
+from cdns.smartselector import get_current_thread_selector
 
 from .base import BaseForwarder
 
@@ -67,7 +68,7 @@ class ConnectionContext:
 
 class BaseStreamForwarder(BaseForwarder):
     def __init__(self) -> None:
-        self.sel = selectors.DefaultSelector()
+        self.sel = get_current_thread_selector()
         self.lock = threading.Lock()
 
         self._ctxs: dict[socket.socket, ConnectionContext] = {}
@@ -91,7 +92,7 @@ class BaseStreamForwarder(BaseForwarder):
         # Use a lock because ctxs is modified here
         with self.lock:
             self._ctxs[sock] = context
-            self.sel.register(sock, events)
+            self.sel.register_or_modify(sock, events)
 
     def _connect(self, sock, addr):
         try:
@@ -115,21 +116,22 @@ class BaseStreamForwarder(BaseForwarder):
             events = self.sel.select(timeout=1)
             # print("Events received", events)
             for key, mask in events:
-                sock = cast(socket.socket, key.fileobj)
+                if key.fileobj in self._ctxs.keys():
+                    sock = cast(socket.socket, key.fileobj)
 
-                ctx = self._ctxs.get(sock)
-                if not ctx:
-                    # Keep waiting
-                    continue
+                    ctx = self._ctxs.get(sock)
+                    if not ctx:
+                        # Keep waiting
+                        continue
 
-                try:
-                    if mask & selectors.EVENT_READ:
-                        self._handle_read(sock, ctx)
-                    elif mask & selectors.EVENT_WRITE:
-                        self._handle_write(sock, ctx)
-                except Exception as e:
-                    ctx.future.set_exception(e)
-                    self._cleanup_sock(sock)
+                    try:
+                        if mask & selectors.EVENT_READ:
+                            self._handle_read(sock, ctx)
+                        elif mask & selectors.EVENT_WRITE:
+                            self._handle_write(sock, ctx)
+                    except Exception as e:
+                        ctx.future.set_exception(e)
+                        self._cleanup_sock(sock)
 
     def cleanup(self):
         with self.lock:

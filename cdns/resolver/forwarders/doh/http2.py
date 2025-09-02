@@ -41,6 +41,7 @@ import h2.connection
 import h2.events
 
 from cdns.protocol import *
+from cdns.smartselector import get_current_thread_selector
 
 from ..base import BaseForwarder
 
@@ -51,7 +52,7 @@ class HttpTwoForwarder(BaseForwarder):
         if not use_tls:
             logging.warning("Not using TLS for DoH endpoint")
 
-        self.sel = selectors.DefaultSelector()
+        self.sel = get_current_thread_selector()
         self.pending_requests: dict[
             socket.socket, tuple[concurrent.futures.Future, h2.connection.H2Connection]
         ] = {}
@@ -76,17 +77,18 @@ class HttpTwoForwarder(BaseForwarder):
             events = self.sel.select(timeout=1)  # TODO: Timeout
             with self.lock:  # TODO: Lock here?
                 for key, mask in events:
-                    sock = cast(socket.socket, key.fileobj)
-                        # Don't error if no key
-                        # future = self.pending_requests.pop(sock, None)
-                    future = self.pending_requests.get(sock)
+                    if key.fileobj in self.pending_requests.keys():
+                        sock = cast(socket.socket, key.fileobj)
+                            # Don't error if no key
+                            # future = self.pending_requests.pop(sock, None)
+                        future = self.pending_requests.get(sock)
 
-                    if mask & selectors.EVENT_READ:
-                        # Read data from socket
-                        
-                        data = sock.recv(4096)
-                        if not data:
-                            break
+                        if mask & selectors.EVENT_READ:
+                            # Read data from socket
+                            
+                            data = sock.recv(4096)
+                            if not data:
+                                break
 
     def forward(
         self,

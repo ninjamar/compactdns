@@ -27,11 +27,14 @@
 
 import selectors
 import threading
+import weakref
+import logging
 
 # TODO: Make sure ALL selectors are freed
 # TODO: Use a single global selector for ALL code
 
 _thread_local = threading.local()
+_all_selectors = weakref.WeakSet()
 
 class SmartSelector(selectors.DefaultSelector):
     """
@@ -44,10 +47,37 @@ class SmartSelector(selectors.DefaultSelector):
         except KeyError:
             return self.modify(fileobj, events, data)
         
+    def wait_for(self, fileobj, timeout=0.1):
+        """
+        Block the current thread until the selector has an event for a certain
+        item.
+
+        Args:
+            fileobj: The item to wait for.
+            timeout: How long each wait should be. Defaults to 0.1.
+        """
+        while True:
+            event = self.select(timeout=timeout)
+            for key, mask in event:
+                if key.fileobj == fileobj:
+                    return
+
+def _close_selector(sel):
+    """
+    Close a selector.
+
+    Args:
+        sel: The selector to close.
+    """
+    try:
+        sel.close()
+    except:
+        pass
+
 def get_current_thread_selector() -> SmartSelector:
     """
     Get the selector for the current thread. This allows each thread to have its
-    own selector.
+    own selector. Once the thread exits, the selector gets closed automatically.
 
     CAVEAT: When looping over events, make sure to get the CORRECT event.
     CAVEAT: Each socket can only be registered once,
@@ -56,5 +86,37 @@ def get_current_thread_selector() -> SmartSelector:
         The selector for the current thread.
     """
     if not hasattr(_thread_local, "sel"):
-        _thread_local.sel = SmartSelector()
+        sel = SmartSelector()
+
+        _thread_local.sel = sel
+        _all_selectors.add(sel)
+
+        # Automatically close the selector when the thread exists
+        weakref.finalize(sel, _close_selector, sel)
+
     return _thread_local.sel
+
+def create_new_thread_selector() -> SmartSelector:
+    """
+    Create a new selector that is bound to a specific thread.
+
+    Returns:
+        A selector bound to a specific thread.
+    """
+    pass
+
+def close_all_selectors():
+    """Close all open selectors. """
+
+    items = list(_all_selectors)
+
+    if (n:=len(items)) > 0:
+        logging.warning("%i selectors were not closed automatically", n)
+        
+    for sel in items:
+        try:
+            sel.close()
+        except:
+            pass
+
+    _all_selectors.clear()

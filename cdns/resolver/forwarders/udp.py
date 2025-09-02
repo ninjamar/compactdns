@@ -36,6 +36,7 @@ from enum import Enum
 from typing import cast
 
 from cdns.protocol import *
+from cdns.smartselector import get_current_thread_selector
 
 from .base import BaseForwarder
 
@@ -50,7 +51,7 @@ class UDPForwarder(BaseForwarder):
         # pending_requests and selectors. When the socket can be read (checked)
         # in the thread, fufil the future.
 
-        self.sel = selectors.DefaultSelector()
+        self.sel = get_current_thread_selector()
         self.pending_requests: dict[socket.socket, concurrent.futures.Future] = {}
 
         self.lock = threading.Lock()
@@ -72,20 +73,21 @@ class UDPForwarder(BaseForwarder):
             events = self.sel.select(timeout=1)  # TODO: Timeout
             with self.lock:  # TODO: Lock here?
                 for key, mask in events:
-                    # TODO: Try except
-                    sock = cast(socket.socket, key.fileobj)
-                    # Don't error if no key
-                    future = self.pending_requests.pop(sock, None)
-                    if future:
-                        try:
-                            # TODO: Support responses larger longer than 512 using TCP
-                            response, _ = sock.recvfrom(512)
-                            future.set_result(response)
-                        except Exception as e:
-                            future.set_exception(e)
-                        finally:
-                            self.sel.unregister(sock)
-                            sock.close()
+                    if key.fileobj in self.pending_requests.keys():
+                        # TODO: Try except
+                        sock = cast(socket.socket, key.fileobj)
+                        # Don't error if no key
+                        future = self.pending_requests.pop(sock, None)
+                        if future:
+                            try:
+                                # TODO: Support responses larger longer than 512 using TCP
+                                response, _ = sock.recvfrom(512)
+                                future.set_result(response)
+                            except Exception as e:
+                                future.set_exception(e)
+                            finally:
+                                self.sel.unregister(sock)
+                                sock.close()
 
     def forward(
         self, query: DNSQuery, addr: tuple[str, int]
@@ -113,7 +115,7 @@ class UDPForwarder(BaseForwarder):
             sock.sendto(query.pack(), addr)
             with self.lock:
                 # Add a selector, and when it is ready, read from pending_requests
-                self.sel.register(sock, selectors.EVENT_READ)
+                self.sel.register_or_modify(sock, selectors.EVENT_READ)
                 self.pending_requests[sock] = future
 
         except Exception as e:

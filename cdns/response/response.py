@@ -48,6 +48,7 @@ from cdns.protocol import (
 from cdns.resolver.resolvers.base import BaseResolver
 from cdns.resolver.resolvers.recursive import RecursiveResolver
 from cdns.storage import RecordStorage
+from cdns.smartselector import get_current_thread_selector
 
 # TODO: Send back and check TC flag
 
@@ -60,7 +61,6 @@ def _add_to_cache(cache, questions, answers):
     # TODO: Just ran mypy and it fails, so make it pass
     # TODO: Work on tests (hyperion or smtn)
     pass
-
 
 # TODO: Override login to use broadcast system
 class BaseResponseHandler(LCBMethods):
@@ -372,11 +372,13 @@ class BaseResponseHandler(LCBMethods):
         elif self.tcp_conn:
             buf_len = struct.pack("!H", len(self.bsend))
 
-            sel = selectors.DefaultSelector()
-            sel.register(self.tcp_conn, selectors.EVENT_WRITE)
+            sel = get_current_thread_selector()
+            sel.register_or_modify(self.tcp_conn, selectors.EVENT_WRITE)
+
 
             # Block and wait for the socket to be ready (only happens once)
-            sel.select(timeout=0.1)
+            sel.wait_for(self.tcp_conn)
+
             try:
                 self.tcp_conn.sendall(buf_len + self.bsend)
                 self.lcb.end()
@@ -386,10 +388,10 @@ class BaseResponseHandler(LCBMethods):
                 logging.debug("Closed TCP connection")
 
         elif self.doh_conn:
-            sel = selectors.DefaultSelector()
-            sel.register(self.doh_conn, selectors.EVENT_WRITE)
+            sel = get_current_thread_selector()
+            sel.register_or_modify(self.doh_conn, selectors.EVENT_WRITE)
 
-            sel.select(timeout=0.1)
+            sel.wait_for(self.doh_conn)
 
             try:
                 self.doh_send_back(self.bsend)

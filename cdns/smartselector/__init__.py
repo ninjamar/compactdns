@@ -25,4 +25,4 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from .smartselector import get_current_thread_selector
+from .smartselector import get_current_thread_selector, close_all_selectors

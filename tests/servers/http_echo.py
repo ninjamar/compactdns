@@ -225,7 +225,7 @@ def _doh_router(conn: ssl.SSLSocket) -> None:
 def _perform_tls_handshake(
     ctx: ssl.SSLContext,
     conn: socket.socket,
-) -> Callable:  # TODO: Type annotations return
+) -> ssl.SSLSocket:  # TODO: Type annotations return
     """Handle a DNS query over tls.
 
     Args:
