@@ -25,25 +25,24 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
 
-import sys
-import selectors
-
-import h11
-import ssl
 import base64
-import urllib
-import threading
+import selectors
 import socket
+import ssl
+import sys
+import threading
+import urllib
+from typing import Callable
 
 import h2.config
 import h2.connection
 import h2.events
-from typing import Callable
+import h11
 
 from cdns.smartselector import get_current_thread_selector
 
-
 PKT_SIZE = 1024
+
 
 def _handle_doh_http1(conn: ssl.SSLSocket):
     # TODO: Document all of this
@@ -63,15 +62,17 @@ def _handle_doh_http1(conn: ssl.SSLSocket):
     while sel.is_open:
         events = sel.safe_select(timeout=1)
         for key, mask in events:
-            if key.fileobj == conn: # is or equals
+            if key.fileobj == conn:  # is or equals
                 try:
-                    data = conn.recv(PKT_SIZE)  # TODO: How much should be recieved in one pass?
+                    data = conn.recv(
+                        PKT_SIZE
+                    )  # TODO: How much should be recieved in one pass?
                 except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
-                    break # leave for loop, not continue on next iteration
+                    break  # leave for loop, not continue on next iteration
 
                 if not data:
                     raise ConnectionResetError
-                
+
                 # This probably streams data
                 h1conn.receive_data(data)
 
@@ -117,6 +118,7 @@ def _handle_doh_http1(conn: ssl.SSLSocket):
 
                         return
 
+
 def _send_doh_http1_error(
     h1conn: h11.Connection,
     conn: ssl.SSLSocket,
@@ -133,16 +135,18 @@ def _send_doh_http1_error(
     conn.send(h1conn.send(resp))
     conn.send(h1conn.send(h11.EndOfMessage()))
 
+
 def _send_doh_http2_error(
-        h2conn: h2.connection.H2Connection,
-        conn: ssl.SSLSocket,
-        stream_id: int,
-        status: int,
-    ) -> None:
-        h2conn.send_headers(
-            stream_id, headers=[(b":status", str(status).encode())], end_stream=True
-        )
-        conn.send(h2conn.data_to_send())
+    h2conn: h2.connection.H2Connection,
+    conn: ssl.SSLSocket,
+    stream_id: int,
+    status: int,
+) -> None:
+    h2conn.send_headers(
+        stream_id, headers=[(b":status", str(status).encode())], end_stream=True
+    )
+    conn.send(h2conn.data_to_send())
+
 
 def _handle_doh_http2(conn: ssl.SSLSocket) -> None:
     # Initiate connection
@@ -153,7 +157,6 @@ def _handle_doh_http2(conn: ssl.SSLSocket) -> None:
     conn.send(h2conn.data_to_send())
 
     streams: dict[int, bytes] = {}
-
 
     sel = get_current_thread_selector()
     sel.register_or_modify(conn, selectors.EVENT_READ)
@@ -212,6 +215,7 @@ def _handle_doh_http2(conn: ssl.SSLSocket) -> None:
 
                         return
 
+
 def _doh_router(conn: ssl.SSLSocket) -> None:
     # Router
     # ALPN: ["http/1.1", "h2"]. If ALPN is unknown, then fallback to http/1.0
@@ -221,6 +225,7 @@ def _doh_router(conn: ssl.SSLSocket) -> None:
         _handle_doh_http2(conn)
     else:  # http/1
         _handle_doh_http1(conn)
+
 
 def _perform_tls_handshake(
     ctx: ssl.SSLContext,
@@ -260,35 +265,30 @@ def _perform_tls_handshake(
 
     # TODO: Should I be returning here?
     return tls
-    
+
+
 def _handle_dns_query_doh(ssl_ctx, conn: socket.socket) -> None:
     tls = _perform_tls_handshake(ssl_ctx, conn)
     return _doh_router(tls)
 
-    
+
 if __name__ == "__main__":
     doh_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     doh_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     doh_sock.setblocking(False)
-
-   
 
     doh_ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     doh_ssl_ctx.minimum_version = ssl.TLSVersion.TLSv1_3
     doh_ssl_ctx.load_cert_chain(
         certfile="ignore/dohcert.pem", keyfile="ignore/dohkey.pem"
     )
-    doh_ssl_ctx.set_alpn_protocols(
-        ["h2", "http/1.1"]
-    )  # Need ALPN protocols for DoH
-
+    doh_ssl_ctx.set_alpn_protocols(["h2", "http/1.1"])  # Need ALPN protocols for DoH
 
     doh_sock.bind((sys.argv[1], int(sys.argv[2])))
     doh_sock.listen()
 
     sel = get_current_thread_selector()
     sel.register_or_modify(doh_sock, selectors.EVENT_READ)
-
 
     try:
         # Don't check for sel closing as this is the main thread

@@ -35,20 +35,12 @@ from typing import Callable
 
 # Because lcb.py has a type ignore at the top, mypy doesn't know the methods
 from cdns.lcb import LCBMethods  # type: ignore
-from cdns.protocol import (
-    DNSAnswer,
-    DNSHeader,
-    DNSQuery,
-    DNSQuestion,
-    RTypes,
-    auto_decode_label,
-    auto_encode_label,
-    unpack_all,
-)
+from cdns.protocol import (DNSAnswer, DNSHeader, DNSQuery, DNSQuestion, RTypes,
+                           auto_decode_label, auto_encode_label, unpack_all)
 from cdns.resolver.resolvers.base import BaseResolver
 from cdns.resolver.resolvers.recursive import RecursiveResolver
-from cdns.storage import RecordStorage
 from cdns.smartselector import get_current_thread_selector
+from cdns.storage import RecordStorage
 
 # TODO: Send back and check TC flag
 
@@ -61,6 +53,7 @@ def _add_to_cache(cache, questions, answers):
     # TODO: Just ran mypy and it fails, so make it pass
     # TODO: Work on tests (hyperion or smtn)
     pass
+
 
 # TODO: Override login to use broadcast system
 class BaseResponseHandler(LCBMethods):
@@ -374,7 +367,6 @@ class BaseResponseHandler(LCBMethods):
 
             sel = get_current_thread_selector()
             sel.register_or_modify(self.tcp_conn, selectors.EVENT_WRITE)
-
 
             # Block and wait for the socket to be ready (only happens once)
             sel.wait_for(self.tcp_conn)

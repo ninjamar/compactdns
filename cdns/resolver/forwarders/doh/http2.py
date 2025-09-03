@@ -47,7 +47,7 @@ from ..base import BaseForwarder
 
 
 class HttpTwoForwarder(BaseForwarder):
-    
+
     def __init__(self, use_tls=True):
         if not use_tls:
             logging.warning("Not using TLS for DoH endpoint")
@@ -79,13 +79,13 @@ class HttpTwoForwarder(BaseForwarder):
                 for key, mask in events:
                     if key.fileobj in self.pending_requests.keys():
                         sock = cast(socket.socket, key.fileobj)
-                            # Don't error if no key
-                            # future = self.pending_requests.pop(sock, None)
+                        # Don't error if no key
+                        # future = self.pending_requests.pop(sock, None)
                         future = self.pending_requests.get(sock)
 
                         if mask & selectors.EVENT_READ:
                             # Read data from socket
-                            
+
                             data = sock.recv(4096)
                             if not data:
                                 break
@@ -106,28 +106,27 @@ class HttpTwoForwarder(BaseForwarder):
 
             sock = socket.create_connection(addr)
 
-
-
             if self.use_tls:
                 ssl_ctx = ssl.create_default_context()
                 ssl_ctx.set_alpn_protocols(["h2"])
 
                 sock = ssl_ctx.wrap_socket(sock)
-            
+
             conn = h2.connection.H2Connection()
             conn.initiate_connection()
-            
+
             sock.sendall(conn.data_to_send())
 
             stream_id = conn.get_next_available_stream_id()
-            conn.send_headers(stream_id, 
+            conn.send_headers(
+                stream_id,
                 [
                     (":method", "GET"),
                     (":authority", host),
                     (":scheme", "https"),
-                    (":path", path)
+                    (":path", path),
                 ],
-                end_stream=True
+                end_stream=True,
             )
 
             sock.sendall(conn.data_to_send())

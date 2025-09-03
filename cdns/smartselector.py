@@ -25,13 +25,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import selectors
-import threading
 import errno
-import weakref
-import time
 import functools
 import logging
+import selectors
+import threading
+import time
+import weakref
 from typing import override
 
 # TODO: Make sure ALL selectors are freed
@@ -39,6 +39,7 @@ from typing import override
 
 _thread_local = threading.local()
 _all_selectors = weakref.WeakSet()
+
 
 class SmartSelector(selectors.DefaultSelector):
 
@@ -82,13 +83,14 @@ class SmartSelector(selectors.DefaultSelector):
     """
     A smart selector used with get_current_thread_selector()
     """
+
     def register_or_modify(self, fileobj, events, data=None):
         """Register or modify a selector."""
         try:
             return self.register(fileobj, events, data)
         except KeyError:
             return self.modify(fileobj, events, data)
-        
+
     def wait_for(self, fileobj, sel_timeout=0.1, max_timeout=10):
         """
         Block the current thread until the selector has an event for a certain
@@ -103,11 +105,12 @@ class SmartSelector(selectors.DefaultSelector):
         while self.is_open:
             if max_timeout is not None and (time.time() - start) >= max_timeout:
                 raise TimeoutError("Wait for operation timed out")
-            
+
             event = self.safe_select(timeout=sel_timeout)
             for key, mask in event:
                 if key.fileobj == fileobj:
                     return
+
 
 def _close_selector(sel):
     """
@@ -118,11 +121,12 @@ def _close_selector(sel):
     """
     logging.debug("Closing selector %s", sel)
     # TODO: Mess ts up with sigint
-    
+
     try:
         sel.close()
     except:
         pass
+
 
 def get_current_thread_selector() -> SmartSelector:
     """
@@ -146,6 +150,7 @@ def get_current_thread_selector() -> SmartSelector:
 
     return _thread_local.sel
 
+
 def create_new_thread_selector() -> SmartSelector:
     """
     Create a new selector that is bound to a specific thread.
@@ -155,10 +160,11 @@ def create_new_thread_selector() -> SmartSelector:
     """
     pass
 
-def close_all_selectors():
-    """Close all open selectors. """
 
-    # TODO: Could iter be used?        
+def close_all_selectors():
+    """Close all open selectors."""
+
+    # TODO: Could iter be used?
     for sel in list(_all_selectors):
         try:
             sel.close()

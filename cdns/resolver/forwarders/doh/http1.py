@@ -33,14 +33,17 @@ import ssl
 import struct
 import threading
 from collections import namedtuple
+from dataclasses import dataclass
 from enum import Enum
 from typing import cast
+
 import h11
-from dataclasses import dataclass
+
 from cdns.protocol import *
 from cdns.smartselector import get_current_thread_selector
 
 from ..base import BaseForwarder
+
 
 class states:
     ssl_handshake = 0
@@ -48,6 +51,7 @@ class states:
     connecting = 1
     h11_process = 2
     cleanup = 3
+
 
 @dataclass
 class ConnectionContext:
@@ -98,7 +102,7 @@ class HttpOneForwarder(BaseForwarder):
             # Should hopefully allow for smoother operation by receiving less data
             if ctx.h1conn is not None or ctx.buf is not None:
                 raise Exception("ctx.h1conn and ctx.buf both need to be None")
-            
+
             ctx.h1conn = h11.Connection(h11.CLIENT)
             ctx.state = states.h11_process
 
@@ -107,7 +111,7 @@ class HttpOneForwarder(BaseForwarder):
             self.sel.modify(sock, selectors.EVENT_READ)
             return
         elif ctx.state == states.h11_process:
-            
+
             # This is the most critical part of making the server run
             # asynchronously. So, each event is processed once, then
             # the loop will be broken.
@@ -121,7 +125,7 @@ class HttpOneForwarder(BaseForwarder):
             Else:
                 Get event
                 Handle event
-            
+
             Break
             """
             event = ctx.h1conn.next_event()
@@ -172,7 +176,7 @@ class HttpOneForwarder(BaseForwarder):
                     """
 
                     return
-                
+
         elif ctx.state == states.cleanup:
             self.sel.unregister(sock)
             sock.close()
@@ -195,9 +199,8 @@ class HttpOneForwarder(BaseForwarder):
                             # TODO: Conn is stored in pending_requests
 
                             result = self.handle_state(sock, ctx)
-                            if result: # TODO: This doesn't do anything
+                            if result:  # TODO: This doesn't do anything
                                 continue
-                            
 
     def forward(
         self,
@@ -205,7 +208,7 @@ class HttpOneForwarder(BaseForwarder):
         addr: tuple[str, int],
         host: str,
         path: str = "/dns-query",
-        ssl_ctx: ssl.SSLContext | None = None
+        ssl_ctx: ssl.SSLContext | None = None,
     ) -> concurrent.futures.Future[bytes]:
 
         # TODO: Resolve host using DNS. This might require me creating a public API.
@@ -245,8 +248,10 @@ class HttpOneForwarder(BaseForwarder):
 
             with self.lock:
                 self.sel.register_or_modify(sock, selectors.EVENT_READ)
-                #self.pending_requests[sock] = (future, h11.Connection(h11.CLIENT), b"")
-                self.pending_requests[sock] = ConnectionContext(future, states.ssl_handshake, None, None)
+                # self.pending_requests[sock] = (future, h11.Connection(h11.CLIENT), b"")
+                self.pending_requests[sock] = ConnectionContext(
+                    future, states.ssl_handshake, None, None
+                )
 
         except Exception as e:
             future.set_exception(e)
@@ -267,7 +272,7 @@ class HttpOneForwarder(BaseForwarder):
 
 if __name__ == "__main__":
     import sys
-    
+
     # TODO: Remove ssl_ctx param from .forward
     ssl.create_default_context = ssl._create_unverified_context  # type: ignore
 
@@ -277,8 +282,10 @@ if __name__ == "__main__":
 
     query = DNSQuery(questions=[DNSQuestion(decoded_name="google.com")])
     f = HttpOneForwarder()
-    
-    future = f.forward(query, (sys.argv[1], int(sys.argv[2])), host=sys.argv[3], ssl_ctx=ssl_ctx)
+
+    future = f.forward(
+        query, (sys.argv[1], int(sys.argv[2])), host=sys.argv[3], ssl_ctx=ssl_ctx
+    )
     # future = f.forward(query, ("1.1.1.1", 443), host="cloudflare-dns.com")
 
     result = future.result()

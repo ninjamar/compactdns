@@ -49,16 +49,16 @@ import h2.events
 import h11
 
 from . import daemon
-from .resolver.resolvers import BaseResolver, RecursiveResolver, UpstreamResolver
+from .resolver.resolvers import (BaseResolver, RecursiveResolver,
+                                 UpstreamResolver)
 from .response import make_response_handler, mixins, preload_hosts
+from .smartselector import close_all_selectors, get_current_thread_selector
 from .storage import RecordStorage
 from .utils import get_dns_servers
 
-from .smartselector import get_current_thread_selector, close_all_selectors
+MAX_WORKERS = 1000  # TODO: What should this be
 
-MAX_WORKERS = 1000 # TODO: What should this be
-
-UDP_PKT_SIZE = 512 # UDP is ALWAYS 512 bytes
+UDP_PKT_SIZE = 512  # UDP is ALWAYS 512 bytes
 
 
 # TODO: Read these and implement changes
@@ -346,7 +346,7 @@ class ServerManager:
         # Selectors are closed automatically when appropriate thread exits
 
         close_all_selectors()
-        
+
         self.udp_sock.close()
         self.tcp_sock.close()
 
@@ -432,7 +432,7 @@ class ServerManager:
 
     def _handle_dns_query_tls(self, conn: socket.socket) -> None:
         tls = self._perform_tls_handshake(self.tls_ssl_ctx, conn)
-        return  self._handle_dns_query_tcp(tls)
+        return self._handle_dns_query_tcp(tls)
 
     def _handle_dns_query_doh(self, conn: socket.socket) -> None:
         tls = self._perform_tls_handshake(self.doh_ssl_ctx, conn)
@@ -467,12 +467,14 @@ class ServerManager:
         while sel.is_open:
             events = sel.safe_select(timeout=1)
             for key, mask in events:
-                if key.fileobj == conn: # is or equals
+                if key.fileobj == conn:  # is or equals
 
                     try:
-                        data = conn.recv(self.DOH_PKT_SIZE)  # TODO: How much should be recieved in one pass?
+                        data = conn.recv(
+                            self.DOH_PKT_SIZE
+                        )  # TODO: How much should be recieved in one pass?
                     except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
-                        break # leave for loop, not continue on next iteration
+                        break  # leave for loop, not continue on next iteration
                     if not data:
                         # No data
                         # TODO: Close connection when this happens
@@ -522,7 +524,10 @@ class ServerManager:
                                         h1conn, conn, http_version, 404
                                     )  # page not found
                                 # Error invalid header
-                                if headers.get(b"content-type") != b"application/dns-message":
+                                if (
+                                    headers.get(b"content-type")
+                                    != b"application/dns-message"
+                                ):
                                     return self._send_doh_http1_error(
                                         h1conn, conn, http_version, 400
                                     )  # malformed request
@@ -556,7 +561,8 @@ class ServerManager:
                                     0
                                 ]  # TODO: What does this do
                                 dns_data = base64.urlsafe_b64decode(
-                                    qs + "=" * (4 - len(qs) % 4) % 4  # Add equals padding
+                                    qs
+                                    + "=" * (4 - len(qs) % 4) % 4  # Add equals padding
                                 )
                             else:
                                 # POST data is stored in body
@@ -660,7 +666,9 @@ class ServerManager:
 
                         if isinstance(event, h2.events.RequestReceived):
                             # TODO: Type annotate everything
-                            headers = dict(event.headers)  # list of tuples of (key, value)
+                            headers = dict(
+                                event.headers
+                            )  # list of tuples of (key, value)
                             path = headers[b":path"]
                             method = headers[b":method"]
 
@@ -682,7 +690,9 @@ class ServerManager:
                                         h2conn, conn, stream_id, 400
                                     )
                             else:
-                                return self._send_doh_http2_error(h2conn, conn, stream_id, 405)
+                                return self._send_doh_http2_error(
+                                    h2conn, conn, stream_id, 405
+                                )
 
                             # Start of request, so setup storage
                             streams[stream_id] = b""  # POST
@@ -710,7 +720,8 @@ class ServerManager:
                                     0
                                 ]  # TODO: What does this do
                                 dns_data = base64.urlsafe_b64decode(
-                                    qs + "=" * (4 - len(qs) % 4) % 4  # Add equals padding
+                                    qs
+                                    + "=" * (4 - len(qs) % 4) % 4  # Add equals padding
                                 )
 
                             else:
@@ -952,9 +963,7 @@ class ServerManager:
         self.cleanup()
         logging.info("Server shutdown complete")
 
-    def _single_event(
-        self, sel, executor: concurrent.futures.Executor
-    ) -> None:
+    def _single_event(self, sel, executor: concurrent.futures.Executor) -> None:
         """Handle a single event."""
         # if self.now >= 10:
         #    logging.info("Passed health check")
