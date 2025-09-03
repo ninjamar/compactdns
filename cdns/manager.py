@@ -456,7 +456,6 @@ class ServerManager:
         # Router
         # ALPN: ["http/1.1", "h2"]. If ALPN is unknown, then fallback to http/1.0
         proto = conn.selected_alpn_protocol() or "http/1.1"
-
         if proto == "h2":  # http/2
             self._handle_doh_http2(conn)
         else:  # http/1
@@ -465,7 +464,7 @@ class ServerManager:
     def _handle_doh_http1(self, conn: ssl.SSLSocket):
         # TODO: Document all of this
         h1conn = h11.Connection(h11.SERVER)  # TODO: Use a better variable name for this
-        version = None
+
         headers = {}
         body = b""
 
@@ -560,7 +559,7 @@ class ServerManager:
                         elif isinstance(event, h11.EndOfMessage):
 
                             # Missing information
-                            if method is None or path is None or version is None:
+                            if method is None or path is None or http_version is None:
                                 return self._send_doh_http1_error(
                                     h1conn, conn, http_version, 400
                                 )
@@ -599,7 +598,7 @@ class ServerManager:
                                 conn.send(h1conn.send(resp))
                                 conn.send(h1conn.send(h11.Data(data)))
                                 conn.send(h1conn.send(h11.EndOfMessage()))
-
+                            
                             # TODO: Shutdown conn?
                             return self.ResponseHandler(
                                 storage=self.storage,
@@ -618,14 +617,21 @@ class ServerManager:
         http_version: bytes,
         status_code: int,
     ) -> None:
+        body = f"{status_code} Error".encode()
         # TODO: Document
         resp = h11.Response(
             status_code=status_code,
-            headers=[(b"Content-Length", b"0")],
+            headers=[
+                (b"Content-Length", str(len(body)).encode()),
+                (b"Content-Type", b"text/plain"),
+                (b"Connection", b"Close")
+            ],
             http_version=http_version,
             reason=b"Error",  # TODO: Customize
         )
+
         conn.send(h1conn.send(resp))
+        conn.send(h1conn.send(h11.Data(body)))
         conn.send(h1conn.send(h11.EndOfMessage()))
 
     def _send_doh_http2_error(
