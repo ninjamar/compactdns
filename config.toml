@@ -37,6 +37,16 @@ port = 853
 ssl_key = "key.pem"
 ssl_cert = "cert.pem"
 
+[servers.doh]
+# DoH address and port
+# Port 443 is typically used for DoH
+host = "127.0.0.1"
+port = 443
+# Path to key and certificate file.
+# Generate one using:
+# openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+ssl_key = "doh_key.pem"
+ssl_cert = "doh_cert.pem"
 
 [servers.debug_shell]
 # Debug shell address and port

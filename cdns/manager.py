@@ -84,6 +84,9 @@ class ServerManager:
         tls_host: tuple[str, int] | None = None,
         ssl_key_path: str | None = None,
         ssl_cert_path: str | None = None,
+        doh_host: tuple[str, int] | None = None,
+        doh_key_path: str | None = None,
+        doh_cert_path: str | None = None,
         max_workers: int = MAX_WORKERS,
         resolver_list: list[tuple[str, int]] | None = None,
         daemon_options: dict = {},
@@ -108,6 +111,7 @@ class ServerManager:
         self.host = host
         self.debug_shell_host = debug_shell_host
         self.tls_host = tls_host
+        self.doh_host = doh_host
 
         # Bind in _start_threaded_udp
         self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -137,7 +141,7 @@ class ServerManager:
         else:
             self.use_tls = False
 
-        if True:  # TODO: Add condition for DoH
+        if (self.doh_host is not None and doh_cert_path is not None and doh_key_path is not None):  # TODO: Add condition for DoH
             self.use_doh = True
 
             self.DOH_PKT_SIZE = 1024
@@ -148,7 +152,8 @@ class ServerManager:
             self.doh_ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             self.doh_ssl_ctx.minimum_version = ssl.TLSVersion.TLSv1_3
             self.doh_ssl_ctx.load_cert_chain(
-                certfile="ignore/dohcert.pem", keyfile="ignore/dohkey.pem"
+                #certfile="ignore/dohcert.pem", keyfile="ignore/dohkey.pem"
+                certfile=doh_cert_path, keyfile=doh_key_path
             )
             self.doh_ssl_ctx.set_alpn_protocols(
                 ["h2", "http/1.1"]
@@ -280,6 +285,11 @@ class ServerManager:
         else:
             tls_host = (kwargs["servers.tls.host"], int(kwargs["servers.tls.port"]))
 
+        if kwargs["servers.doh.host"] is None or kwargs["servers.doh.port"] is None:
+            doh_host = None
+        else:
+            doh_host = (kwargs["servers.doh.host"], int(kwargs["servers.doh.port"]))
+
         if kwargs["resolver.recursive"]:
             if kwargs["resolver.doh_endpoints"] is not None:
                 doh_endpoints = [
@@ -334,6 +344,9 @@ class ServerManager:
             tls_host=tls_host,  # TODO: host vs addr
             ssl_key_path=kwargs["servers.tls.ssl_key"],
             ssl_cert_path=kwargs["servers.tls.ssl_cert"],
+            doh_host=doh_host,
+            doh_key_path=kwargs["servers.doh.ssl_key"],
+            doh_cert_path=kwargs["servers.doh.ssl_cert"],
             max_workers=kwargs["all.max_workers"],
             daemon_options={
                 k[8:]: v for k, v in kwargs.items() if k.startswith("daemon")
