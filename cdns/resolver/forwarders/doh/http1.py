@@ -179,8 +179,8 @@ class HttpOneForwarder(BaseForwarder):
             return
 
     def _thread_handler(self):
-        while not self.shutdown_event.is_set():
-            events = self.sel.select(timeout=1)  # TODO: Timeout
+        while self.sel.is_open and (not self.shutdown_event.is_set()):
+            events = self.sel.safe_select(timeout=1)  # TODO: Timeout
             with self.lock:  # TODO: Lock here?
                 for key, mask in events:
                     if key.fileobj in self.pending_requests.keys():

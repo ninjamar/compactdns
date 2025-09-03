@@ -399,9 +399,9 @@ class ServerManager:
 
         sel.register_or_modify(conn, selectors.EVENT_READ | selectors.EVENT_WRITE)
         has_conn = True
-        while has_conn:
+        while sel.is_open and has_conn:
             # Connection times out in two minutes
-            events = sel.select(timeout=60 * 2)
+            events = sel.safe_select(timeout=60 * 2)
             for key, mask in events:
                 if key.fileobj == conn:
                     # sock = key.fileobj
@@ -464,8 +464,8 @@ class ServerManager:
         sel = get_current_thread_selector()
 
         sel.register_or_modify(conn, selectors.EVENT_READ)
-        while True:
-            events = sel.select(timeout=1)
+        while sel.is_open:
+            events = sel.safe_select(timeout=1)
             for key, mask in events:
                 if key.fileobj == conn: # is or equals
 
@@ -636,7 +636,7 @@ class ServerManager:
         sel = get_current_thread_selector()
         sel.register_or_modify(conn, selectors.EVENT_READ)
 
-        while True:
+        while sel.is_open:
             events = sel.select(timeout=1)
             for key, mask in events:
                 if key.fileobj == conn:
@@ -757,9 +757,9 @@ class ServerManager:
         sel.register_or_modify(tls, selectors.EVENT_READ | selectors.EVENT_WRITE)
 
         has_handshake = False
-        while not has_handshake:
+        while sel.is_open and (not has_handshake):
             # 2 second timeout for handshake
-            events = sel.select(timeout=2)
+            events = sel.safe_select(timeout=2)
             for key, mask in events:
                 if key.fileobj == tls:
                     try:
@@ -922,6 +922,7 @@ class ServerManager:
                 # self.now = time.time()
 
                 # Keep running until shutdown
+                # Do not check if the selector is open, because any quit events are called here
                 while not self.shutdown_event.is_set():
                     try:
                         # Handle the requests here
@@ -952,7 +953,7 @@ class ServerManager:
         logging.info("Server shutdown complete")
 
     def _single_event(
-        self, sel: selectors.BaseSelector, executor: concurrent.futures.Executor
+        self, sel, executor: concurrent.futures.Executor
     ) -> None:
         """Handle a single event."""
         # if self.now >= 10:
@@ -967,7 +968,7 @@ class ServerManager:
         #    if len(self.tracker.keys()) > 0:
         #        logging.error("TRACKER: %s", self.tracker.get_elapsed())
 
-        events = sel.select(timeout=1)
+        events = sel.safe_select(timeout=1)
         for key, mask in events:
             obj = key.fileobj  # type: ignore[assignment]
             if obj == self.udp_sock:

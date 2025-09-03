@@ -60,8 +60,8 @@ def _handle_doh_http1(conn: ssl.SSLSocket):
 
     sel.register_or_modify(conn, selectors.EVENT_READ)
     # Exhaust all data
-    while True:
-        events = sel.select(timeout=1)
+    while sel.is_open:
+        events = sel.safe_select(timeout=1)
         for key, mask in events:
             if key.fileobj == conn: # is or equals
                 try:
@@ -159,8 +159,8 @@ def _handle_doh_http2(conn: ssl.SSLSocket) -> None:
     sel.register_or_modify(conn, selectors.EVENT_READ)
     # Exhaust all data
 
-    while True:
-        events = sel.select(timeout=1)
+    while sel.is_open:
+        events = sel.safe_select(timeout=1)
         for key, mask in events:
             if key.fileobj == conn:
                 try:
@@ -240,9 +240,9 @@ def _perform_tls_handshake(
 
     has_handshake = False
 
-    while not has_handshake:
+    while sel.is_open and (not has_handshake):
         # 2 second timeout for handshake
-        events = sel.select(timeout=2)
+        events = sel.safe_select(timeout=2)
         for key, mask in events:
             if key.fileobj == tls:
                 try:
@@ -291,6 +291,7 @@ if __name__ == "__main__":
 
 
     try:
+        # Don't check for sel closing as this is the main thread
         while True:
             events = sel.select(timeout=1)
             for key, mask in events:

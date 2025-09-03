@@ -27,8 +27,12 @@
 
 import selectors
 import threading
+import errno
 import weakref
+import time
+import functools
 import logging
+from typing import override
 
 # TODO: Make sure ALL selectors are freed
 # TODO: Use a single global selector for ALL code
@@ -37,6 +41,44 @@ _thread_local = threading.local()
 _all_selectors = weakref.WeakSet()
 
 class SmartSelector(selectors.DefaultSelector):
+
+    @functools.wraps(selectors.DefaultSelector.__init__)
+    def __init__(self):
+        super().__init__()
+
+        self._closed = False
+
+    @functools.wraps(selectors.DefaultSelector.close)
+    def close(self):
+        super().close()
+        self._closed = True
+
+    def safe_select(self, timeout) -> iter:
+        """
+        Select, but do so in a safe manner.
+
+        Args:
+            timeout: Timeout to make selection.
+
+        Returns:
+            An iterable containing keys and masks.
+        """
+        try:
+            return self.select(timeout)
+        except OSError as e:
+            if e.errno == errno.EBADF:
+                return ()
+            raise e
+        except ValueError as e:
+            # MacOS
+            if "I/O operation on closed kqueue object" in str(e):
+                return ()
+            raise e
+
+    @property
+    def is_open(self):
+        return not self._closed
+
     """
     A smart selector used with get_current_thread_selector()
     """
@@ -47,7 +89,7 @@ class SmartSelector(selectors.DefaultSelector):
         except KeyError:
             return self.modify(fileobj, events, data)
         
-    def wait_for(self, fileobj, timeout=0.1):
+    def wait_for(self, fileobj, sel_timeout=0.1, max_timeout=10):
         """
         Block the current thread until the selector has an event for a certain
         item.
@@ -56,8 +98,13 @@ class SmartSelector(selectors.DefaultSelector):
             fileobj: The item to wait for.
             timeout: How long each wait should be. Defaults to 0.1.
         """
-        while True:
-            event = self.select(timeout=timeout)
+        # TODO: Exponentional backoff
+        start = time.time()
+        while self.is_open:
+            if max_timeout is not None and (time.time() - start) >= max_timeout:
+                raise TimeoutError("Wait for operation timed out")
+            
+            event = self.safe_select(timeout=sel_timeout)
             for key, mask in event:
                 if key.fileobj == fileobj:
                     return
@@ -69,6 +116,9 @@ def _close_selector(sel):
     Args:
         sel: The selector to close.
     """
+    logging.debug("Closing selector %s", sel)
+    # TODO: Mess ts up with sigint
+    
     try:
         sel.close()
     except:
@@ -108,12 +158,8 @@ def create_new_thread_selector() -> SmartSelector:
 def close_all_selectors():
     """Close all open selectors. """
 
-    items = list(_all_selectors)
-
-    if (n:=len(items)) > 0:
-        logging.warning("%i selectors were not closed automatically", n)
-        
-    for sel in items:
+    # TODO: Could iter be used?        
+    for sel in list(_all_selectors):
         try:
             sel.close()
         except:

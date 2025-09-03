@@ -111,9 +111,9 @@ class BaseStreamForwarder(BaseForwarder):
         raise NotImplementedError
 
     def _thread_handler(self):
-        while not self.shutdown_event.is_set():
+        while self.sel.is_open and (not self.shutdown_event.is_set()):
             # print("Waiting for events events")
-            events = self.sel.select(timeout=1)
+            events = self.sel.safe_select(timeout=1)
             # print("Events received", events)
             for key, mask in events:
                 if key.fileobj in self._ctxs.keys():
