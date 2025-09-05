@@ -34,6 +34,7 @@ import sys
 
 from cdns import _installer, tools
 from cdns.manager import ServerManager
+from cdns.utils import CustomFormatter
 
 from .kwargs import get_kwargs, kwargs_defaults
 
@@ -44,13 +45,14 @@ def _configure_logging(kwargs: dict[str, str | int | bool]) -> None:
     Args:
         kwargs: Kwargs.
     """
+    
     # Configure the logger
     logger = logging.getLogger()
 
     # Rather than getLevelNamesMapping, because we can support an older version of python
     logger.setLevel(getattr(logging, kwargs["logging.loglevel"]))
 
-    formatter = logging.Formatter(
+    formatter = CustomFormatter(
         fmt=kwargs["logging.format"], datefmt=kwargs["logging.datefmt"]
     )
 
@@ -62,6 +64,10 @@ def _configure_logging(kwargs: dict[str, str | int | bool]) -> None:
 
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+
+    if kwargs["__use_debug_settings"] and kwargs["logging.loglevel"] != "DEBUG":
+        logging.error("When the setting \"__use_debug_settings\" is True, the logging level must be set to DEBUG")
+        sys.exit()
 
 
 def cli() -> None:

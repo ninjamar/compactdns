@@ -28,6 +28,7 @@
 import copy
 import os
 import re
+import logging
 from typing import Any, overload
 
 
@@ -161,6 +162,40 @@ class colors:
     BOLD = "\033[1m"
     UNDERLINE = "\033[4m"
 
+
+class CustomFormatter(logging.Formatter):
+    # Based off of https://stackoverflow.com/a/56944256/21322342
+    # Colors
+    grey = "\x1b[30m"
+    red = "\x1b[31m"
+    green = "\x1b[32m"
+
+    yellow = "\x1b[33m"
+    blue = "\x1b[34m"
+    purple = "\x1b[35m"
+
+    turquoise = "\x1b[36m"
+    white = "\x1b[37m"
+
+    bold_red = "\x1b[31;1m"
+    reset = "\x1b[0m"
+
+    # Base format
+    base_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.FORMATS = {
+            logging.DEBUG: logging.Formatter(self.turquoise + self.base_format + self.reset),
+            logging.INFO: logging.Formatter(self.white + self.base_format + self.reset),
+            logging.WARNING: logging.Formatter(self.yellow + self.base_format + self.reset),
+            logging.ERROR: logging.Formatter(self.red + self.base_format + self.reset),
+            logging.CRITICAL: logging.Formatter(self.bold_red + self.base_format + self.reset),
+        }
+
+    def format(self, record):
+        formatter = self.FORMATS.get(record.levelno)
+        return formatter.format(record)
 
 if __name__ == "__main__":
     a = BiInt("hello", 1)
