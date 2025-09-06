@@ -485,7 +485,7 @@ class ServerManager:
                         data = conn.recv(
                             self.DOH_PKT_SIZE
                         )  # TODO: How much should be recieved in one pass?
-                    except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
+                    except (ssl.SSLWantReadError, ssl.SSLWantWriteError) as e:
                         break  # leave for loop, not continue on next iteration
                     if not data:
                         # No data
@@ -668,7 +668,7 @@ class ServerManager:
                     try:
                         data = conn.recv(self.DOH_PKT_SIZE)
                     except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
-                        break
+                        pass
 
                     if not data:
                         raise ConnectionResetError
@@ -798,13 +798,9 @@ class ServerManager:
 
                         has_handshake = True
                         break
-                    except ssl.SSLWantReadError:
+                    except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
                         # Wait until next time
                         pass
-                    except ssl.SSLWantWriteError:
-                        # Wait for more data
-                        pass
-
         # TODO: Should I be returning here?
 
         return tls

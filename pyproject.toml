@@ -28,7 +28,7 @@ dependencies = [
     "publicsuffixlist>=1.0",
     "tomli>=1.0; python_version < '3.11'",
     "h11>=0.10.0", # TODO: Is this ok
-    "h2>=4.2.0"
+    "h2>=4.2.0",
 ]
 
 classifiers = [
@@ -65,8 +65,11 @@ cdns = "cdns.cli:cli"
 dev = [
     "black>=25.1.0",
     "darglint>=1.8.1",
+    "ipdb>=0.13.13",
     "isort>=6.0.1",
+    "line-profiler>=5.0.0",
     "radon>=6.0.1",
     "ruff>=0.12.2",
+    "timerit>=1.1.0",
     "ty>=0.0.1a14",
 ]

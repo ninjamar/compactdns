@@ -91,7 +91,7 @@ tls_endpoints = [
 ]
 # For DoH support, a list of endpoints are required
 doh_endpoints = [
-    ["one.one.one.one", 433]
+    ["one.one.one.one", "1.1.1.1", 433]
 ]
 
 # TLS is not supported. The root servers only suppprt TCP and UDP. For DoH to

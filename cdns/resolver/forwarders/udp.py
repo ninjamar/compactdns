@@ -27,6 +27,7 @@
 
 import concurrent.futures
 import selectors
+import logging
 import socket
 import ssl
 import struct
@@ -119,6 +120,7 @@ class UDPForwarder(BaseForwarder):
                 self.pending_requests[sock] = future
 
         except Exception as e:
+            # TODO: better
             future.set_exception(e)
             sock.close()
         return future

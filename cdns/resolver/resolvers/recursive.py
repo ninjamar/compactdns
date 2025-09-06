@@ -30,7 +30,11 @@ import selectors
 import socket
 import ssl
 import struct
+import sys
 import threading
+import logging
+import ipdb
+
 from collections import namedtuple
 from enum import Enum
 from typing import cast
@@ -43,6 +47,7 @@ from cdns.resolver import forwarders
 
 from .base import BaseResolver
 from .upstream import UpstreamResolver
+from cdns.resolver.forwarders.doh.http1 import HttpOneForwarder
 
 # TODO: Load root server from url, write root server to disk and cache it
 # ROOT_SERVERS = [p + ".ROOT-SERVERS.NET" for p in string.ascii_uppercase[:13]]
@@ -62,8 +67,8 @@ class RecursiveResolver(BaseResolver):
     def __init__(
         self,
         forwarding_mode: str = "UDP",
-        tls_endpoints: list | None = None,
-        doh_endpoints: list | None = None,
+        tls_endpoints: list[tuple[str, int]] | None = None,
+        doh_endpoints: list[tuple[str, str, int]] | None = None,
     ) -> None:
         """Create an instance of RecursiveResolver."""
 
@@ -78,13 +83,23 @@ class RecursiveResolver(BaseResolver):
             self.doh_endpoints = []
         else:
             self.doh_endpoints = doh_endpoints
+        
         self.forwarding_mode = forwarding_mode
 
         # Activate the forwarder
-        self.forwarders_list: dict[str, forwarders.BaseForwarder] = {
+        """
+        self.forwarders_map = {
+             "doh": forwarders.DoHForwarder(),
+            "tcp": forwarders.TCPForwarder(),
+            "tls": forwarders.TLSForwarder(),
+            "udp": forwarders.UDPForwarder(),
+        }
+        """
+        self.forwarders_map: dict[str, forwarders.BaseForwarder] = {
             k: v() for k, v in FORWARDERS.items()
         }
 
+        # TODO: Errors raised in here do not propagate
         self.executor = concurrent.futures.ThreadPoolExecutor()
         """Server = root server send request to server (enable timeout) receive
         response parse response if the response has ip address of domain return
@@ -216,15 +231,23 @@ class RecursiveResolver(BaseResolver):
         Returns:
             Future that fufils when there's a response.
         """
+        #import dataclasses
+        #logging.debug("Entering _resolve with query id=%s, state=%s", id(query), dataclasses.asdict(query))
         # Add auto detect forwarder
         future: concurrent.futures.Future[DNSQuery] = concurrent.futures.Future()
-
         def send():
-            # response = self.forwarder.forward(query, server_addr)
-            # TODO: Auto detect server addr
-            f = self._get_forwarder(query)
-            response = f.forward(query, server_addr)
-            response.add_done_callback(lambda f: self._resolve_done(f, query, future))
+            #logging.debug("Inside send with query id=%s, state=%s", id(query), dataclasses.asdict(query))
+            try:
+                # response = self.forwarder.forward(query, server_addr)
+                # TODO: Auto detect server addr
+                f = self._get_forwarder(query)
+                # ipdb.set_trace()
+                logging.debug("Here %s", query)
+                # raise Exception("WHAT")
+                response = f.forward(query, server_addr)
+                response.add_done_callback(lambda f: self._resolve_done(f, query, future))
+            except Exception as e:
+                logging.debug("Error", exc_info=True)
 
         self.executor.submit(send)
         return future
@@ -235,7 +258,8 @@ class RecursiveResolver(BaseResolver):
         return self.forwarding_mode
 
     def _get_forwarder(self, query: DNSQuery) -> forwarders.BaseForwarder:
-        return self.forwarders_list[self._get_method(query)]
+        return self.forwarders_map[self._get_method(query)]
+        #return HttpOneForwarder()
 
     def get_server(self, query: DNSQuery) -> tuple[str, int]:
         # HACK: Make this function return a working endpoint. Also, make sure to
@@ -282,5 +306,5 @@ class RecursiveResolver(BaseResolver):
 
     def cleanup(self):
         """Cleanup any loose ends."""
-        for forwarder in self.forwarders_list.values():
+        for forwarder in self.forwarders_map.values():
             forwarder.cleanup()

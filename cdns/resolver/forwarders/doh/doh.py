@@ -40,7 +40,10 @@ from cdns.protocol import *
 
 from ..base import BaseForwarder
 
+from .http1 import HttpOneForwarder
+from .http2 import HttpTwoForwarder
 
+"""
 class DoHForwarder(BaseForwarder):
     def __init__(self):
         pass
@@ -52,3 +55,9 @@ class DoHForwarder(BaseForwarder):
 
     def cleanup(self):
         pass
+"""
+
+
+# Right now the http two forwarder doesn't work
+class DoHForwarder(HttpOneForwarder):
+    pass

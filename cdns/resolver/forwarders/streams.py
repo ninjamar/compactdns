@@ -27,6 +27,7 @@
 
 import concurrent.futures
 import selectors
+import logging
 import signal
 import socket
 import threading
@@ -130,6 +131,7 @@ class BaseStreamForwarder(BaseForwarder):
                         elif mask & selectors.EVENT_WRITE:
                             self._handle_write(sock, ctx)
                     except Exception as e:
+                        logging.debug("error", exc_info=True)
                         ctx.future.set_exception(e)
                         self._cleanup_sock(sock)
 

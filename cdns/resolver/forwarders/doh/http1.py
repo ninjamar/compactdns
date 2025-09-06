@@ -140,7 +140,7 @@ class HttpOneForwarder(BaseForwarder):
                 except (BlockingIOError, ssl.SSLWantReadError):
                     # Do not close socket because there could still be more data
                     # TODO: ssl.SSLWantRead error shouldn't be called
-                    return
+                    pass
 
                 ctx.h1conn.receive_data(data)
             else:
@@ -201,16 +201,21 @@ class HttpOneForwarder(BaseForwarder):
                             result = self.handle_state(sock, ctx)
                             if result:  # TODO: This doesn't do anything
                                 continue
-
+    
     def forward(
         self,
         query: DNSQuery,
-        addr: tuple[str, int],
-        host: str,
+        # Hostname, IP, Port -- this comes straight from the input configuration
+        addr: tuple[str, str, int], # addr is the name for backwards compatability.
         path: str = "/dns-query",
         ssl_ctx: ssl.SSLContext | None = None,
     ) -> concurrent.futures.Future[bytes]:
+        
+        host = addr[0]
+        addr = addr[1:]
 
+
+        logging.debug("Forwarding")        
         # TODO: Resolve host using DNS. This might require me creating a public API.
         future: concurrent.futures.Future[bytes] = concurrent.futures.Future()
         try:
@@ -254,6 +259,7 @@ class HttpOneForwarder(BaseForwarder):
                 )
 
         except Exception as e:
+            logging.debug("unable to forward", exc_info=True)
             future.set_exception(e)
             try:
                 sock.close()

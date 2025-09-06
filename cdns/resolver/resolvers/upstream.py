@@ -65,14 +65,17 @@ class UpstreamResolver(BaseResolver):
         Returns:
             The future fufilling the query.
         """
-        ret: concurrent.futures.Future[DNSQuery] = concurrent.futures.Future()
+        future: concurrent.futures.Future[DNSQuery] = concurrent.futures.Future()
 
-        f = self.forwarder.forward(query, self.addr)
-        f.add_done_callback(
-            lambda s: ret.set_result(unpack_all(s.result()))
-        )  # ret.result = unpack_all(s.result)
+        try:
+            f = self.forwarder.forward(query, self.addr)
+            f.add_done_callback(
+                lambda s: future.set_result(unpack_all(s.result()))
+            )  # ret.result = unpack_all(s.result)
+        except Exception as e:
+            future.set_exception(e)
 
-        return ret
+        return future
 
     def cleanup(self):
         self.forwarder.cleanup()

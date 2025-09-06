@@ -39,10 +39,13 @@ import h2.connection
 import h2.events
 import h11
 
+from cdns.protocol import *
 from cdns.smartselector import get_current_thread_selector
 
 PKT_SIZE = 1024
 
+
+FAKE_DATA = DNSQuery(questions=[DNSQuestion(decoded_name="google.com")], answers=[DNSAnswer(decoded_name="google.com", decoded_rdata="127.0.0.1")]).pack()
 
 def _handle_doh_http1(conn: ssl.SSLSocket):
     # TODO: Document all of this
@@ -111,7 +114,7 @@ def _handle_doh_http1(conn: ssl.SSLSocket):
                             conn.send(h1conn.send(h11.Data(data)))
                             conn.send(h1conn.send(h11.EndOfMessage()))
 
-                        doh_send_back(body)
+                        doh_send_back(body if FAKE_DATA is None else FAKE_DATA)
                         # TODO: Document
                         conn.shutdown(socket.SHUT_RDWR)
                         conn.close()

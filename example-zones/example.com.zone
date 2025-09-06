@@ -29,3 +29,4 @@ ftp             IN  CNAME www.example.com.
 
 ; TXT Record
 @   IN  TXT "v=spf1 mx -all"
+@   IN  TXT "\ntest\n"
