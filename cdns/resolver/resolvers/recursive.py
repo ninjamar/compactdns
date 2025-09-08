@@ -110,6 +110,7 @@ class RecursiveResolver(BaseResolver):
         authorities: list[DNSAuthority],
         additionals: list[DNSAdditional],
         query: DNSQuery,
+        method: str,
         to_future: concurrent.futures.Future[DNSQuery],
     ) -> None:
         """Find a nameservers.
@@ -128,7 +129,7 @@ class RecursiveResolver(BaseResolver):
         ip = next((x.decoded_rdata for x in additionals if x.rdlength == 4), None)
         # ip = next((x.decoded_rdata for x in additionals if x.rdlength == ip_size), None)
         if ip:
-            self._post_nameserver_found(ip, query, to_future)
+            self._post_nameserver_found(ip, query, method, to_future)
         else:
             # Resolve nameserver
             nameserver = authorities[0].decoded_rdata
@@ -147,7 +148,7 @@ class RecursiveResolver(BaseResolver):
                 # them. So, we pass the answers as the additionals. This works
                 # because DNSAnswer, DNSAuthority, and DNSAdditional are all
                 # identical.
-                self._find_nameserver([], nameservers.answers, query, to_future)  # type: ignore[arg-type]
+                self._find_nameserver([], nameservers.answers, query, method, to_future)  # type: ignore[arg-type]
 
             future.add_done_callback(callback)
 
@@ -155,6 +156,7 @@ class RecursiveResolver(BaseResolver):
         self,
         nameserver: str,
         query: DNSQuery,
+        method: str,
         to_future: concurrent.futures.Future[DNSQuery],
     ) -> concurrent.futures.Future:
         """Callback after nameservers are found.
@@ -167,7 +169,7 @@ class RecursiveResolver(BaseResolver):
         Returns:
             The new future (not sure why it returns, but it does)
         """
-        new_future = self._resolve(query, (nameserver, 53))
+        new_future = self._resolve(query, method, (nameserver, 53))
         new_future.add_done_callback(lambda f: to_future.set_result(f.result()))
         return new_future
 
@@ -175,6 +177,7 @@ class RecursiveResolver(BaseResolver):
         self,
         recv_future: concurrent.futures.Future[bytes],
         query: DNSQuery,
+        method: str,
         to_future: concurrent.futures.Future[DNSQuery],
     ) -> None:
         """Called after _resolve.
@@ -207,7 +210,7 @@ class RecursiveResolver(BaseResolver):
         elif r.authorities:
             # GET IPV4 record
             # This function executes rest of code
-            self._find_nameserver(r.authorities, r.additionals, query, to_future)
+            self._find_nameserver(r.authorities, r.additionals, query, method, to_future)
         else:
             # TODO: DO authorities and additionals always go together?
 
@@ -220,7 +223,7 @@ class RecursiveResolver(BaseResolver):
             to_future.set_result(error_query)
 
     def _resolve(
-        self, query: DNSQuery, server_addr: tuple[str, int], auto_detect_forwarder=True
+        self, query: DNSQuery, method: str, server_addr: tuple[str, int], auto_detect_forwarder=True
     ) -> concurrent.futures.Future[DNSQuery]:
         """Resolve a query recursively.
 
@@ -240,12 +243,12 @@ class RecursiveResolver(BaseResolver):
             try:
                 # response = self.forwarder.forward(query, server_addr)
                 # TODO: Auto detect server addr
-                f = self._get_forwarder(query)
+                f = self._get_forwarder(method)
                 # ipdb.set_trace()
                 logging.debug("Here %s", query)
                 # raise Exception("WHAT")
                 response = f.forward(query, server_addr)
-                response.add_done_callback(lambda f: self._resolve_done(f, query, future))
+                response.add_done_callback(lambda f: self._resolve_done(f, query, method, future))
             except Exception as e:
                 logging.debug("Error", exc_info=True)
 
@@ -257,14 +260,13 @@ class RecursiveResolver(BaseResolver):
             return query._method
         return self.forwarding_mode
 
-    def _get_forwarder(self, query: DNSQuery) -> forwarders.BaseForwarder:
-        return self.forwarders_map[self._get_method(query)]
+    def _get_forwarder(self, method) -> forwarders.BaseForwarder:
+        return self.forwarders_map[method]
         #return HttpOneForwarder()
 
-    def get_server(self, query: DNSQuery) -> tuple[str, int]:
+    def get_server(self, method) -> tuple[str, int]:
         # HACK: Make this function return a working endpoint. Also, make sure to
         # rotate these endpoints if a ping test fails for one of them.
-        method = self._get_method(query)
         if method == "doh":
             return self.doh_endpoints[0]
         if method == "tls":
@@ -272,7 +274,7 @@ class RecursiveResolver(BaseResolver):
         return ROOT_SERVERS[0]
 
     def send(
-        self, query: DNSQuery, auto_detect_forwarder=True
+        self, query: DNSQuery, method: str | None = "udp", auto_detect_forwarder=True
     ) -> concurrent.futures.Future[DNSQuery]:
         """Send a query to the resolver.
 
@@ -285,7 +287,7 @@ class RecursiveResolver(BaseResolver):
         # TODO: In future take in DNS query, then query each question
         # TODO: Make a flowchart for this
 
-        server_addr = self.get_server(query)
+        server_addr = self.get_server(method)
 
         # Even if we use TLS or DoH, there is no need to use an upstream resolver,
         # because the RecursiveResolver only follows links IF AVAILABLE. If the
@@ -302,7 +304,7 @@ class RecursiveResolver(BaseResolver):
         elif t == RTypes.AAAA:
             ip_size = 16
         """
-        return self._resolve(query, server_addr, auto_detect_forwarder)
+        return self._resolve(query, method, server_addr, auto_detect_forwarder)
 
     def cleanup(self):
         """Cleanup any loose ends."""

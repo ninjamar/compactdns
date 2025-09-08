@@ -203,8 +203,8 @@ class BaseResponseHandler(LCBMethods):
 
             # TODO: Should this be exposed?
             # future = self.resolver.send(to_send, ip_mode)
-            self.new._method = self._find_method()
-            future = self.resolver.send(self.new)
+
+            future = self.resolver.send(self.new, self._find_method())
             # send = pack_all_compressed(self.new_header, self.new_questions)
             # future = self.forwarder(send)
             future.add_done_callback(self._forwarding_done_handler)
