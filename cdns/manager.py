@@ -141,7 +141,11 @@ class ServerManager:
         else:
             self.use_tls = False
 
-        if (self.doh_host is not None and doh_cert_path is not None and doh_key_path is not None):  # TODO: Add condition for DoH
+        if (
+            self.doh_host is not None
+            and doh_cert_path is not None
+            and doh_key_path is not None
+        ):  # TODO: Add condition for DoH
             self.use_doh = True
 
             self.DOH_PKT_SIZE = 1024
@@ -152,8 +156,9 @@ class ServerManager:
             self.doh_ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             self.doh_ssl_ctx.minimum_version = ssl.TLSVersion.TLSv1_3
             self.doh_ssl_ctx.load_cert_chain(
-                #certfile="ignore/dohcert.pem", keyfile="ignore/dohkey.pem"
-                certfile=doh_cert_path, keyfile=doh_key_path
+                # certfile="ignore/dohcert.pem", keyfile="ignore/dohkey.pem"
+                certfile=doh_cert_path,
+                keyfile=doh_key_path,
             )
             self.doh_ssl_ctx.set_alpn_protocols(
                 ["h2", "http/1.1"]
@@ -598,7 +603,7 @@ class ServerManager:
                                 conn.send(h1conn.send(resp))
                                 conn.send(h1conn.send(h11.Data(data)))
                                 conn.send(h1conn.send(h11.EndOfMessage()))
-                            
+
                             # TODO: Shutdown conn?
                             return self.ResponseHandler(
                                 storage=self.storage,
@@ -624,7 +629,7 @@ class ServerManager:
             headers=[
                 (b"Content-Length", str(len(body)).encode()),
                 (b"Content-Type", b"text/plain"),
-                (b"Connection", b"Close")
+                (b"Connection", b"Close"),
             ],
             http_version=http_version,
             reason=b"Error",  # TODO: Customize

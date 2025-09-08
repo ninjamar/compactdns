@@ -26,9 +26,9 @@
 # SOFTWARE.
 
 import copy
+import logging
 import os
 import re
-import logging
 from typing import Any, overload
 
 
@@ -181,21 +181,30 @@ class CustomFormatter(logging.Formatter):
     reset = "\x1b[0m"
 
     # Base format
-    base_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
+    base_format = (
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.FORMATS = {
-            logging.DEBUG: logging.Formatter(self.turquoise + self.base_format + self.reset),
+            logging.DEBUG: logging.Formatter(
+                self.turquoise + self.base_format + self.reset
+            ),
             logging.INFO: logging.Formatter(self.white + self.base_format + self.reset),
-            logging.WARNING: logging.Formatter(self.yellow + self.base_format + self.reset),
+            logging.WARNING: logging.Formatter(
+                self.yellow + self.base_format + self.reset
+            ),
             logging.ERROR: logging.Formatter(self.red + self.base_format + self.reset),
-            logging.CRITICAL: logging.Formatter(self.bold_red + self.base_format + self.reset),
+            logging.CRITICAL: logging.Formatter(
+                self.bold_red + self.base_format + self.reset
+            ),
         }
 
     def format(self, record):
         formatter = self.FORMATS.get(record.levelno)
         return formatter.format(record)
+
 
 if __name__ == "__main__":
     a = BiInt("hello", 1)

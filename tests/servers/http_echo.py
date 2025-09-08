@@ -45,7 +45,11 @@ from cdns.smartselector import get_current_thread_selector
 PKT_SIZE = 1024
 
 
-FAKE_DATA = DNSQuery(questions=[DNSQuestion(decoded_name="google.com")], answers=[DNSAnswer(decoded_name="google.com", decoded_rdata="127.0.0.1")]).pack()
+FAKE_DATA = DNSQuery(
+    questions=[DNSQuestion(decoded_name="google.com")],
+    answers=[DNSAnswer(decoded_name="google.com", decoded_rdata="127.0.0.1")],
+).pack()
+
 
 def _handle_doh_http1(conn: ssl.SSLSocket):
     # TODO: Document all of this

@@ -684,7 +684,8 @@ class DNSQuery:
             self.authorities,
             self.additionals,
         )
-        
+
+
 # @functools.lru_cache(maxsize=512)
 def unpack_all(
     buf: bytes,

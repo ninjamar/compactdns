@@ -56,7 +56,9 @@ class UpstreamResolver(BaseResolver):
         self.addr = addr
         self.forwarder = forwarders.UDPForwarder()
 
-    def send(self, query: DNSQuery, method: str | None = "udp") -> concurrent.futures.Future[DNSQuery]:
+    def send(
+        self, query: DNSQuery, method: str | None = "udp"
+    ) -> concurrent.futures.Future[DNSQuery]:
         """Send a query to the upstream.
 
         Args:

@@ -26,8 +26,8 @@
 # SOFTWARE.
 
 import concurrent.futures
-import selectors
 import logging
+import selectors
 import socket
 import ssl
 import struct

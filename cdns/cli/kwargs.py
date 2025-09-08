@@ -185,7 +185,7 @@ kwargs_defaults_initial = {
             help_="Path to cache preload file", type_=str, default=None, path=True
         ),
     },
-    "__use_debug_settings": K(help_="", type_=bool, default=False)
+    "__use_debug_settings": K(help_="", type_=bool, default=False),
 }
 
 kwargs_defaults: dict[str, K] = flatten_dict(kwargs_defaults_initial)
@@ -254,8 +254,7 @@ def get_kwargs(config_path, args=None) -> dict[str, str | int | bool]:
         kwargs["logging.watcher_stderr"] = (
             kwargs["logging.log_prefix"] + kwargs["logging.watcher_stderr"]
         )
-    
-    
+
     # Normalize all the relative paths
     base_path = Path(config_path).parent
     paths = [k for k, v in kwargs_defaults.items() if v.d.get("path") is not None]

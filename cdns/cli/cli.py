@@ -45,7 +45,7 @@ def _configure_logging(kwargs: dict[str, str | int | bool]) -> None:
     Args:
         kwargs: Kwargs.
     """
-    
+
     # Configure the logger
     logger = logging.getLogger()
 
@@ -66,7 +66,9 @@ def _configure_logging(kwargs: dict[str, str | int | bool]) -> None:
     logger.addHandler(handler)
 
     if kwargs["__use_debug_settings"] and kwargs["logging.loglevel"] != "DEBUG":
-        logging.error("When the setting \"__use_debug_settings\" is True, the logging level must be set to DEBUG")
+        logging.error(
+            'When the setting "__use_debug_settings" is True, the logging level must be set to DEBUG'
+        )
         sys.exit()
 
 

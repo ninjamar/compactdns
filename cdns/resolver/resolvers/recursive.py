@@ -26,28 +26,28 @@
 # SOFTWARE.
 
 import concurrent.futures
+import logging
 import selectors
 import socket
 import ssl
 import struct
 import sys
 import threading
-import logging
-import ipdb
-
 from collections import namedtuple
 from enum import Enum
 from typing import cast
+
+import ipdb
 
 from cdns.protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
                            DNSQuery, DNSQuestion, RTypes, auto_decode_label,
                            get_ip_mode_from_rtype, get_rtype_from_ip_mode,
                            unpack_all)
 from cdns.resolver import forwarders
+from cdns.resolver.forwarders.doh.http1 import HttpOneForwarder
 
 from .base import BaseResolver
 from .upstream import UpstreamResolver
-from cdns.resolver.forwarders.doh.http1 import HttpOneForwarder
 
 # TODO: Load root server from url, write root server to disk and cache it
 # ROOT_SERVERS = [p + ".ROOT-SERVERS.NET" for p in string.ascii_uppercase[:13]]
@@ -83,7 +83,7 @@ class RecursiveResolver(BaseResolver):
             self.doh_endpoints = []
         else:
             self.doh_endpoints = doh_endpoints
-        
+
         self.forwarding_mode = forwarding_mode
 
         # Activate the forwarder
@@ -210,7 +210,9 @@ class RecursiveResolver(BaseResolver):
         elif r.authorities:
             # GET IPV4 record
             # This function executes rest of code
-            self._find_nameserver(r.authorities, r.additionals, query, method, to_future)
+            self._find_nameserver(
+                r.authorities, r.additionals, query, method, to_future
+            )
         else:
             # TODO: DO authorities and additionals always go together?
 
@@ -223,7 +225,11 @@ class RecursiveResolver(BaseResolver):
             to_future.set_result(error_query)
 
     def _resolve(
-        self, query: DNSQuery, method: str, server_addr: tuple[str, int], auto_detect_forwarder=True
+        self,
+        query: DNSQuery,
+        method: str,
+        server_addr: tuple[str, int],
+        auto_detect_forwarder=True,
     ) -> concurrent.futures.Future[DNSQuery]:
         """Resolve a query recursively.
 
@@ -234,12 +240,13 @@ class RecursiveResolver(BaseResolver):
         Returns:
             Future that fufils when there's a response.
         """
-        #import dataclasses
-        #logging.debug("Entering _resolve with query id=%s, state=%s", id(query), dataclasses.asdict(query))
+        # import dataclasses
+        # logging.debug("Entering _resolve with query id=%s, state=%s", id(query), dataclasses.asdict(query))
         # Add auto detect forwarder
         future: concurrent.futures.Future[DNSQuery] = concurrent.futures.Future()
+
         def send():
-            #logging.debug("Inside send with query id=%s, state=%s", id(query), dataclasses.asdict(query))
+            # logging.debug("Inside send with query id=%s, state=%s", id(query), dataclasses.asdict(query))
             try:
                 # response = self.forwarder.forward(query, server_addr)
                 # TODO: Auto detect server addr
@@ -248,7 +255,9 @@ class RecursiveResolver(BaseResolver):
                 logging.debug("Here %s", query)
                 # raise Exception("WHAT")
                 response = f.forward(query, server_addr)
-                response.add_done_callback(lambda f: self._resolve_done(f, query, method, future))
+                response.add_done_callback(
+                    lambda f: self._resolve_done(f, query, method, future)
+                )
             except Exception as e:
                 logging.debug("Error", exc_info=True)
 
@@ -262,7 +271,7 @@ class RecursiveResolver(BaseResolver):
 
     def _get_forwarder(self, method) -> forwarders.BaseForwarder:
         return self.forwarders_map[method]
-        #return HttpOneForwarder()
+        # return HttpOneForwarder()
 
     def get_server(self, method) -> tuple[str, int]:
         # HACK: Make this function return a working endpoint. Also, make sure to

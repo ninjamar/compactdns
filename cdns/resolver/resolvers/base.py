@@ -44,7 +44,9 @@ from cdns.protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
 class BaseResolver:
     """Base class for resolvers."""
 
-    def send(self, query: DNSQuery, method: str | None = "udp") -> concurrent.futures.Future[DNSQuery]:
+    def send(
+        self, query: DNSQuery, method: str | None = "udp"
+    ) -> concurrent.futures.Future[DNSQuery]:
         raise NotImplementedError
 
     def cleanup(self):

@@ -39,7 +39,6 @@ from typing import cast
 from cdns.protocol import *
 
 from ..base import BaseForwarder
-
 from .http1 import HttpOneForwarder
 from .http2 import HttpTwoForwarder
 

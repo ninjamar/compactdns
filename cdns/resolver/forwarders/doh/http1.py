@@ -201,21 +201,20 @@ class HttpOneForwarder(BaseForwarder):
                             result = self.handle_state(sock, ctx)
                             if result:  # TODO: This doesn't do anything
                                 continue
-    
+
     def forward(
         self,
         query: DNSQuery,
         # Hostname, IP, Port -- this comes straight from the input configuration
-        addr: tuple[str, str, int], # addr is the name for backwards compatability.
+        addr: tuple[str, str, int],  # addr is the name for backwards compatability.
         path: str = "/dns-query",
         ssl_ctx: ssl.SSLContext | None = None,
     ) -> concurrent.futures.Future[bytes]:
-        
+
         host = addr[0]
         addr = addr[1:]
 
-
-        logging.debug("Forwarding")        
+        logging.debug("Forwarding")
         # TODO: Resolve host using DNS. This might require me creating a public API.
         future: concurrent.futures.Future[bytes] = concurrent.futures.Future()
         try:
