@@ -25,6 +25,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import dataclasses
 import copy
 import logging
 import os
@@ -62,6 +63,25 @@ def flatten_dict(d: dict[str, Any], sep=".", base="") -> dict[str, Any]:
             new[base + key] = value
     return new
 
+"""
+def deep_update_dataclass(old: dict[str, dataclasses._DataclassT], new: dict[str, dataclasses._DataclassT]):
+    # For every key in new
+    for name, zone in new.items():
+        #if isinstance(value, dict):
+        if name in old:
+            # Deep update dataclass
+            updates = {}
+            for field in dataclasses.fields(zone):
+                if dataclasses.is_dataclass(field):
+                    updates[field.name] = deep_update_dataclass({})
+                else:
+                    updates[field.name] = getattr(zone, field.name)
+            old[name] = dataclasses.replace(old[name], **dataclasses.asdict(zone))
+            pass
+        else:
+            old[name] = zone
+    return old
+"""
 
 # TODO: Don't use this class. Just use strings instead. Actual waste of time.
 # TODO: Should actually be BiInt

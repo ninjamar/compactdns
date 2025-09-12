@@ -30,6 +30,7 @@ import dataclasses
 import io
 import json
 import re
+import logging
 from pathlib import Path
 
 
@@ -100,6 +101,43 @@ class DNSZone:
                 self.records[name][record_type] = []
 
             self.records[name][record_type].append((value, ttl))
+
+    def update_from(self, other: "DNSZone") -> None:
+        # Update self with values from other. 
+        # Make sure to do this recurisvely
+        if not isinstance(other, DNSZone):
+            raise ValueError("other must be an instance of DNSZone")
+        
+        if other.soa is not None:
+            self.soa = other.soa
+
+        if other.ttl is not None:
+            self.ttl = other.ttl
+
+
+        for name, mx_records in other.mx_records.items():
+            if name not in self.mx_records:
+                self.mx_records[name] = []
+            
+            # Merge self to other
+            for mx_record in other.mx_records[name]:
+                if mx_record not in self.mx_records[name]:
+                    self.mx_records[name].append(mx_record)
+
+
+        for name, record_type_pair in other.records.items():
+            if name not in self.records:
+                self.records[name] = {}
+
+            for record_type, values in record_type_pair.items():
+                if record_type not in self.records[name]:
+                    self.records[name][record_type] = []
+                
+                for (ip, ttl) in values:
+                    if not any(ip == stuff[0] for stuff in self.records[name][record_type]):
+                    #if value not in self.records[name][record_type]:
+                        self.records[name][record_type].append((ip, ttl))
+    
 
 
 """
@@ -325,11 +363,18 @@ def parse_multiple_json_zones(path: Path | str) -> dict[str, DNSZone]:
     Returns:
         A dict of domain to zones.
     """
+    zones: dict[str, DNSZone] = {}
     with open(path) as f:
-        return {
-            zone.domain: zone
-            for zone in [parse_singular_json_obj(zone) for zone in json.load(f)]
-        }
+        zones_raw = json.load(f)
+
+    for zone_raw in zones_raw:
+        zone = parse_singular_json_obj(zone_raw)
+        if zone.domain in zones:
+            zones[zone.domain].update_from(zone)
+        else:
+            zones[zone.domain] = zone
+    return zones
+
 
 
 def parse_singular_json_zone(path: Path | str) -> DNSZone:
@@ -384,8 +429,9 @@ def parse_all_zones(paths: list[str]) -> dict[str, DNSZone]:
         if path.endswith(".all.json"):
             with open(path) as f:
                 zones.update(parse_multiple_json_zones(json.load(f)))
-        zone = parse_zone(path)
-        zones[zone.domain] = zone
+        else:
+            zone = parse_zone(path)
+            zones[zone.domain] = zone
     return zones
 
 
