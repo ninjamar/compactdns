@@ -39,10 +39,19 @@ from typing import cast
 
 import ipdb
 
-from cdns.protocol import (DNSAdditional, DNSAnswer, DNSAuthority, DNSHeader,
-                           DNSQuery, DNSQuestion, RTypes, auto_decode_label,
-                           get_ip_mode_from_rtype, get_rtype_from_ip_mode,
-                           unpack_all)
+from cdns.protocol import (
+    DNSAdditional,
+    DNSAnswer,
+    DNSAuthority,
+    DNSHeader,
+    DNSQuery,
+    DNSQuestion,
+    RTypes,
+    auto_decode_label,
+    get_ip_mode_from_rtype,
+    get_rtype_from_ip_mode,
+    unpack_all,
+)
 from cdns.resolver import forwarders
 from cdns.resolver.forwarders.doh.http1 import HttpOneForwarder
 
@@ -253,6 +262,7 @@ class RecursiveResolver(BaseResolver):
                 f = self._get_forwarder(method)
                 # ipdb.set_trace()
                 logging.debug("Here %s", query)
+                logging.debug("ADDR %s", server_addr)
                 # raise Exception("WHAT")
                 response = f.forward(query, server_addr)
                 response.add_done_callback(

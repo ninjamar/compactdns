@@ -49,8 +49,7 @@ import h2.events
 import h11
 
 from . import daemon
-from .resolver.resolvers import (BaseResolver, RecursiveResolver,
-                                 UpstreamResolver)
+from .resolver.resolvers import BaseResolver, RecursiveResolver, UpstreamResolver
 from .response import make_response_handler, mixins, preload_hosts
 from .smartselector import close_all_selectors, get_current_thread_selector
 from .storage import RecordStorage

@@ -27,6 +27,7 @@
 
 import dataclasses
 import copy
+import dataclasses
 import logging
 import os
 import re
@@ -63,6 +64,7 @@ def flatten_dict(d: dict[str, Any], sep=".", base="") -> dict[str, Any]:
             new[base + key] = value
     return new
 
+
 """
 def deep_update_dataclass(old: dict[str, dataclasses._DataclassT], new: dict[str, dataclasses._DataclassT]):
     # For every key in new
@@ -82,6 +84,7 @@ def deep_update_dataclass(old: dict[str, dataclasses._DataclassT], new: dict[str
             old[name] = zone
     return old
 """
+
 
 # TODO: Don't use this class. Just use strings instead. Actual waste of time.
 # TODO: Should actually be BiInt

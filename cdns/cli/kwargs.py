@@ -275,7 +275,7 @@ def get_kwargs(config_path, args=None) -> dict[str, str | int | bool]:
 
     # Normalize all the relative paths
     base_path = Path(config_path).parent.resolve()
-    print(base_path)
+
     paths = [k for k, v in kwargs_defaults.items() if v.d.get("path") is not None]
     for path in paths:
         if kwargs[path] is not None:

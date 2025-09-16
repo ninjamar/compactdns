@@ -26,6 +26,8 @@
 # SOFTWARE.
 
 import functools
+import json
+import logging
 import lzma
 import os
 import pickle
@@ -39,9 +41,12 @@ from publicsuffixlist import PublicSuffixList  # type: ignore
 from .cache import DNSCache
 from .protocol import RTypes
 from .utils import BiInt
-from .zones import (DNSZone, parse_multiple_json_zones,
-                    parse_singular_json_zone, parse_zone)
-
+from .zones import (
+    DNSZone,
+    parse_multiple_json_zones,
+    parse_singular_json_zone,
+    parse_zone,
+)
 
 
 class RecordError(Exception):
@@ -124,10 +129,10 @@ class RecordStorage:
         # TTL cache wrapper here
         # Record name is used for soa and mx records (exchange)
         # if type_ not in RTypes:
-        #    raise RecordError(f"Invalid record type. Given {type_}")        
+        #    raise RecordError(f"Invalid record type. Given {type_}")
 
         base_domain = self.extractor.privatesuffix(record_domain)
-    
+
         values = []
         # Lookup record_domain via base_domain
         if base_domain in self.zones:
@@ -179,8 +184,8 @@ class RecordStorage:
             path: Path to file.
         """
         if str(path).endswith(".all.json"):
-            #self.zones.update(parse_multiple_json_zones(path))
-            #self.zones = parse_multiple_json_zones(path)
+            # self.zones.update(parse_multiple_json_zones(path))
+            # self.zones = parse_multiple_json_zones(path)
             for domain, zone in parse_multiple_json_zones(path).items():
                 if domain in self.zones:
                     self.zones[domain].update_from(zone)
@@ -193,7 +198,7 @@ class RecordStorage:
                 self.zones[zone.domain].update_from(zone)
             else:
                 self.zones[zone.domain] = zone
-            #self.zones = deep_update(self.zones, {zone.domain: zone})
+            # self.zones = deep_update(self.zones, {zone.domain: zone})
             return
         # TODO: Support reloading with latest changes
         if str(path).endswith(".zone"):
@@ -262,7 +267,7 @@ class RecordStorage:
         paths = [path / x for x in path.iterdir()]
         for path in paths:
             self.load_zone_from_file(path)
-        
+
     def __str__(self) -> str:
         return (
             f"RecordStorage(<{len(self.zones)} zones>, <{len(self.cache.data)} cached>)"
