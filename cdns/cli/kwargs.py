@@ -131,6 +131,24 @@ kwargs_defaults_initial = {
                 path=True,
             ),
         },
+        "doh": {
+            "host": K(
+                help_="Address of the host (a.b.c.d)", type_=str, default="127.0.0.1"
+            ),
+            "port": K(help_="Port of server", type_=int, default=2053),
+            "ssl_key": K(
+                help_="Path to SSL key for DoH",
+                type_=str,
+                default=None,
+                path=True,
+            ),
+            "ssl_cert": K(
+                help_="Path to SSL certificate for DoH",
+                type_=str,
+                default=None,
+                path=True,
+            ),
+        },
         # TODO: Make shell optional
         "debug_shell": {
             "host": K(
@@ -256,7 +274,8 @@ def get_kwargs(config_path, args=None) -> dict[str, str | int | bool]:
         )
 
     # Normalize all the relative paths
-    base_path = Path(config_path).parent
+    base_path = Path(config_path).parent.resolve()
+    print(base_path)
     paths = [k for k, v in kwargs_defaults.items() if v.d.get("path") is not None]
     for path in paths:
         if kwargs[path] is not None:
