@@ -39,22 +39,8 @@ from typing import cast
 
 import ipdb
 
-from cdns.protocol import (
-    DNSAdditional,
-    DNSAnswer,
-    DNSAuthority,
-    DNSHeader,
-    DNSQuery,
-    DNSQuestion,
-    RTypes,
-    auto_decode_label,
-    get_ip_mode_from_rtype,
-    get_rtype_from_ip_mode,
-    unpack_all,
-)
-from cdns.resolver import forwarders
-from cdns.resolver.forwarders.doh.http1 import HttpOneForwarder
-
+from cdns.protocol import *
+from cdns import forwarders
 from .base import BaseResolver
 from .upstream import UpstreamResolver
 

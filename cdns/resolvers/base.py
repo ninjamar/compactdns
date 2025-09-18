@@ -35,58 +35,16 @@ from collections import namedtuple
 from enum import Enum
 from typing import cast
 
-from cdns.protocol import (
-    DNSAdditional,
-    DNSAnswer,
-    DNSAuthority,
-    DNSHeader,
-    DNSQuery,
-    DNSQuestion,
-    RTypes,
-    auto_decode_label,
-    get_ip_mode_from_rtype,
-    get_rtype_from_ip_mode,
-    unpack_all,
-)
-from cdns.resolver import forwarders
-
-from .base import BaseResolver
+from cdns.protocol import *
 
 
-class UpstreamResolver(BaseResolver):
-    """A class to resolve from upstream."""
-
-    def __init__(self, addr: tuple[str, int]) -> None:
-        """Create an instance of UpstreamResolver.
-
-        Args:
-            addr: Address of the upstream.
-        """
-        self.addr = addr
-        self.forwarder = forwarders.UDPForwarder()
+class BaseResolver:
+    """Base class for resolvers."""
 
     def send(
         self, query: DNSQuery, method: str | None = "udp"
     ) -> concurrent.futures.Future[DNSQuery]:
-        """Send a query to the upstream.
-
-        Args:
-            query: Query to send.
-
-        Returns:
-            The future fufilling the query.
-        """
-        future: concurrent.futures.Future[DNSQuery] = concurrent.futures.Future()
-
-        try:
-            f = self.forwarder.forward(query, self.addr)
-            f.add_done_callback(
-                lambda s: future.set_result(unpack_all(s.result()))
-            )  # ret.result = unpack_all(s.result)
-        except Exception as e:
-            future.set_exception(e)
-
-        return future
+        raise NotImplementedError
 
     def cleanup(self):
-        self.forwarder.cleanup()
+        raise NotImplementedError

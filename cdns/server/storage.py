@@ -39,9 +39,9 @@ from typing import Any, Callable
 from publicsuffixlist import PublicSuffixList  # type: ignore
 
 from .cache import DNSCache
-from .protocol import RTypes
-from .utils import BiInt
-from .zones import (
+from cdns.protocol import RTypes
+from cdns.utils import BiInt
+from cdns.zones import (
     DNSZone,
     parse_multiple_json_zones,
     parse_singular_json_zone,

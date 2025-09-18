@@ -48,12 +48,12 @@ import h2.connection
 import h2.events
 import h11
 
-from . import daemon
-from .resolver.resolvers import BaseResolver, RecursiveResolver, UpstreamResolver
+from cdns import daemon
+from cdns.resolvers import BaseResolver, RecursiveResolver, UpstreamResolver
 from .response import make_response_handler, mixins, preload_hosts
-from .smartselector import close_all_selectors, get_current_thread_selector
+from cdns.smartselector import close_all_selectors, get_current_thread_selector
 from .storage import RecordStorage
-from .utils import get_dns_servers
+from cdns.utils import get_dns_servers
 
 MAX_WORKERS = 1000  # TODO: What should this be
 

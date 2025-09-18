@@ -32,8 +32,9 @@ import logging
 import os
 import sys
 
-from cdns import _installer, tools
-from cdns.manager import ServerManager
+from cdns.server import _installer
+from cdns import tools
+from cdns.server.manager import ServerManager
 from cdns.utils import CustomFormatter
 
 from .kwargs import get_kwargs, kwargs_defaults

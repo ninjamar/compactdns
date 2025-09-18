@@ -35,20 +35,11 @@ from typing import Callable
 
 # Because lcb.py has a type ignore at the top, mypy doesn't know the methods
 from cdns.lcb import LCBMethods  # type: ignore
-from cdns.protocol import (
-    DNSAnswer,
-    DNSHeader,
-    DNSQuery,
-    DNSQuestion,
-    RTypes,
-    auto_decode_label,
-    auto_encode_label,
-    unpack_all,
-)
-from cdns.resolver.resolvers.base import BaseResolver
-from cdns.resolver.resolvers.recursive import RecursiveResolver
+from cdns.protocol import *
+from cdns.resolvers.base import BaseResolver
+from cdns.resolvers.recursive import RecursiveResolver
 from cdns.smartselector import get_current_thread_selector
-from cdns.storage import RecordStorage
+from cdns.server.storage import RecordStorage
 
 # TODO: Send back and check TC flag
 

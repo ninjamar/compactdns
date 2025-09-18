@@ -31,8 +31,8 @@ import time
 from collections import OrderedDict
 from typing import Any, Callable, Hashable, cast
 
-from .protocol import RTypes
-from .utils import BiInt
+from cdns.protocol import RTypes
+from cdns.utils import BiInt
 
 # TODO: Make cache better for storing DNS records, storing the fields rather than a dataclass
 # TODO: Merge records and TimedCache into one class
