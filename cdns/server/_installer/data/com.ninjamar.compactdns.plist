@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ninjamar.compactdns</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{cdns_path}</string>
+        <string>run</string>
+        <string>-c</string>
+        <string>{config_path}</string>
+    </array>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>3</integer>
+
+    <key>StandardOutPath</key>
+    <string>{stdout_path}</string>
+    <key>StandardErrorPath</key>
+    <string>{stderr_path}</string>
+</dict>
+</plist>
