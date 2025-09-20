@@ -32,7 +32,6 @@ import selectors
 import threading
 import time
 import weakref
-from typing import override
 
 # TODO: Make sure ALL selectors are freed
 # TODO: Use a single global selector for ALL code
