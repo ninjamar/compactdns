@@ -25,11 +25,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import concurrent.futures
+from cdns.protocol import *
 
 class BaseForwarder:
     """Base forwarder class."""
 
-    def forward(self, query, addr):
+    def forward(self, query: DNSQuery, addr) -> concurrent.futures.Future[bytes]:
         pass
 
     def cleanup(self):

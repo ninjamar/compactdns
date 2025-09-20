@@ -23,58 +23,55 @@
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
 
 import concurrent.futures
-import selectors
-import socket
-import ssl
-import struct
-import threading
-from collections import namedtuple
-from enum import Enum
-from typing import cast
 
 from cdns.protocol import *
 from cdns import forwarders
+from cdns.resolvers.base import METHODS
 
-from .base import BaseResolver, METHODS
+"""
+This is different from the server and server.response.
+
+The client is responsible for taking a DNSQuery object, sending it (via a forwarder)
+and returning the resulting future.
+"""
+
+FORWARDERS = {
+    "doh": forwarders.DoHForwarder,
+    "tcp": forwarders.TCPForwarder,
+    "tls": forwarders.TLSForwarder,
+    "udp": forwarders.UDPForwarder,
+}
 
 
-class UpstreamResolver(BaseResolver):
-    """A class to resolve from upstream."""
+class Client:
+    def __init__(
+        self,
+    ):
+        self.forwarders_map: dict[str, forwarders.BaseForwarder] = {
+            k: v() for k, v in FORWARDERS.items()
+        }
+    
+    def resolve(
+        self,
+        query: DNSQuery,
+        method: METHODS,
+        addr: tuple[str, int] = None,
+    ) -> concurrent.futures.Future[DNSAnswer]:
+        return_future:concurrent.futures.Future[DNSAnswer] = concurrent.futures.Future()
 
-    def __init__(self, addr: tuple[str, int]) -> None:
-        """Create an instance of UpstreamResolver.
+        future = self.forwarders_map.get(method).forward(query, addr)
+        def unpack_query(f: concurrent.futures.Future[bytes]):
+            data = f.result()
+            unpacked = unpack_all(data)
+            return_future.set_result(unpacked)
+            
 
-        Args:
-            addr: Address of the upstream.
-        """
-        self.addr = addr
-        self.forwarder = forwarders.UDPForwarder()
-
-    def send(
-        self, query: DNSQuery, method: METHODS | None = "udp"
-    ) -> concurrent.futures.Future[DNSQuery]:
-        """Send a query to the upstream.
-
-        Args:
-            query: Query to send.
-
-        Returns:
-            The future fufilling the query.
-        """
-        future: concurrent.futures.Future[DNSQuery] = concurrent.futures.Future()
-
-        try:
-            f = self.forwarder.forward(query, self.addr)
-            f.add_done_callback(
-                lambda s: future.set_result(unpack_all(s.result()))
-            )  # ret.result = unpack_all(s.result)
-        except Exception as e:
-            future.set_exception(e)
-
-        return future
-
+        future.add_done_callback(unpack_query)
+        return return_future
+    
     def cleanup(self):
-        self.forwarder.cleanup()
+        """Cleanup any loose ends."""
+        for forwarder in self.forwarders_map.values():
+            forwarder.cleanup()

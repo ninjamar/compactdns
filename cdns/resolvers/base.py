@@ -33,16 +33,18 @@ import struct
 import threading
 from collections import namedtuple
 from enum import Enum
-from typing import cast
+from typing import cast, Literal
 
 from cdns.protocol import *
 
+
+METHODS = Literal["udp", "tcp", "tls", "doh"]
 
 class BaseResolver:
     """Base class for resolvers."""
 
     def send(
-        self, query: DNSQuery, method: str | None = "udp"
+        self, query: DNSQuery, method: METHODS | None = "udp"
     ) -> concurrent.futures.Future[DNSQuery]:
         raise NotImplementedError
 

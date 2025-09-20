@@ -41,7 +41,7 @@ import ipdb
 
 from cdns.protocol import *
 from cdns import forwarders
-from .base import BaseResolver
+from .base import BaseResolver, METHODS
 from .upstream import UpstreamResolver
 
 # TODO: Load root server from url, write root server to disk and cache it
@@ -61,7 +61,7 @@ class RecursiveResolver(BaseResolver):
 
     def __init__(
         self,
-        forwarding_mode: str = "UDP",
+        forwarding_mode: str = "AUTO",
         tls_endpoints: list[tuple[str, int]] | None = None,
         doh_endpoints: list[tuple[str, str, int]] | None = None,
     ) -> None:
@@ -222,9 +222,8 @@ class RecursiveResolver(BaseResolver):
     def _resolve(
         self,
         query: DNSQuery,
-        method: str,
+        method: METHODS,
         server_addr: tuple[str, int],
-        auto_detect_forwarder=True,
     ) -> concurrent.futures.Future[DNSQuery]:
         """Resolve a query recursively.
 
@@ -279,7 +278,7 @@ class RecursiveResolver(BaseResolver):
         return ROOT_SERVERS[0]
 
     def send(
-        self, query: DNSQuery, method: str | None = "udp", auto_detect_forwarder=True
+        self, query: DNSQuery, method: METHODS | None = "udp"
     ) -> concurrent.futures.Future[DNSQuery]:
         """Send a query to the resolver.
 
@@ -309,7 +308,7 @@ class RecursiveResolver(BaseResolver):
         elif t == RTypes.AAAA:
             ip_size = 16
         """
-        return self._resolve(query, method, server_addr, auto_detect_forwarder)
+        return self._resolve(query, method, server_addr)
 
     def cleanup(self):
         """Cleanup any loose ends."""

@@ -209,6 +209,7 @@ kwargs_defaults_initial = {
 kwargs_defaults: dict[str, K] = flatten_dict(kwargs_defaults_initial)
 
 
+
 def get_kwargs(config_path, args=None) -> dict[str, str | int | bool]:
     """Normalize/process kwargs from a path.
 
@@ -286,3 +287,4 @@ def get_kwargs(config_path, args=None) -> dict[str, str | int | bool]:
                 kwargs[path] = (base_path / Path(kwargs[path])).resolve()
 
     return kwargs
+
