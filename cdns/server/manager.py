@@ -139,6 +139,7 @@ class ServerManager:
             )
         else:
             self.use_tls = False
+            self.tls_sock = None
 
         if (
             self.doh_host is not None
@@ -167,6 +168,7 @@ class ServerManager:
             self.DOH_POST_PATH = b"/dns-query"
         else:
             self.use_doh = False
+            self.doh_sock = None
 
         if self.debug_shell_host is not None:
             self.use_debug_shell = True
@@ -176,6 +178,7 @@ class ServerManager:
             self.debug_shell_secret = secrets.token_hex(10)
         else:
             self.use_debug_shell = False
+            self.debug_shell_host = None
 
         # Other config. TODO: Implement better configuration here
         self.execution_timeout = 0

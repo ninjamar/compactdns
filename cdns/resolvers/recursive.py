@@ -260,7 +260,7 @@ class RecursiveResolver(BaseResolver):
         return future
 
     def _get_method(self, query: DNSQuery) -> str:
-        if self.forwarding_mode == "auto":
+        if self.forwarding_mode == "AUTO":
             return query._method
         return self.forwarding_mode
 
