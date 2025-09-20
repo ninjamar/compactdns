@@ -47,13 +47,14 @@ def get_cdns_path() -> str:
     """
     return os.path.abspath(sys.argv[0])
 
+BASE_IR_PATH = "cdns.server._installer.data"
 
 class Installer:
     def __init__(self, config_path, kwargs):
-        with ir.open_text("cdns._installer.data", "com.ninjamar.compactdns.plist") as f:
+        with ir.open_text(BASE_IR_PATH, "com.ninjamar.compactdns.plist") as f:
             self.MAIN_TEMPLATE = f.read()
         with ir.open_text(
-            "cdns._installer.data", "com.ninjamar.sleepwatcher-root-cdns.plist"
+            BASE_IR_PATH, "com.ninjamar.sleepwatcher-root-cdns.plist"
         ) as f:
             self.WATCH_TEMPLATE = f.read()
 
@@ -63,9 +64,9 @@ class Installer:
         )
 
         self.watch_root_all_path = (
-            ir.files("cdns._installer.data") / "sleepwatcher-root.sh"
+            ir.files(BASE_IR_PATH) / "sleepwatcher-root.sh"
         )
-        self.watch_shell_path = ir.files("cdns._installer.data") / "macos_watcher.sh"
+        self.watch_shell_path = ir.files(BASE_IR_PATH) / "macos_watcher.sh"
 
         self.cdns_path = get_cdns_path()
 
