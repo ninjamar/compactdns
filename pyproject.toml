@@ -7,7 +7,7 @@ where = ["."]
 include = ["cdns*"]
 
 [tool.setuptools.package-data]
-"cdns._installer.data" = ["*"]
+"cdns.server._installer.data" = ["*"]
 
 [project]
 name = "compactdns"
@@ -68,6 +68,7 @@ dev = [
     "ipdb>=0.13.13",
     "isort>=6.0.1",
     "line-profiler>=5.0.0",
+    "pytest>=8.4.2",
     "radon>=6.0.1",
     "ruff>=0.12.2",
     "timerit>=1.1.0",
