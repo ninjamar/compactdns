@@ -1,6 +1,6 @@
 [logging]
 loglevel = "INFO"
-log = "./tmp/stdout.log"
+
 [all]
 # Maximum number of threads/workers open for requests
 max_workers = 50
