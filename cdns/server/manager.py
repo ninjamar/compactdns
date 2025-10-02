@@ -178,7 +178,7 @@ class ServerManager:
             self.debug_shell_secret = secrets.token_hex(10)
         else:
             self.use_debug_shell = False
-            self.debug_shell_host = None
+            self.debug_shell_sock = None
 
         # Other config. TODO: Implement better configuration here
         self.execution_timeout = 0
