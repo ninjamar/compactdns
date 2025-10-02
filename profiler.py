@@ -33,11 +33,11 @@ from pathlib import Path
 import line_profiler as lp
 import timerit
 
-from cdns.manager import ServerManager
+from cdns.server.manager import ServerManager
 from cdns.protocol import *
-from cdns.resolver import RecursiveResolver
-from cdns.response import ResponseHandler
-from cdns.storage import RecordStorage
+from cdns.resolvers import RecursiveResolver
+from cdns.server.response import ResponseHandler
+from cdns.server.storage import RecordStorage
 
 
 def forward(query: bytes) -> concurrent.futures.Future[bytes]:

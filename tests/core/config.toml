@@ -1,0 +1,39 @@
+[logging]
+loglevel = "INFO"
+log = "./tmp/stdout.log"
+[all]
+# Maximum number of threads/workers open for requests
+max_workers = 50
+
+[servers.host]
+host = "127.0.0.1"
+port = 2053
+
+[servers.tls]
+host = "127.0.0.1"
+port = 2853
+# openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+ssl_key = "./tmp/key.pem"
+ssl_cert = "./tmp/cert.pem"
+
+[servers.doh]
+host = "127.0.0.1"
+port = 8443
+ssl_key = "./tmp/dohkey.pem"
+ssl_cert = "./tmp/dohcert.pem"
+
+[resolver]
+recursive = true
+tls_endpoints = [
+    ["1.1.1.1", 853]
+]
+doh_endpoints = [
+    ["one.one.one.one", "1.1.1.1", 433]
+]
+
+forwarding_mode = "auto"
+
+[storage]
+zone_dirs = [
+    "./zones"
+]
