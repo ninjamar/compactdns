@@ -24,98 +24,69 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
-import sys
-import signal
-import tempfile
-import multiprocessing
-import os
-import sys
-import time
-import subprocess
-from pathlib import Path
-from cdns.server.manager import ServerManager
-from cdns.cli.kwargs import get_kwargs
-from cdns.protocol import *
+import concurrent.futures
+
+import pytest
+import ipaddress
+
 from cdns.client import Client
+from cdns.protocol import *
 
 
-root_path = Path(__file__).parent.resolve()
-
-# Config path
-CONFIG_PATH = (root_path / "config.toml").resolve()
-
-TMP_PATH = (root_path / "tmp").resolve()
-SERVER_LOG_PATH = (root_path / "tmp" / "server.log").resolve()
-KEY_CERT_PAIRS = [
-    (
-        (root_path / "tmp" / "key.pem").resolve(),
-        (root_path / "tmp" / "cert.pem").resolve(),
-    ),
-    (
-        (root_path / "tmp" / "dohkey.pem").resolve(),
-        (root_path / "tmp" / "dohcert.pem").resolve(),
-    ),
-]
+SERVER_ADDR = ("127.0.0.1", 2053)
 
 
-
-def run_server(config_path):
-    sys.stdout = sys.stdout
-    sys.stderr = sys.stderr
-
-    kwargs = get_kwargs(config_path)
-
-    # Need to put config path, zone_path, doh path and ssl path
-    # We need to use temporary files to do all the things because paths to files are expected
-    server = ServerManager.from_config(kwargs)
-    server.start()
-
-
-class TestClientServer:
-    def make_config(self):
-        if not os.path.isdir(TMP_PATH):
-            os.mkdir(TMP_PATH)
-
-        #if os.path.exists(SERVER_LOG_PATH):
-
-        for pair in KEY_CERT_PAIRS:
-            # subj default values
-            subprocess.check_call(
-                f'openssl req -x509 -newkey rsa:4096 -keyout {pair[0]} -out {pair[1]} -days 365 -nodes -subj "/"',
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-
-    def spawn_server(self):
-        self.make_config()
-        self.process = multiprocessing.Process(target=run_server, args=(str(CONFIG_PATH),), daemon=True)
-        self.process.start()
-    
-
-
-    def shutdown_server(self):
-       self.process.terminate()
-       self.process.join()
-
-
-if __name__ == "__main__":
-    """
-    q = DNSQuery(questions=[DNSQuestion(decoded_name="google.com")])
-
-    c = Client()
-
-    f = c.resolve(q, "udp", ("127.0.0.1", 2053))
-    print(f.result())
-
-    c.cleanup()
-    """
-    test = TestClientServer()
+@pytest.fixture(scope="session")
+def client():
+    client = Client()
 
     try:
-        test.spawn_server()
-        #time.sleep(1)
-        while True:
-            pass
+        yield client
+
     finally:
-        test.shutdown_server()
+        client.cleanup()
+
+
+def get_queries():
+    queries = []
+
+    # Test UDP
+    queries += [(DNSQuery(questions=[DNSQuestion(decoded_name="google.com")]), "udp")]
+
+    # Test cache
+    queries += [(DNSQuery(questions=[DNSQuestion(decoded_name="google.com")]), "udp")]
+
+    queries += [(DNSQuery(questions=[DNSQuestion(decoded_name="google.com")]), "tcp")]
+
+    queries += [(DNSQuery(questions=[DNSQuestion(decoded_name="google.com")]), "tls")]
+    queries += [(DNSQuery(questions=[DNSQuestion(decoded_name="google.com")]), "doh")]
+
+    return queries
+
+
+def submit_futures(
+    client: Client, server_addr: tuple[str, int]
+) -> list[concurrent.futures.Future[DNSQuery]]:
+    return [
+        client.resolve(query, method, server_addr) for (query, method) in get_queries()
+    ]
+
+
+def is_ip(test):
+    try:
+        ipaddress.ip_address(test)
+        return True
+    except ValueError:
+        return False
+
+
+def test_batch(dns_server, client):
+
+    futures = submit_futures(client, SERVER_ADDR)
+
+    done, not_done = concurrent.futures.wait(futures, timeout=10)
+
+    assert not not_done, f"Queries did not finish execution: {not_done}"
+
+    for future in done:
+        assert is_ip(future.result().answers[0].decoded_rdata)
