@@ -1,0 +1,32 @@
+$TTL 86400   ; Default time-to-live (TTL) for records
+
+@   IN  SOA  ns1.example.com. admin.example.com. (
+        2024022701  ; Serial number
+        3600        ; Refresh
+        1800        ; Retry
+        1209600     ; Expire
+        86400       ; Minimum TTL
+    )
+
+; Name Server Records
+@   IN  NS   ns1.example.com.
+@   IN  NS   ns2.example.com.
+
+; A Records
+example.com.    IN  A     192.0.2.1
+www             IN  A     192.0.2.2
+mail            IN  A     192.0.2.3
+
+; AAAA Records (IPv6)
+example.com.    IN  AAAA  2001:db8::1
+
+; CNAME Record
+ftp             IN  CNAME www.example.com.
+
+; MX Records
+@   IN  MX 10 mail.example.com.
+@   IN  MX 20 backupmail.example.com.
+
+; TXT Record
+@   IN  TXT "v=spf1 mx -all"
+@   IN  TXT "\ntest\n"

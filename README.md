@@ -179,3 +179,8 @@ Make sure all code passes:
 - mypy
 - darglint
 - ruff
+
+### Tests
+```bash
+pytest tests
+```
