@@ -49,7 +49,7 @@ from .upstream import UpstreamResolver
 ROOT_SERVERS = [("198.41.0.4", 53)]
 
 FORWARDERS = {
-    "doh": forwarders.DoHForwarder,
+    "doh": forwarders.HTTPForwarder,
     "tcp": forwarders.TCPForwarder,
     "tls": forwarders.TLSForwarder,
     "udp": forwarders.UDPForwarder,
@@ -82,14 +82,6 @@ class RecursiveResolver(BaseResolver):
         self.forwarding_mode = forwarding_mode
 
         # Activate the forwarder
-        """
-        self.forwarders_map = {
-             "doh": forwarders.DoHForwarder(),
-            "tcp": forwarders.TCPForwarder(),
-            "tls": forwarders.TLSForwarder(),
-            "udp": forwarders.UDPForwarder(),
-        }
-        """
         self.forwarders_map: dict[str, forwarders.BaseForwarder] = {
             k: v() for k, v in FORWARDERS.items()
         }
@@ -105,7 +97,7 @@ class RecursiveResolver(BaseResolver):
         authorities: list[DNSAuthority],
         additionals: list[DNSAdditional],
         query: DNSQuery,
-        method: str,
+        method: METHODS,
         to_future: concurrent.futures.Future[DNSQuery],
     ) -> None:
         """Find a nameservers.
@@ -151,7 +143,7 @@ class RecursiveResolver(BaseResolver):
         self,
         nameserver: str,
         query: DNSQuery,
-        method: str,
+        method: METHODS,
         to_future: concurrent.futures.Future[DNSQuery],
     ) -> concurrent.futures.Future:
         """Callback after nameservers are found.
@@ -172,7 +164,7 @@ class RecursiveResolver(BaseResolver):
         self,
         recv_future: concurrent.futures.Future[bytes],
         query: DNSQuery,
-        method: str,
+        method: METHODS,
         to_future: concurrent.futures.Future[DNSQuery],
     ) -> None:
         """Called after _resolve.
@@ -264,11 +256,11 @@ class RecursiveResolver(BaseResolver):
             return query._method
         return self.forwarding_mode
 
-    def _get_forwarder(self, method) -> forwarders.BaseForwarder:
+    def _get_forwarder(self, method: METHODS) -> forwarders.BaseForwarder:
         return self.forwarders_map[method]
         # return HttpOneForwarder()
 
-    def get_server(self, method) -> tuple[str, int]:
+    def get_server(self, method: METHODS) -> tuple[str, int]:
         # HACK: Make this function return a working endpoint. Also, make sure to
         # rotate these endpoints if a ping test fails for one of them.
         if method == "doh":

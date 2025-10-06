@@ -36,7 +36,7 @@ from typing import Callable
 # Because lcb.py has a type ignore at the top, mypy doesn't know the methods
 from cdns.lcb import LCBMethods  # type: ignore
 from cdns.protocol import *
-from cdns.resolvers.base import BaseResolver
+from cdns.resolvers.base import BaseResolver, METHODS
 from cdns.resolvers.recursive import RecursiveResolver
 from cdns.smartselector import get_current_thread_selector
 from cdns.server.storage import RecordStorage
@@ -213,7 +213,7 @@ class BaseResponseHandler(LCBMethods):
 
             self._post_process()
 
-    def _find_method(self):
+    def _find_method(self) -> METHODS:
         if self.udp_sock and self.udp_addr:
             return "udp"  # TODO: Use enum or something
         if self.tcp_conn:

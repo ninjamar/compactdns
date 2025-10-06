@@ -24,3 +24,39 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
+import concurrent.futures
+import logging
+import selectors
+import socket
+import ssl
+import struct
+import threading
+from collections import namedtuple
+from enum import Enum
+from typing import cast
+
+from cdns.protocol import *
+
+from ..base import BaseForwarder
+from .http1 import HttpOneForwarder
+from .http2 import HttpTwoForwarder
+
+"""
+class DoHForwarder(BaseForwarder):
+    def __init__(self):
+        pass
+
+    def forward(
+        self, query: DNSQuery, addr: tuple[str, int]
+    ) -> concurrent.futures.Future[bytes]:
+        pass
+
+    def cleanup(self):
+        pass
+"""
+
+
+# Right now the http two forwarder doesn't work
+class HTTPForwarder(HttpOneForwarder):
+    pass

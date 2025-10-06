@@ -26,7 +26,7 @@
 # SOFTWARE.
 
 from .base import BaseForwarder
-from .doh.doh import DoHForwarder  # TODO: There is an import here
+from .http import HTTPForwarder  # TODO: There is an import here
 from .streams import BaseStreamForwarder
 from .tcp import TCPForwarder
 from .tls import TLSForwarder

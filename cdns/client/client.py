@@ -38,7 +38,7 @@ and returning the resulting future.
 """
 
 FORWARDERS = {
-    "doh": forwarders.DoHForwarder,
+    "doh": forwarders.HTTPForwarder,
     "tcp": forwarders.TCPForwarder,
     "tls": forwarders.TLSForwarder,
     "udp": forwarders.UDPForwarder,
