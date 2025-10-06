@@ -25,13 +25,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
 import concurrent.futures
+import ipaddress
 
 import pytest
-import ipaddress
 
 from cdns.client import Client
 from cdns.protocol import *
-
 
 SERVER_ADDR = ("127.0.0.1", 2053)
 
