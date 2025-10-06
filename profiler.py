@@ -33,9 +33,9 @@ from pathlib import Path
 import line_profiler as lp
 import timerit
 
-from cdns.server.manager import ServerManager
 from cdns.protocol import *
 from cdns.resolvers import RecursiveResolver
+from cdns.server.manager import ServerManager
 from cdns.server.response import ResponseHandler
 from cdns.server.storage import RecordStorage
 

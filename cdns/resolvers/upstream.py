@@ -35,10 +35,10 @@ from collections import namedtuple
 from enum import Enum
 from typing import cast
 
-from cdns.protocol import *
 from cdns import forwarders
+from cdns.protocol import *
 
-from .base import BaseResolver, METHODS
+from .base import METHODS, BaseResolver
 
 
 class UpstreamResolver(BaseResolver):

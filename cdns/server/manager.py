@@ -50,10 +50,11 @@ import h11
 
 from cdns import daemon
 from cdns.resolvers import BaseResolver, RecursiveResolver, UpstreamResolver
-from .response import make_response_handler, mixins, preload_hosts
 from cdns.smartselector import close_all_selectors, get_current_thread_selector
-from .storage import RecordStorage
 from cdns.utils import get_dns_servers
+
+from .response import make_response_handler, mixins, preload_hosts
+from .storage import RecordStorage
 
 MAX_WORKERS = 1000  # TODO: What should this be
 

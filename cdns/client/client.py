@@ -26,8 +26,8 @@
 
 import concurrent.futures
 
-from cdns.protocol import *
 from cdns import forwarders
+from cdns.protocol import *
 from cdns.resolvers.base import METHODS
 
 """
@@ -52,25 +52,27 @@ class Client:
         self.forwarders_map: dict[str, forwarders.BaseForwarder] = {
             k: v() for k, v in FORWARDERS.items()
         }
-    
+
     def resolve(
         self,
         query: DNSQuery,
         method: METHODS,
         addr: tuple[str, int] = None,
     ) -> concurrent.futures.Future[DNSAnswer]:
-        return_future:concurrent.futures.Future[DNSAnswer] = concurrent.futures.Future()
+        return_future: concurrent.futures.Future[DNSAnswer] = (
+            concurrent.futures.Future()
+        )
 
         future = self.forwarders_map.get(method).forward(query, addr)
+
         def unpack_query(f: concurrent.futures.Future[bytes]):
             data = f.result()
             unpacked = unpack_all(data)
             return_future.set_result(unpacked)
-            
 
         future.add_done_callback(unpack_query)
         return return_future
-    
+
     def cleanup(self):
         """Cleanup any loose ends."""
         for forwarder in self.forwarders_map.values():

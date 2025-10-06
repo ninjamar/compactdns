@@ -31,22 +31,17 @@ import logging
 import lzma
 import os
 import pickle
-import logging
-import json
 from pathlib import Path
 from typing import Any, Callable
 
 from publicsuffixlist import PublicSuffixList  # type: ignore
 
-from .cache import DNSCache
 from cdns.protocol import RTypes
 from cdns.utils import BiInt
-from cdns.zones import (
-    DNSZone,
-    parse_multiple_json_zones,
-    parse_singular_json_zone,
-    parse_zone,
-)
+from cdns.zones import (DNSZone, parse_multiple_json_zones,
+                        parse_singular_json_zone, parse_zone)
+
+from .cache import DNSCache
 
 
 class RecordError(Exception):

@@ -37,12 +37,14 @@ from collections import namedtuple
 from enum import Enum
 from typing import cast
 
+from cdns import forwarders
+from cdns.protocol import *
+
+from .base import METHODS, BaseResolver
+from .upstream import UpstreamResolver
+
 # import ipdb
 
-from cdns.protocol import *
-from cdns import forwarders
-from .base import BaseResolver, METHODS
-from .upstream import UpstreamResolver
 
 # TODO: Load root server from url, write root server to disk and cache it
 # ROOT_SERVERS = [p + ".ROOT-SERVERS.NET" for p in string.ascii_uppercase[:13]]

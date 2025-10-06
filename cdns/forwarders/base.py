@@ -26,7 +26,9 @@
 # SOFTWARE.
 
 import concurrent.futures
+
 from cdns.protocol import *
+
 
 class BaseForwarder:
     """Base forwarder class."""

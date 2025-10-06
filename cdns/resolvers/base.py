@@ -33,12 +33,12 @@ import struct
 import threading
 from collections import namedtuple
 from enum import Enum
-from typing import cast, Literal
+from typing import Literal, cast
 
 from cdns.protocol import *
 
-
 METHODS = Literal["udp", "tcp", "tls", "doh"]
+
 
 class BaseResolver:
     """Base class for resolvers."""
