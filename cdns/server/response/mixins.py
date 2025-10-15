@@ -134,9 +134,7 @@ if __name__ == "__main__":
             self.lc_end()
 
     def make_foo(tracker):
-        return LCBMetaclass(
-            "Foo", (BaseFoo,), {}, mixins=[ResourceTrackerMixin()]
-        )
+        return LCBMetaclass("Foo", (BaseFoo,), {}, mixins=[ResourceTrackerMixin()])
 
     tracker: dict[str, int] = {}
     f = make_foo(tracker)

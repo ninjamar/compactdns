@@ -54,7 +54,9 @@ class SmartSelector(selectors.DefaultSelector):
         super().close()
         self._closed = True
 
-    def safe_select(self, timeout: float | None = None): # return is infered automatically
+    def safe_select(
+        self, timeout: float | None = None
+    ):  # return is infered automatically
         """
         Select, but do so in a safe manner.
 
