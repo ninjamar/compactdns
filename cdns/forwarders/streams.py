@@ -64,7 +64,7 @@ class ConnectionContext:
     out_buf: bytes
     in_len: int
     in_buf: bytes
-    addr: str
+    addr: tuple[str, int]
 
 
 class BaseStreamForwarder(BaseForwarder):

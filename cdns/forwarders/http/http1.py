@@ -289,7 +289,7 @@ if __name__ == "__main__":
     f = HttpOneForwarder()
 
     future = f.forward(
-        query, (sys.argv[1], int(sys.argv[2])), host=sys.argv[3], ssl_ctx=ssl_ctx
+        query, (sys.argv[3], sys.argv[1], int(sys.argv[2])), ssl_ctx=ssl_ctx
     )
     # future = f.forward(query, ("1.1.1.1", 443), host="cloudflare-dns.com")
 

@@ -340,6 +340,7 @@ class ServerManager:
             resolver_list = None
 
         if kwargs["resolver.add_system"]:
+            assert resolver_list
             resolver_list.append(get_dns_servers())
 
         logging.debug("Records: %s", storage)

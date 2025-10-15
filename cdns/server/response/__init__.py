@@ -36,4 +36,4 @@ def make_response_handler(name, mixins=None) -> BaseResponseHandler:
     if mixins is None:
         mixins = []
 
-    return LCBMetaclass(name, (BaseResponseHandler,), {}, mixins=mixins)
+    return LCBMetaclass(name, (BaseResponseHandler,), {}, mixins=mixins)  # type: ignore[invalid-return-type]

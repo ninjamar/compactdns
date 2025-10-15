@@ -32,6 +32,7 @@ import selectors
 import threading
 import time
 import weakref
+from typing import Any
 
 # TODO: Make sure ALL selectors are freed
 # TODO: Use a single global selector for ALL code
@@ -53,7 +54,7 @@ class SmartSelector(selectors.DefaultSelector):
         super().close()
         self._closed = True
 
-    def safe_select(self, timeout) -> iter:
+    def safe_select(self, timeout: float | None = None): # return is infered automatically
         """
         Select, but do so in a safe manner.
 
