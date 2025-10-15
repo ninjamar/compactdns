@@ -150,16 +150,6 @@ def get_current_thread_selector() -> SmartSelector:
     return _thread_local.sel
 
 
-def create_new_thread_selector() -> SmartSelector:
-    """
-    Create a new selector that is bound to a specific thread.
-
-    Returns:
-        A selector bound to a specific thread.
-    """
-    pass
-
-
 def close_all_selectors():
     """Close all open selectors."""
 
