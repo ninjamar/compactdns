@@ -158,11 +158,6 @@ kwargs_defaults_initial = {
         },
     },
     "resolver": {
-        "recursive": K(help_="Is the resolver recursive?", type_=bool, default=True),
-        "list": K(help_="A list of resolvers to use.", type_=list, default=None),
-        "add_system": K(
-            help_="Add the system resolvers to the resolvers", type_=bool, default=False
-        ),
         "forwarding_mode": K(
             help_="Method to forward queries (UDP, TCP, TLS, DoH, AUTO).",
             type_=str,
@@ -170,21 +165,6 @@ kwargs_defaults_initial = {
         ),
         "doh_endpoints": K(help_="A list of DoH endpoints", type_=list, default=None),
         "tls_endpoints": K(help_="A list of TLS endpoints", type_=list, default=None),
-    },
-    "daemons": {
-        "fastest_resolver": {
-            "use": K(
-                help_="Should the fastest resolver daemon be used?",
-                type_=bool,
-                default=False,
-            ),
-            "test_name": K(
-                help_="Domain name for speed test query",
-                type_=str,
-                default="google.com",
-            ),
-            "interval": K(help_="Interval between tests", type_=int, default=120),
-        }
     },
     "storage": {
         "zone_dirs": K(

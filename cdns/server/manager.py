@@ -49,7 +49,7 @@ import h2.events
 import h11
 
 from cdns import daemon
-from cdns.resolvers import BaseResolver, RecursiveResolver, UpstreamResolver
+from cdns.resolvers import BaseResolver, RecursiveResolver
 from cdns.smartselector import close_all_selectors, get_current_thread_selector
 from cdns.utils import get_dns_servers
 
@@ -204,44 +204,7 @@ class ServerManager:
 
         # Complicated resolver stuff
         self.resolver = resolver
-        if isinstance(self.resolver, RecursiveResolver) and (
-            resolver_list or daemon_options.get("fastest_resolver.use")
-        ):
-            raise ValueError(
-                "Unable to have resolver_list and fastest_resolver with RecursiveResolver"
-            )
 
-        # The Queue will be registered in the selectors, but is never used
-        # for the recursive resolver
-        self.resolver_q: mp.Queue = mp.Queue()
-
-        if isinstance(self.resolver, UpstreamResolver):
-            assert resolver_list is not None
-
-            if daemon_options.get("fastest_resolver.use"):
-                self.resolver_daemon = daemon.FastestResolverDaemon(
-                    resolver_list,
-                    daemon_options["fastest_resolver.test_name"],
-                    interval=daemon_options["fastest_resolver.interval"],
-                    queue=self.resolver_q,
-                    udp_addr=self.host,
-                )
-                self.resolver_daemon.start()
-                self.resolver.addr = self.resolver_q.get(True)
-            else:
-                if len(resolver_list) > 1:
-                    raise ValueError(
-                        "Unable to have more than one resolver when fastest_resolver.use is False"
-                    )
-
-                self.resolver_q.put(resolver_list[0])
-                # Get the address
-                self.resolver.addr = self.resolver_q.get()
-                logging.info("Resolver address: %s", self.resolver.addr)
-
-        # I removed the dump cache daemon because the cache was designed
-        # to only be in-memory. If the cache was written to a file, all
-        # the TimedItem's would expire, meaning the dump would be useless.
 
     def _sigterm_handler(self, stack, frame) -> None:
         """Handler for SIGTERM event."""
@@ -298,29 +261,26 @@ class ServerManager:
         else:
             doh_host = (kwargs["servers.doh.host"], int(kwargs["servers.doh.port"]))
 
-        if kwargs["resolver.recursive"]:
-            if kwargs["resolver.doh_endpoints"] is not None:
-                doh_endpoints = [
-                    tuple(item) for item in kwargs["resolver.doh_endpoints"]
-                ]
-            else:
-                doh_endpoints = None
-
-            if kwargs["resolver.tls_endpoints"] is not None:
-                tls_endpoints = [
-                    tuple(item) for item in kwargs["resolver.tls_endpoints"]
-                ]
-            else:
-                tls_endpoints = None
-
-            # TODO: Normalize case for arguments
-            resolver = RecursiveResolver(
-                forwarding_mode=kwargs["resolver.forwarding_mode"].lower(),
-                doh_endpoints=doh_endpoints,
-                tls_endpoints=tls_endpoints,
-            )
+        if kwargs["resolver.doh_endpoints"] is not None:
+            doh_endpoints = [
+                tuple(item) for item in kwargs["resolver.doh_endpoints"]
+            ]
         else:
-            resolver = UpstreamResolver(("", 53))
+            doh_endpoints = None
+
+        if kwargs["resolver.tls_endpoints"] is not None:
+            tls_endpoints = [
+                tuple(item) for item in kwargs["resolver.tls_endpoints"]
+            ]
+        else:
+            tls_endpoints = None
+
+        # TODO: Normalize case for arguments
+        resolver = RecursiveResolver(
+            forwarding_mode=kwargs["resolver.forwarding_mode"].lower(),
+            doh_endpoints=doh_endpoints,
+            tls_endpoints=tls_endpoints,
+        )
 
         if kwargs["storage.preload_path"]:
             if not isinstance(resolver, RecursiveResolver):
@@ -333,23 +293,12 @@ class ServerManager:
 
             preload_hosts(hosts, storage, resolver)
 
-        # HACK: This is what happens when it's 11 and I have to get the feature done
-        if isinstance(kwargs["resolver.list"], list):
-            resolver_list = [(addr, 53) for addr in kwargs["resolver.list"]]
-        else:
-            resolver_list = None
-
-        if kwargs["resolver.add_system"]:
-            assert resolver_list
-            resolver_list.append(get_dns_servers())
-
         logging.debug("Records: %s", storage)
         return cls(
             storage=storage,
             host=(kwargs["servers.host.host"], int(kwargs["servers.host.port"])),
             debug_shell_host=debug_shell_host,
             resolver=resolver,
-            resolver_list=resolver_list,
             tls_host=tls_host,  # TODO: host vs addr
             ssl_key_path=kwargs["servers.tls.ssl_key"],
             ssl_cert_path=kwargs["servers.tls.ssl_cert"],
@@ -932,8 +881,6 @@ class ServerManager:
 
         # Update these devices when it's readable
         sockets = [
-            # HACK-TYPING: Queue._reader is an implementation detail
-            self.resolver_q._reader,  # type: ignore[attr-defined]
             self.udp_sock,
             self.tcp_sock,
         ]
@@ -1038,17 +985,6 @@ class ServerManager:
 
                 future = executor.submit(self._handle_debug_shell_session, conn)
                 future.add_done_callback(self._handle_thread_pool_completion)
-
-            elif obj == self.resolver_q._reader:  # type: ignore[attr-defined]
-                # I'm no expert at mypy, but ignore the type because
-                # we can assert that self.resolver.addr is used only if
-                # hasattr(self.resolver, "attr")
-
-                # TODO: Fix
-                # TODO: Very indented here...
-
-                self.resolver.addr = self.resolver_q.get()  # type: ignore
-                logging.info("Resolver address: %s", self.resolver.addr)  # type: ignore
 
     def _handle_thread_pool_completion(self, future: concurrent.futures.Future) -> None:
         """Handle the result of a ThreadPoolExecutor.

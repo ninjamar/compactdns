@@ -54,37 +54,7 @@ host = "127.0.0.1"
 port = 2055
 
 [resolver]
-# Recursive or forwarding mode
-# Recursive mode connects to the internet root servers and recursively fufills 
-# requests. Forwarding mode connects to an external DNS server to fufill
-# queries.
-# In general, it is recomended to use recursive mode.
-recursive = true
-# TODO: No resolvers if we use recursive
-
-# Uncomment these settings if the forwarding reserver is used
-
-# A list of addresses of DNS resolvers
-# list = [
-#     "1.1.1.1",
-#     "1.0.0.1",
-# ]
-# Controls whether the system DNS server configuration can be added
-
-# add_system = false
-
-# Uncomment these lines if the mode is set to forwarding. This setting will find
-# the fastest (latency) DNS resolver from the list `resolver.list`. 
-
-# [daemons.fastest_resolver]
-# use=true
-
-# The server sends a test query with a domain
-
-# test_name="github.com"
-
-# How often to check the latency of each server.
-# interval = 100
+# Resolver settings
 
 tls_endpoints = [
     ["1.1.1.1", 853]

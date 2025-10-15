@@ -27,4 +27,3 @@
 
 from .base import BaseResolver
 from .recursive import RecursiveResolver
-from .upstream import UpstreamResolver
