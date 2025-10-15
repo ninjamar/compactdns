@@ -26,7 +26,6 @@
 # SOFTWARE.
 
 import copy
-import dataclasses
 import logging
 import os
 import re

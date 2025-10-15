@@ -23,15 +23,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import concurrent.futures
+
 import selectors
-import socket
 import ssl
-import struct
-import threading
-from collections import namedtuple
-from enum import Enum
-from typing import cast
 
 from cdns.protocol import *
 

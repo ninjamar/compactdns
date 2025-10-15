@@ -30,11 +30,8 @@ import logging
 import selectors
 import socket
 import ssl
-import struct
 import threading
-from collections import namedtuple
 from dataclasses import dataclass
-from enum import Enum
 from typing import cast
 
 import h11

@@ -26,14 +26,9 @@
 # SOFTWARE.
 
 import concurrent.futures
-import logging
 import selectors
 import socket
-import ssl
-import struct
 import threading
-from collections import namedtuple
-from enum import Enum
 from typing import cast
 
 from cdns.protocol import *

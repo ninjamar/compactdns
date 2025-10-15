@@ -28,11 +28,9 @@
 import concurrent.futures
 import logging
 import selectors
-import signal
 import socket
 import threading
 from dataclasses import dataclass
-from enum import Enum
 from typing import cast
 
 from cdns.protocol import *

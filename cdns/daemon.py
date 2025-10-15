@@ -24,14 +24,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
-import logging
-import signal
 import socket
 import time
 from multiprocessing import Process, Queue
-from pathlib import Path
-from typing import Callable
-
 from .protocol import DNSHeader, DNSQuery, DNSQuestion
 
 # from .response.mixins import SmartEnsureLoadedMixin
