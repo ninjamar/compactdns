@@ -29,14 +29,14 @@ import concurrent.futures
 
 from cdns.protocol import *
 
-METHODS = Literal["udp", "tcp", "tls", "doh"]
+METHOD = Literal["udp", "tcp", "tls", "doh"]
 
 
 class BaseResolver:
     """Base class for resolvers."""
 
     def send(
-        self, query: DNSQuery, method: METHODS | None = "udp"
+        self, query: DNSQuery, method: METHOD | None = "udp"
     ) -> concurrent.futures.Future[DNSQuery]:
         raise NotImplementedError
 

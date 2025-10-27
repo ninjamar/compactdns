@@ -27,28 +27,28 @@
 
 import concurrent.futures
 import logging
-import selectors
-import socket
-import ssl
-import struct
-import sys
-import threading
-from collections import namedtuple
-from enum import Enum
-from typing import cast
 
 from cdns import forwarders
 from cdns.protocol import *
 
-from .base import METHODS, BaseResolver
-from .upstream import UpstreamResolver
+from .base import METHOD, BaseResolver
 
 # import ipdb
 
 
+def get_root_servers():
+    # TODO: Read from location
+    return [("198.41.0.4", 53)]
+
+
+def get_working_root_server():
+    servers = get_root_servers()
+    return servers[0]
+
+
 # TODO: Load root server from url, write root server to disk and cache it
 # ROOT_SERVERS = [p + ".ROOT-SERVERS.NET" for p in string.ascii_uppercase[:13]]
-ROOT_SERVERS = [("198.41.0.4", 53)]
+ROOT_SERVERS = get_root_servers()
 
 FORWARDERS = {
     "doh": forwarders.HTTPForwarder,
@@ -99,7 +99,7 @@ class RecursiveResolver(BaseResolver):
         authorities: list[DNSAuthority],
         additionals: list[DNSAdditional],
         query: DNSQuery,
-        method: METHODS,
+        method: METHOD,
         to_future: concurrent.futures.Future[DNSQuery],
     ) -> None:
         """Find a nameservers.
@@ -123,6 +123,7 @@ class RecursiveResolver(BaseResolver):
             # Resolve nameserver
             nameserver = authorities[0].decoded_rdata
 
+            # TODO: This seems like it could be a problem. Maybe it should be copied appropriately
             q = DNSQuery(DNSHeader(), [DNSQuestion(decoded_name=nameserver)])
             # future = self._resolve(query,)
             # Get the IP addresses of the nameservers
@@ -145,7 +146,7 @@ class RecursiveResolver(BaseResolver):
         self,
         nameserver: str,
         query: DNSQuery,
-        method: METHODS,
+        method: METHOD,
         to_future: concurrent.futures.Future[DNSQuery],
     ) -> concurrent.futures.Future:
         """Callback after nameservers are found.
@@ -166,7 +167,7 @@ class RecursiveResolver(BaseResolver):
         self,
         recv_future: concurrent.futures.Future[bytes],
         query: DNSQuery,
-        method: METHODS,
+        method: METHOD,
         to_future: concurrent.futures.Future[DNSQuery],
     ) -> None:
         """Called after _resolve.
@@ -216,7 +217,7 @@ class RecursiveResolver(BaseResolver):
     def _resolve(
         self,
         query: DNSQuery,
-        method: METHODS,
+        method: METHOD,
         server_addr: tuple[str, int],
     ) -> concurrent.futures.Future[DNSQuery]:
         """Resolve a query recursively.
@@ -253,26 +254,22 @@ class RecursiveResolver(BaseResolver):
         self.executor.submit(send)
         return future
 
-    def _get_method(self, query: DNSQuery) -> str:
-        if self.forwarding_mode == "AUTO":
-            return query._method
-        return self.forwarding_mode
-
-    def _get_forwarder(self, method: METHODS) -> forwarders.BaseForwarder:
+    def _get_forwarder(self, method: METHOD) -> forwarders.BaseForwarder:
         return self.forwarders_map[method]
         # return HttpOneForwarder()
 
-    def get_server(self, method: METHODS) -> tuple[str, int]:
+    def get_server(self, method: METHOD) -> tuple[str, int]:
         # HACK: Make this function return a working endpoint. Also, make sure to
         # rotate these endpoints if a ping test fails for one of them.
         if method == "doh":
             return self.doh_endpoints[0]
         if method == "tls":
             return self.tls_endpoints[0]
-        return ROOT_SERVERS[0]
+        # return ROOT_SERVERS[0]
+        return get_working_root_server()
 
     def send(
-        self, query: DNSQuery, method: METHODS | None = "udp"
+        self, query: DNSQuery, method: METHOD | None = "udp"
     ) -> concurrent.futures.Future[DNSQuery]:
         """Send a query to the resolver.
 

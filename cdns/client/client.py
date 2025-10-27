@@ -28,7 +28,7 @@ import concurrent.futures
 
 from cdns import forwarders
 from cdns.protocol import *
-from cdns.resolvers.base import METHODS
+from cdns.resolvers.base import METHOD
 
 """
 This is different from the server and server.response.
@@ -56,7 +56,7 @@ class Client:
     def resolve(
         self,
         query: DNSQuery,
-        method: METHODS,
+        method: METHOD,
         addr: tuple[str, int] = None,
     ) -> concurrent.futures.Future[DNSAnswer]:
         return_future: concurrent.futures.Future[DNSAnswer] = (
