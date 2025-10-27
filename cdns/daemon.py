@@ -27,6 +27,7 @@
 import socket
 import time
 from multiprocessing import Process, Queue
+
 from .protocol import DNSHeader, DNSQuery, DNSQuestion
 
 # from .response.mixins import SmartEnsureLoadedMixin

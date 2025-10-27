@@ -38,10 +38,16 @@ from typing import Literal
 
 from .zone import *
 
-
-__all__ = ["parse_directory", "parse_file", "parse_contents", "DNSZone", "ZoneCollection"]
+__all__ = [
+    "parse_directory",
+    "parse_file",
+    "parse_contents",
+    "DNSZone",
+    "ZoneCollection",
+]
 
 FORMAT = Literal["zone", "root", "json", "all_json"]
+
 
 class ZoneParsingError(Exception):
     """An error while parsing a zone."""
@@ -193,7 +199,6 @@ class ZoneParser:
         self.line = self.line.strip().split(";")[0].strip()
 
 
-
 def dict_to_zone(j: dict) -> DNSZone:
     """Parse a singular zone from json.
 
@@ -233,10 +238,11 @@ def dict_to_zone(j: dict) -> DNSZone:
                     zone.add_record(domain, type_, v[0], int(v[1]))
     return zone
 
+
 class ZoneCollection(dict):
-    #def __init__(self):
+    # def __init__(self):
     #    self.zones: dict[str, DNSZone] = {}
-    
+
     def update_zones(self, item: "ZoneCollection" | DNSZone):
         if isinstance(item, DNSZone):
             if item.domain in self:
@@ -247,29 +253,30 @@ class ZoneCollection(dict):
         elif isinstance(item, ZoneCollection):
             for zone in item.items():
                 self.update_zones(zone)
-        
+
 
 def detect_format_by_ext(path: Path) -> FORMAT:
     # Only check the last suffix because domain is the first part
     if path.suffix == ".zone":
         return "zone"
-    
+
     if path.suffix == ".root":
         return "root"
-    
+
     # all_json needs to be before
-    #ext = "".join(path.suffixes)
-    #if ext == ".all.json":
+    # ext = "".join(path.suffixes)
+    # if ext == ".all.json":
     #    return "all_json"
-    
+
     if path.suffix == ".json":
         return "json"
-    
 
     raise ValueError("Invalid path")
 
+
 def detect_format(path: Path) -> FORMAT:
     return detect_format_by_ext(path)
+
 
 """
 IF A ZONE EXISTS IN MULTIPLE FILES USE DNSZone.update_from
@@ -279,6 +286,7 @@ Valid Zone Formats (in order of hierarchy) -- (this means it will be loaded in r
 - .json
 - .all.json
 """
+
 
 def parse_directory(path: Path) -> ZoneCollection:
     zc = ZoneCollection()
@@ -290,11 +298,15 @@ def parse_directory(path: Path) -> ZoneCollection:
         zc.update_zones(zone)
     return zc
 
+
 def parse_file(path: Path) -> DNSZone:
     with open(path) as f:
         return parse_contents(f.read(), detect_format(path), _zone_domain=path.stem)
 
-def parse_contents(data: str, format: FORMAT, _zone_domain: str | None = None) -> DNSZone | ZoneCollection:
+
+def parse_contents(
+    data: str, format: FORMAT, _zone_domain: str | None = None
+) -> DNSZone | ZoneCollection:
     # print(data)
     if format == "zone":
         stream = io.StringIO(data)
@@ -302,7 +314,7 @@ def parse_contents(data: str, format: FORMAT, _zone_domain: str | None = None) -
         parser.parse()
 
         return parser.zone
-    
+
     if format == "root":
         pass
 
@@ -315,7 +327,7 @@ def parse_contents(data: str, format: FORMAT, _zone_domain: str | None = None) -
             for zone_dict in data:
                 zone = dict_to_zone(zone_dict)
                 zc.update_zones(zone)
-            
+
             return zc
         else:
             return dict_to_zone(data)

@@ -38,9 +38,10 @@ from publicsuffixlist import PublicSuffixList  # type: ignore
 
 from cdns.protocol import RTypes
 from cdns.utils import BiInt
-#from cdns.zones import (DNSZone, parse_multiple_json_zones,
+# from cdns.zones import (DNSZone, parse_multiple_json_zones,
 #                        parse_singular_json_zone, parse_zone)
-from cdns.zones import DNSZone, ZoneCollection, parse_directory, parse_file, parse_contents
+from cdns.zones import (DNSZone, ZoneCollection, parse_contents,
+                        parse_directory, parse_file)
 
 from .cache import DNSCache
 
@@ -66,13 +67,13 @@ class RecordStorage:
         self.extractor = PublicSuffixList()
 
         self.cache = DNSCache()
-        #self.zones: dict[str, DNSZone] = {}
+        # self.zones: dict[str, DNSZone] = {}
         self.zones: ZoneCollection = ZoneCollection()
 
     @functools.lru_cache(maxsize=512)
     def _get_base_domain(self, domain):
         return self.extractor.privatesuffix(domain)
-    
+
     def _ensure(fn: Callable) -> Callable:  # type: ignore
         # Yet another instance of mypy being annoying -- see https://github.com/python/mypy/issues/7778
         # Ensure proper arguments
@@ -106,7 +107,7 @@ class RecordStorage:
             return fn(self, file, *args, **kwargs)
 
         return do_nothing
-    
+
     @_ensure
     def get_record(
         self,

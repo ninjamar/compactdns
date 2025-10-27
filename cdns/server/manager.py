@@ -205,7 +205,6 @@ class ServerManager:
         # Complicated resolver stuff
         self.resolver = resolver
 
-
     def _sigterm_handler(self, stack, frame) -> None:
         """Handler for SIGTERM event."""
         logging.info("Recieved SIGTERM")
@@ -239,7 +238,7 @@ class ServerManager:
             p.parent.mkdir(parents=True, exist_ok=True)
             storage.load_cache_from_file(p)
             storage._cache_path = kwargs["storage.cache_path"]
-        
+
         if (
             kwargs["servers.debug_shell.host"] is None
             or kwargs["servers.debug_shell.port"] is None
@@ -262,16 +261,12 @@ class ServerManager:
             doh_host = (kwargs["servers.doh.host"], int(kwargs["servers.doh.port"]))
 
         if kwargs["resolver.doh_endpoints"] is not None:
-            doh_endpoints = [
-                tuple(item) for item in kwargs["resolver.doh_endpoints"]
-            ]
+            doh_endpoints = [tuple(item) for item in kwargs["resolver.doh_endpoints"]]
         else:
             doh_endpoints = None
 
         if kwargs["resolver.tls_endpoints"] is not None:
-            tls_endpoints = [
-                tuple(item) for item in kwargs["resolver.tls_endpoints"]
-            ]
+            tls_endpoints = [tuple(item) for item in kwargs["resolver.tls_endpoints"]]
         else:
             tls_endpoints = None
 
