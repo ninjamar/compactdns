@@ -239,7 +239,7 @@ class ServerManager:
             p.parent.mkdir(parents=True, exist_ok=True)
             storage.load_cache_from_file(p)
             storage._cache_path = kwargs["storage.cache_path"]
-
+        
         if (
             kwargs["servers.debug_shell.host"] is None
             or kwargs["servers.debug_shell.port"] is None
@@ -291,6 +291,7 @@ class ServerManager:
             with open(kwargs["storage.preload_path"]) as f:
                 hosts = [x.strip() for x in f.readlines() if not x.startswith("#")]
 
+            # TODO: Is this ok?
             preload_hosts(hosts, storage, resolver)
 
         logging.debug("Records: %s", storage)

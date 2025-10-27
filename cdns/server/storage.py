@@ -38,8 +38,9 @@ from publicsuffixlist import PublicSuffixList  # type: ignore
 
 from cdns.protocol import RTypes
 from cdns.utils import BiInt
-from cdns.zones import (DNSZone, parse_multiple_json_zones,
-                        parse_singular_json_zone, parse_zone)
+#from cdns.zones import (DNSZone, parse_multiple_json_zones,
+#                        parse_singular_json_zone, parse_zone)
+from cdns.zones import DNSZone, ZoneCollection, parse_directory, parse_file, parse_contents
 
 from .cache import DNSCache
 
@@ -65,8 +66,13 @@ class RecordStorage:
         self.extractor = PublicSuffixList()
 
         self.cache = DNSCache()
-        self.zones: dict[str, DNSZone] = {}
+        #self.zones: dict[str, DNSZone] = {}
+        self.zones: ZoneCollection = ZoneCollection()
 
+    @functools.lru_cache(maxsize=512)
+    def _get_base_domain(self, domain):
+        return self.extractor.privatesuffix(domain)
+    
     def _ensure(fn: Callable) -> Callable:  # type: ignore
         # Yet another instance of mypy being annoying -- see https://github.com/python/mypy/issues/7778
         # Ensure proper arguments
@@ -100,7 +106,7 @@ class RecordStorage:
             return fn(self, file, *args, **kwargs)
 
         return do_nothing
-
+    
     @_ensure
     def get_record(
         self,
@@ -126,7 +132,7 @@ class RecordStorage:
         # if type_ not in RTypes:
         #    raise RecordError(f"Invalid record type. Given {type_}")
 
-        base_domain = self.extractor.privatesuffix(record_domain)
+        base_domain = self._get_base_domain(record_domain)
 
         values = []
         # Lookup record_domain via base_domain
@@ -158,6 +164,7 @@ class RecordStorage:
             values = self.cache.get_records(record_domain, type_)
         # TODO: Does wildcard work
 
+        # Try wildcard
         if "*" not in record_domain and len(values) == 0:
             # TODO: Make this faster
             # TODO: Make TTL cache wrapper for function
@@ -178,6 +185,7 @@ class RecordStorage:
         Args:
             path: Path to file.
         """
+        return parse_file(path)
         if str(path).endswith(".all.json"):
             # self.zones.update(parse_multiple_json_zones(path))
             # self.zones = parse_multiple_json_zones(path)
@@ -257,6 +265,9 @@ class RecordStorage:
         Args:
             zone_dir_path: Path to directory
         """
+        self.zones.update(parse_directory(path))
+        return
+        return parse_directory(path)
         # paths = [path / x for x in path.iterdir() if x.suffix == ".zone"]
         path = Path(path)
         paths = [path / x for x in path.iterdir()]
