@@ -37,10 +37,9 @@ ZONE_PATH = (root_path / "example.com.zone").resolve()
 
 
 def test_parse():
-    zones = parse_all_zones([str(ZONE_PATH)])
+    zone = parse_file(ZONE_PATH)
 
-    zones["example.com"] = dataclasses.asdict(zones["example.com"])
-    assert zones["example.com"] == {
+    assert dataclasses.asdict(zone) == {
         "domain": "example.com",
         "ttl": 86400,
         "soa": {
@@ -70,3 +69,4 @@ def test_parse():
             "ftp.example.com": {"CNAME": [("www.example.com.", 86400)]},
         },
     }
+
