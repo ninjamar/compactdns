@@ -192,36 +192,7 @@ class RecordStorage:
         Args:
             path: Path to file.
         """
-        return parse_file(path)
-        if str(path).endswith(".all.json"):
-            # self.zones.update(parse_multiple_json_zones(path))
-            # self.zones = parse_multiple_json_zones(path)
-            for domain, zone in parse_multiple_json_zones(path).items():
-                if domain in self.zones:
-                    self.zones[domain].update_from(zone)
-                else:
-                    self.zones[domain] = zone
-            return
-        if str(path).endswith(".json"):
-            zone = parse_singular_json_zone(path)  # type: ignore
-            if zone.domain in self.zones:
-                self.zones[zone.domain].update_from(zone)
-            else:
-                self.zones[zone.domain] = zone
-            # self.zones = deep_update(self.zones, {zone.domain: zone})
-            return
-        # TODO: Support reloading with latest changes
-        if str(path).endswith(".zone"):
-            zone = parse_zone(path)  # type: ignore
-            if zone.domain in self.zones:
-                self.zones[zone.domain].update_from(zone)
-            else:
-                self.zones[zone.domain] = zone
-            # self.zones = deep_update(self.zones, {zone.domain: zone})
-            return
-        raise Exception(
-            f"Unable to load zone from file: invalid format. File path: {str(path)}"
-        )
+        self.zones.update_zones(parse_file(path))
 
     @_do_nothing_if_no_file
     def load_cache_from_file(self, path: Path | str) -> None:
@@ -272,14 +243,8 @@ class RecordStorage:
         Args:
             zone_dir_path: Path to directory
         """
-        self.zones.update(parse_directory(path))
-        return
-        return parse_directory(path)
-        # paths = [path / x for x in path.iterdir() if x.suffix == ".zone"]
-        path = Path(path)
-        paths = [path / x for x in path.iterdir()]
-        for path in paths:
-            self.load_zone_from_file(path)
+        self.zones.update_zones(parse_directory(path))
+
 
     def __str__(self) -> str:
         return (
