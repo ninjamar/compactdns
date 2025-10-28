@@ -38,10 +38,16 @@ from publicsuffixlist import PublicSuffixList  # type: ignore
 
 from cdns.protocol import RTypes
 from cdns.utils import BiInt
+
 # from cdns.zones import (DNSZone, parse_multiple_json_zones,
 #                        parse_singular_json_zone, parse_zone)
-from cdns.zones import (DNSZone, ZoneCollection, parse_contents,
-                        parse_directory, parse_file)
+from cdns.zones import (
+    DNSZone,
+    ZoneCollection,
+    parse_contents,
+    parse_directory,
+    parse_file,
+)
 
 from .cache import DNSCache
 
@@ -134,7 +140,7 @@ class RecordStorage:
         #    raise RecordError(f"Invalid record type. Given {type_}")
 
         base_domain = self._get_base_domain(record_domain)
-
+        
         values = []
         # Lookup record_domain via base_domain
         if base_domain in self.zones:

@@ -44,6 +44,7 @@ __all__ = [
     "parse_contents",
     "DNSZone",
     "ZoneCollection",
+    "FORMAT",
 ]
 
 FORMAT = Literal["zone", "root", "json", "all_json"]
@@ -129,12 +130,13 @@ class ZoneParser:
 
         name = None
         ttl = None
+        record_class = None
         record_type = None
-        value = None
+        rdata = None
 
         temp = ""
         in_quotes = False
-        parts = []
+        parts: list[str] = []
         # name, ttl (optional), _in, record_type, value
 
         for i, char in enumerate(self.line):
@@ -154,21 +156,40 @@ class ZoneParser:
 
         if temp:
             parts.append(temp)
+        
 
+        # Parts: name [ttl] [class] type rdata
+        # Things in brackets are optional
+        
+        # name
         name = parts[0]
-        if name == "@":
+        if name == "@" or name == ".":
             name = self.zone.domain
+        i = 1
 
-        if all(x.isdigit() for x in parts[1]):  # tt;
-            ttl = int(parts[1])
-            # "IN" is inbetween name and record_type
-            record_type = parts[3]
-            value = " ".join(parts[4:])  # if len(parts) > 4 else None
+        # ttl, optional 
+        if parts[i].isdigit():
+            ttl = int(parts[i])
+            i += 1
         else:
-            record_type = parts[2]
-            value = " ".join(parts[3:])  # if len(parts) > 2 else None
+            ttl = None
+        # class, optional
+        if parts[i].upper() in {"IN", "CH", "HS"}:
+            record_class = parts[i].upper()
+            i += 1
+        else:
+            record_class = "IN" # default
+        
+        # type
+        record_type = parts[i].upper()
 
-        self.zone.add_record(name, record_type, value, ttl)
+        i += 1
+        rdata = " ".join(parts[i:]) if i < len(parts) else ""
+
+        if record_class != "IN":
+            raise Exception("Unable to support non-Internet classes") 
+        
+        self.zone.add_record(name, record_type, rdata, ttl)
 
     def parse(self) -> None:
         """Parse the entire stream into the zone."""
@@ -299,24 +320,28 @@ def parse_directory(path: Path) -> ZoneCollection:
     return zc
 
 
-def parse_file(path: Path) -> DNSZone:
+def parse_file(path: Path, zone_domain: str | None = None) -> DNSZone:
     with open(path) as f:
-        return parse_contents(f.read(), detect_format(path), _zone_domain=path.stem)
+        return parse_contents(f.read(), detect_format(path), zone_domain=path.stem if zone_domain is None else zone_domain)
 
 
 def parse_contents(
-    data: str, format: FORMAT, _zone_domain: str | None = None
+    data: str, format: FORMAT, zone_domain: str | None = None
 ) -> DNSZone | ZoneCollection:
     # print(data)
     if format == "zone":
         stream = io.StringIO(data)
-        parser = ZoneParser(_zone_domain, stream)
+        parser = ZoneParser(zone_domain, stream)
         parser.parse()
 
         return parser.zone
 
     if format == "root":
-        pass
+        stream = io.StringIO(data)
+        parser = ZoneParser(zone_domain, stream)
+        parser.parse()
+
+        return parser.zone
 
     if format == "json" or format == "all_json":
         data = json.loads(data)
@@ -331,3 +356,13 @@ def parse_contents(
             return zc
         else:
             return dict_to_zone(data)
+
+if __name__ == "__main__":
+    #from cdns.server.storage import RecordStorage
+    #storage = RecordStorage()
+    
+    zone = parse_file(Path("ignore/named.root"), zone_domain=".")
+    print(zone)
+    #storage.zones = [zone]
+
+    #storage.get_record(type_="A")
