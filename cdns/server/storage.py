@@ -122,6 +122,7 @@ class RecordStorage:
         type_: BiInt,  # RTypes
         record_domain: str,
         record_name: str | None = None,
+        base_domain: str | None = None,
     ) -> list[tuple[str, int]]:
         """Get a record. Prioritize zones over the cache.
 
@@ -139,8 +140,16 @@ class RecordStorage:
         # if type_ not in RTypes:
         #    raise RecordError(f"Invalid record type. Given {type_}")
 
-        base_domain = self._get_base_domain(record_domain)
-        
+        record_domain = record_domain.lower()
+        record_name = record_name.lower() if record_name is not None else None
+        base_domain = base_domain.lower() if base_domain is not None else None
+
+        if base_domain is None:
+            if record_domain == "":  # cannocal root
+                base_domain = ""
+            else:
+                base_domain = self._get_base_domain(record_domain)
+
         values = []
         # Lookup record_domain via base_domain
         if base_domain in self.zones:
@@ -166,6 +175,14 @@ class RecordStorage:
                             str(type_)
                         ]  # This is why BiInt is a terrible idea
 
+        if base_domain != "" and len(values) == 0:
+            values = self.get_record(
+                type_=type_,
+                record_domain=record_domain,
+                record_name=record_name,
+                base_domain="",
+            )
+
         # If nothing is found, try from the cache
         if len(values) == 0:
             values = self.cache.get_records(record_domain, type_)
@@ -180,6 +197,7 @@ class RecordStorage:
                 record_domain=f"*.{base_domain}",  # Wildcard
                 record_name=record_name,
             )
+
         if values is None:
             return []
 
@@ -244,7 +262,6 @@ class RecordStorage:
             zone_dir_path: Path to directory
         """
         self.zones.update_zones(parse_directory(path))
-
 
     def __str__(self) -> str:
         return (

@@ -27,6 +27,23 @@
 
 
 import dataclasses
+from cdns.protocol import RTypes
+
+
+def normalize_name(name: str, zone_domain: str | None = None) -> str:
+    if not name or name == "@":
+        return (zone_domain or "").lower()
+
+    if name == ".":  # canocal root
+        return ""
+
+    is_absolute = name.endswith(".")  # abs means fqdn
+    if is_absolute:
+        name = name[:-1]
+
+    if zone_domain and not is_absolute:  # only add if relative
+        return f"{name}.{zone_domain}".lower()
+    return name.lower()
 
 
 @dataclasses.dataclass
@@ -79,13 +96,17 @@ class DNSZone:
         if not ttl:
             ttl = self.ttl
 
-        if name.endswith("."):
-            name = name[:-1]
-        if "." not in name:
-            name = name + "." + self.domain
+        # if name.endswith("."):
+        #    name = name[:-1]
+        # if "." not in name:
+        #    name = name + "." + self.domain
+        name = normalize_name(name, self.domain)
 
         if record_type == "MX":
             priority, exchange = value.split(maxsplit=1)  # split by whitespace once
+
+            exchange = normalize_name(exchange, self.domain)
+
             if name not in self.mx_records:
                 self.mx_records[name] = []
             self.mx_records[name].append(MXRecord(int(priority), exchange))
@@ -94,6 +115,9 @@ class DNSZone:
                 self.records[name] = {}
             if record_type not in self.records[name]:
                 self.records[name][record_type] = []
+
+            if record_type in {RTypes.CNAME, RTypes.NS}:
+                value = normalize_name(value, self.domain)
 
             self.records[name][record_type].append((value, ttl))
 

@@ -47,7 +47,7 @@ __all__ = [
     "FORMAT",
 ]
 
-FORMAT = Literal["zone", "root", "json", "all_json"]
+FORMAT = Literal["zone", "root", "json"]
 
 
 class ZoneParsingError(Exception):
@@ -156,18 +156,16 @@ class ZoneParser:
 
         if temp:
             parts.append(temp)
-        
 
         # Parts: name [ttl] [class] type rdata
         # Things in brackets are optional
-        
-        # name
+
+        # name -- normalized in self.zone.add_record
         name = parts[0]
-        if name == "@" or name == ".":
-            name = self.zone.domain
+
         i = 1
 
-        # ttl, optional 
+        # ttl, optional
         if parts[i].isdigit():
             ttl = int(parts[i])
             i += 1
@@ -178,8 +176,8 @@ class ZoneParser:
             record_class = parts[i].upper()
             i += 1
         else:
-            record_class = "IN" # default
-        
+            record_class = "IN"  # default
+
         # type
         record_type = parts[i].upper()
 
@@ -187,8 +185,8 @@ class ZoneParser:
         rdata = " ".join(parts[i:]) if i < len(parts) else ""
 
         if record_class != "IN":
-            raise Exception("Unable to support non-Internet classes") 
-        
+            raise Exception("Unable to support non-Internet classes")
+
         self.zone.add_record(name, record_type, rdata, ttl)
 
     def parse(self) -> None:
@@ -284,11 +282,6 @@ def detect_format_by_ext(path: Path) -> FORMAT:
     if path.suffix == ".root":
         return "root"
 
-    # all_json needs to be before
-    # ext = "".join(path.suffixes)
-    # if ext == ".all.json":
-    #    return "all_json"
-
     if path.suffix == ".json":
         return "json"
 
@@ -322,7 +315,11 @@ def parse_directory(path: Path) -> ZoneCollection:
 
 def parse_file(path: Path, zone_domain: str | None = None) -> DNSZone:
     with open(path) as f:
-        return parse_contents(f.read(), detect_format(path), zone_domain=path.stem if zone_domain is None else zone_domain)
+        return parse_contents(
+            f.read(),
+            detect_format(path),
+            zone_domain=path.stem if zone_domain is None else zone_domain,
+        )
 
 
 def parse_contents(
@@ -338,12 +335,12 @@ def parse_contents(
 
     if format == "root":
         stream = io.StringIO(data)
-        parser = ZoneParser(zone_domain, stream)
+        parser = ZoneParser("", stream)
         parser.parse()
 
         return parser.zone
 
-    if format == "json" or format == "all_json":
+    if format == "json":
         data = json.loads(data)
         if isinstance(data, list):
 
@@ -357,12 +354,14 @@ def parse_contents(
         else:
             return dict_to_zone(data)
 
+
 if __name__ == "__main__":
-    #from cdns.server.storage import RecordStorage
-    #storage = RecordStorage()
-    
+    from cdns.server.storage import RecordStorage
+
+    storage = RecordStorage()
+
     zone = parse_file(Path("ignore/named.root"), zone_domain=".")
     print(zone)
-    #storage.zones = [zone]
+    storage.zones = [zone]
 
-    #storage.get_record(type_="A")
+    storage.get_record(type_="A")
