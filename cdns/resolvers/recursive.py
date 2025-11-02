@@ -32,23 +32,11 @@ from cdns import forwarders
 from cdns.protocol import *
 
 from .base import METHOD, BaseResolver
+from cdns.server.storage import RootHints
 
 # import ipdb
 
 
-def get_root_servers():
-    # TODO: Read from location
-    return [("198.41.0.4", 53)]
-
-
-def get_working_root_server():
-    servers = get_root_servers()
-    return servers[0]
-
-
-# TODO: Load root server from url, write root server to disk and cache it
-# ROOT_SERVERS = [p + ".ROOT-SERVERS.NET" for p in string.ascii_uppercase[:13]]
-ROOT_SERVERS = get_root_servers()
 
 FORWARDERS = {
     "doh": forwarders.HTTPForwarder,
@@ -63,6 +51,7 @@ class RecursiveResolver(BaseResolver):
 
     def __init__(
         self,
+        root_hints: RootHints,
         forwarding_mode: str = "AUTO",
         tls_endpoints: list[tuple[str, int]] | None = None,
         doh_endpoints: list[tuple[str, str, int]] | None = None,
@@ -87,6 +76,8 @@ class RecursiveResolver(BaseResolver):
         self.forwarders_map: dict[str, forwarders.BaseForwarder] = {
             k: v() for k, v in FORWARDERS.items()
         }
+
+        self.root_hints = root_hints
 
         # TODO: Errors raised in here do not propagate
         self.executor = concurrent.futures.ThreadPoolExecutor()
@@ -265,8 +256,8 @@ class RecursiveResolver(BaseResolver):
             return self.doh_endpoints[0]
         if method == "tls":
             return self.tls_endpoints[0]
-        # return ROOT_SERVERS[0]
-        return get_working_root_server()
+
+        return self.root_hints.get_nameserver()
 
     def send(
         self, query: DNSQuery, method: METHOD | None = "udp"

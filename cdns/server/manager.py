@@ -39,9 +39,12 @@ import sys
 import threading
 import time
 import urllib.parse
+import importlib.resources as ir
+
 from collections.abc import Callable
 from pathlib import Path
 from typing import Callable, Type, cast
+
 
 import h2.config
 import h2.connection
@@ -54,7 +57,7 @@ from cdns.smartselector import close_all_selectors, get_current_thread_selector
 from cdns.utils import get_dns_servers
 
 from .response import make_response_handler, mixins, preload_hosts
-from .storage import RecordStorage
+from .storage import RecordStorage, RootHints
 
 MAX_WORKERS = 1000  # TODO: What should this be
 
@@ -70,6 +73,7 @@ UDP_PKT_SIZE = 512  # UDP is ALWAYS 512 bytes
 # TODO: Figure out most used sites in a given time period, and preload those sites
 # TODO: If using a browser, show a custom block page and then have the option to continue (pass a bypass flag maybe?)
 
+BASE_IR_PATH = "cdns.server.data"
 
 class ServerManager:
     """A class to store a server session."""
@@ -221,6 +225,17 @@ class ServerManager:
         # kwargs isn't **kwargs because '.' isn't a valid variable name
 
         storage = RecordStorage()
+
+        if kwargs["storage.root_hints_path"] is None:
+            with ir.path(BASE_IR_PATH, "named.root") as file:
+                # file is type pathlib.Path
+                storage.load_zone_from_file(file)
+            
+        else:
+            p = Path(kwargs["storage.root_hints_path"]).resolve()
+
+            storage.load_zone_from_file(p)
+
         if kwargs["storage.zone_dirs"] is not None:
             for dir in kwargs["storage.zone_dirs"]:
                 p = Path(dir).resolve()
@@ -275,6 +290,7 @@ class ServerManager:
             forwarding_mode=kwargs["resolver.forwarding_mode"].lower(),
             doh_endpoints=doh_endpoints,
             tls_endpoints=tls_endpoints,
+            root_hints=RootHints(storage)
         )
 
         if kwargs["storage.preload_path"]:

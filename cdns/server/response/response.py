@@ -53,6 +53,7 @@ def _add_to_cache(cache, questions, answers):
     # TODO: Work on tests (hyperion or smtn)
     pass
 
+import yappi
 
 # TODO: Override login to use broadcast system
 class BaseResponseHandler(LCBMethods):

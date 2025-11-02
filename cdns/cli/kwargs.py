@@ -167,6 +167,12 @@ kwargs_defaults_initial = {
         "tls_endpoints": K(help_="A list of TLS endpoints", type_=list, default=None),
     },
     "storage": {
+        "root_hints_path": K(
+            help_="Path to root hints file. If no path is specified, a default file will be used.",
+            type_=str,
+            default=None,
+            path=True
+        ),
         "zone_dirs": K(
             help_="A list of paths to directories containing zones. (*.zone, *.json, *.all.json)",
             type_=list,

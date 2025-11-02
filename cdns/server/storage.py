@@ -267,3 +267,17 @@ class RecordStorage:
         return (
             f"RecordStorage(<{len(self.zones)} zones>, <{len(self.cache.data)} cached>)"
         )
+
+class RootHints:
+    def __init__(self, storage: RecordStorage):
+        self._storage = storage
+
+    # @functools.lru_cache(maxsize=512)
+    def get_nameserver(self) -> tuple[str, int]:
+
+        nameservers = self._storage.get_record(type_=RTypes.NS, record_domain="")
+        ns = nameservers[0][0] # nameservers[0] is a tuple of addr, ttl
+        records = self._storage.get_record(type_=RTypes.A, record_domain=ns)
+
+        # Nameservers are expected to only use port 53 for UDP/TCP
+        return (records[0][0], 53) # first item, ip

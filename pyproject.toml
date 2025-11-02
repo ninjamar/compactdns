@@ -8,6 +8,7 @@ include = ["cdns*"]
 
 [tool.setuptools.package-data]
 "cdns.server._installer.data" = ["*"]
+"cdns.server.data" = ["*"]
 
 [project]
 name = "compactdns"
@@ -73,4 +74,5 @@ dev = [
     "ruff>=0.12.2",
     "timerit>=1.1.0",
     "ty>=0.0.1a14",
+    "yappi>=1.7.3",
 ]
