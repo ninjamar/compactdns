@@ -31,6 +31,7 @@ import logging
 import multiprocessing as mp
 import secrets
 import selectors
+import os
 import signal
 import socket
 import ssl
@@ -106,6 +107,9 @@ class ServerManager:
             ssl_key_path: Path to SSL key file. . Defaults to None.
             ssl_cert_path: Path to SSL cert file. Defaults to None.
         """
+
+        self._IS_DEBUG_MODE = logging.getLogger().isEnabledFor(logging.DEBUG)
+
         self.shutdown_event = threading.Event()
         signal.signal(signal.SIGTERM, self._sigterm_handler)
 
@@ -174,7 +178,13 @@ class ServerManager:
             self.use_doh = False
             self.doh_sock = None
 
-        if self.debug_shell_host is not None:
+        
+        # if (in debug mode or force debug is true) AND debug shell host exists
+        if (force_debug:=(os.environ.get("FORCE_DEBUG") is not None) or self._IS_DEBUG_MODE) and self.debug_shell_host is not None:
+            if force_debug:
+                logging.warning("Environment variable FORCE_DEBUG is set while the server is not in DEBUG mode.")
+                logging.warning("Forcing debug shell")
+
             self.use_debug_shell = True
             # Use UDP for shell
             self.debug_shell_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
