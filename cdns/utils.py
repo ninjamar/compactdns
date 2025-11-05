@@ -29,6 +29,7 @@ import copy
 import logging
 from typing import Any, overload
 
+
 def merge_defaults(
     defaults: dict[str, Any], override: dict[str, Any]
 ) -> dict[str, Any]:
@@ -49,6 +50,7 @@ def flatten_dict(d: dict[str, Any], sep=".", base="") -> dict[str, Any]:
         else:
             new[base + key] = value
     return new
+
 
 # TODO: Don't use this class. Just use strings instead. Actual waste of time.
 # TODO: Should actually be BiInt

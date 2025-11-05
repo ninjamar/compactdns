@@ -44,7 +44,6 @@ from ..base import BaseForwarder
 
 
 class HttpTwoForwarder(BaseForwarder):
-
     def __init__(self, use_tls=True):
         if not use_tls:
             logging.warning("Not using TLS for DoH endpoint")
@@ -94,11 +93,9 @@ class HttpTwoForwarder(BaseForwarder):
         host: str,
         path: str = "/dns-query",
     ) -> concurrent.futures.Future[bytes]:
-
         # TODO: Resolve host using DNS. This might require me creating a public API.
         future: concurrent.futures.Future[bytes] = concurrent.futures.Future()
         try:
-
             to_send = query.pack()
 
             sock = socket.create_connection(addr)

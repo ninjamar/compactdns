@@ -75,6 +75,7 @@ UDP_PKT_SIZE = 512  # UDP is ALWAYS 512 bytes
 
 BASE_IR_PATH = "cdns.server.data"
 
+
 class ServerManager:
     """A class to store a server session."""
 
@@ -178,11 +179,15 @@ class ServerManager:
             self.use_doh = False
             self.doh_sock = None
 
-        
         # if (in debug mode or force debug is true) AND debug shell host exists
-        if (force_debug:=(os.environ.get("FORCE_DEBUG") is not None) or self._IS_DEBUG_MODE) and self.debug_shell_host is not None:
+        if (
+            force_debug := (os.environ.get("FORCE_DEBUG") is not None)
+            or self._IS_DEBUG_MODE
+        ) and self.debug_shell_host is not None:
             if force_debug:
-                logging.warning("Environment variable FORCE_DEBUG is set while the server is not in DEBUG mode.")
+                logging.warning(
+                    "Environment variable FORCE_DEBUG is set while the server is not in DEBUG mode."
+                )
                 logging.warning("Forcing debug shell")
 
             self.use_debug_shell = True
@@ -239,7 +244,7 @@ class ServerManager:
             with ir.path(BASE_IR_PATH, "named.root") as file:
                 # file is type pathlib.Path
                 storage.load_zone_from_file(file)
-            
+
         else:
             p = Path(kwargs["storage.root_hints_path"]).resolve()
 
@@ -299,7 +304,7 @@ class ServerManager:
             forwarding_mode=kwargs["resolver.forwarding_mode"].lower(),
             doh_endpoints=doh_endpoints,
             tls_endpoints=tls_endpoints,
-            root_hints=RootHints(storage)
+            root_hints=RootHints(storage),
         )
 
         if kwargs["storage.preload_path"]:
@@ -459,7 +464,6 @@ class ServerManager:
             events = sel.safe_select(timeout=1)
             for key, mask in events:
                 if key.fileobj == conn:  # is or equals
-
                     try:
                         data = conn.recv(
                             self.DOH_PKT_SIZE
@@ -498,7 +502,6 @@ class ServerManager:
                             headers = {k.lower(): v for k, v in event.headers}
 
                             if method == b"GET":
-
                                 # Validate path inside here
                                 if not path.startswith(self.DOH_GET_PATH):
                                     # Error invalid path
@@ -507,7 +510,6 @@ class ServerManager:
                                     )  # page not found
 
                             elif method == b"POST":
-
                                 # Error invalid path
                                 # TODO: Does path need to be removed slashed?
                                 if path != self.DOH_POST_PATH:
@@ -536,7 +538,6 @@ class ServerManager:
                             body += event.data
                         # End of message
                         elif isinstance(event, h11.EndOfMessage):
-
                             # Missing information
                             if method is None or path is None or http_version is None:
                                 return self._send_doh_http1_error(

@@ -343,7 +343,6 @@ def parse_contents(
     if format == "json":
         data = json.loads(data)
         if isinstance(data, list):
-
             zc = ZoneCollection()
 
             for zone_dict in data:

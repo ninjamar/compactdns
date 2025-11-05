@@ -40,7 +40,6 @@ class TCPForwarder(BaseStreamForwarder):
     def forward(
         self, query: DNSQuery, addr: tuple[str, int]
     ) -> concurrent.futures.Future[bytes]:
-
         future: concurrent.futures.Future[bytes] = concurrent.futures.Future()
 
         p = query.pack()

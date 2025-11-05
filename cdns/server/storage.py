@@ -273,6 +273,7 @@ class RecordStorage:
             f"RecordStorage(<{len(self.zones)} zones>, <{len(self.cache.data)} cached>)"
         )
 
+
 class RootHints:
     def __init__(self, storage: RecordStorage):
         self._storage = storage
@@ -288,7 +289,7 @@ class RootHints:
         nameservers = self._storage.get_record(type_=RTypes.NS, record_domain="")
         # logging.debug("Nameservers %s", nameservers)
 
-        ns = nameservers[0][0] # nameservers[0] is a tuple of addr, ttl
+        ns = nameservers[0][0]  # nameservers[0] is a tuple of addr, ttl
         # logging.debug("Using nameserver %s", ns)
 
         records = self._storage.get_record(type_=RTypes.A, record_domain=ns)
@@ -298,5 +299,5 @@ class RootHints:
         # Nameservers are expected to only use port 53 for UDP/TCP
 
         # yappi.get_func_stats().print_all()
- 
-        return (records[0][0], 53) # first item, ip
+
+        return (records[0][0], 53)  # first item, ip

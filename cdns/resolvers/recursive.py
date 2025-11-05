@@ -37,7 +37,6 @@ from cdns.server.storage import RootHints
 # import ipdb
 
 
-
 FORWARDERS = {
     "doh": forwarders.HTTPForwarder,
     "tcp": forwarders.TCPForwarder,

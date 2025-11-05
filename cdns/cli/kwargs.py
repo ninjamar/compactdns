@@ -171,7 +171,7 @@ kwargs_defaults_initial = {
             help_="Path to root hints file. If no path is specified, a default file will be used.",
             type_=str,
             default=None,
-            path=True
+            path=True,
         ),
         "zone_dirs": K(
             help_="A list of paths to directories containing zones. (*.zone, *.json, *.all.json)",

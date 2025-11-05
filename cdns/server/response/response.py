@@ -53,7 +53,9 @@ def _add_to_cache(cache, questions, answers):
     # TODO: Work on tests (hyperion or smtn)
     pass
 
+
 import yappi
+
 
 # TODO: Override login to use broadcast system
 class BaseResponseHandler(LCBMethods):
@@ -410,7 +412,6 @@ class BaseResponseHandler(LCBMethods):
         print(f"Total Function Time {sum(f.ttot for f in fstats)}")
         print(f"Total Thread Time {sum(t.ttot for t in tstats)}")
         """
-
 
 
 def preload_host(host: str, storage: RecordStorage, resolver: BaseResolver) -> None:

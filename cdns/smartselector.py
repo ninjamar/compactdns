@@ -41,7 +41,6 @@ _all_selectors = weakref.WeakSet()
 
 
 class SmartSelector(selectors.DefaultSelector):
-
     @functools.wraps(selectors.DefaultSelector.__init__)
     def __init__(self):
         super().__init__()

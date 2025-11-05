@@ -108,7 +108,6 @@ class HttpOneForwarder(BaseForwarder):
             self.sel.modify(sock, selectors.EVENT_READ)
             return
         elif ctx.state == states.h11_process:
-
             # This is the most critical part of making the server run
             # asynchronously. So, each event is processed once, then
             # the loop will be broken.
@@ -207,7 +206,6 @@ class HttpOneForwarder(BaseForwarder):
         path: str = "/dns-query",
         ssl_ctx: ssl.SSLContext | None = None,
     ) -> concurrent.futures.Future[bytes]:
-
         host = addr[0]
         addr = addr[1:]
 
@@ -215,7 +213,6 @@ class HttpOneForwarder(BaseForwarder):
         # TODO: Resolve host using DNS. This might require me creating a public API.
         future: concurrent.futures.Future[bytes] = concurrent.futures.Future()
         try:
-
             to_send = query.pack()
 
             sock = socket.create_connection(addr, timeout=5)
