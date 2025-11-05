@@ -52,7 +52,6 @@ import h2.connection
 import h2.events
 import h11
 
-from cdns import daemon
 from cdns.resolvers import BaseResolver, RecursiveResolver
 from cdns.smartselector import close_all_selectors, get_current_thread_selector
 
@@ -93,8 +92,6 @@ class ServerManager:
         doh_key_path: str | None = None,
         doh_cert_path: str | None = None,
         max_workers: int = MAX_WORKERS,
-        resolver_list: list[tuple[str, int]] | None = None,
-        daemon_options: dict = {},
     ) -> None:
         # TODO: document
         """Create a ServerManager instance.
@@ -179,12 +176,12 @@ class ServerManager:
             self.use_doh = False
             self.doh_sock = None
 
-        # if (in debug mode or force debug is true) AND debug shell host exists
-        if (
-            force_debug := (os.environ.get("FORCE_DEBUG") is not None)
-            or self._IS_DEBUG_MODE
-        ) and self.debug_shell_host is not None:
-            if force_debug:
+        # Check debug shell conditions: if not in debug mode, check the FORCE_DEBUG env var
+        
+        force_debug = True if os.environ.get("FORCE_DEBUG") in ["1", "yes"] else False
+
+        if (self._IS_DEBUG_MODE or force_debug) and self.debug_shell_host is not None:
+            if force_debug and not self._IS_DEBUG_MODE:
                 logging.warning(
                     "Environment variable FORCE_DEBUG is set while the server is not in DEBUG mode."
                 )
@@ -214,9 +211,6 @@ class ServerManager:
             # mixins=[smart_mixin, self.tracker],
             mixins=[self.tracker],
         )
-
-        # d = daemon.SmartEnsureLoadedDaemon(smart_mixin, self.smart_mixin_input_queue, interval=1, queue=Queue(), udp_addr=self.host)
-        # d.start()
 
         self.storage = storage
 
@@ -332,10 +326,6 @@ class ServerManager:
             doh_key_path=kwargs["servers.doh.ssl_key"],
             doh_cert_path=kwargs["servers.doh.ssl_cert"],
             max_workers=kwargs["all.max_workers"],
-            daemon_options={
-                k[8:]: v for k, v in kwargs.items() if k.startswith("daemon")
-            },
-            # daemon_options=kwargs["daemons"]
         )
 
     def cleanup(self) -> None:
@@ -352,10 +342,6 @@ class ServerManager:
 
         if self.use_debug_shell:
             self.debug_shell_sock.close()
-
-        # TODO: Hack
-        if hasattr(self, "resolver_daemon"):
-            self.resolver_daemon.terminate()
 
         self.resolver.cleanup()
 
