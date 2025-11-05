@@ -54,7 +54,6 @@ import h11
 from cdns import daemon
 from cdns.resolvers import BaseResolver, RecursiveResolver
 from cdns.smartselector import close_all_selectors, get_current_thread_selector
-from cdns.utils import get_dns_servers
 
 from .response import make_response_handler, mixins, preload_hosts
 from .storage import RecordStorage, RootHints

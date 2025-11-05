@@ -39,6 +39,8 @@ from publicsuffixlist import PublicSuffixList  # type: ignore
 from cdns.protocol import RTypes
 from cdns.utils import BiInt
 
+# import yappi
+
 # from cdns.zones import (DNSZone, parse_multiple_json_zones,
 #                        parse_singular_json_zone, parse_zone)
 from cdns.zones import (
@@ -241,8 +243,11 @@ class RecordStorage:
         Args:
             path: Path to file.
         """
+        # Update not overwrite
         with lzma.open(path, "rb") as f:
-            self.zones = pickle.load(f)
+            zones = pickle.load(f)
+
+        self.zones.update_zones(zones)
 
     def write_zone_object_to_file(self, path: Path | str) -> None:
         """Write self.zones to a file. The file is pickled, and uses LZMA
@@ -274,10 +279,24 @@ class RootHints:
 
     # @functools.lru_cache(maxsize=512)
     def get_nameserver(self) -> tuple[str, int]:
+        # return ("198.41.0.4", 53)
+        # Only happens in debug mode
+        # yappi.start()
+
+        # logging.debug("Root records %s", self._storage.zones)
 
         nameservers = self._storage.get_record(type_=RTypes.NS, record_domain="")
+        # logging.debug("Nameservers %s", nameservers)
+
         ns = nameservers[0][0] # nameservers[0] is a tuple of addr, ttl
+        # logging.debug("Using nameserver %s", ns)
+
         records = self._storage.get_record(type_=RTypes.A, record_domain=ns)
 
+        # logging.debug("NS Records %s", records)
+
         # Nameservers are expected to only use port 53 for UDP/TCP
+
+        # yappi.get_func_stats().print_all()
+ 
         return (records[0][0], 53) # first item, ip

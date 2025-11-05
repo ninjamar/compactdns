@@ -128,6 +128,8 @@ class BaseResponseHandler(LCBMethods):
         Args:
             buf: Buffer to unpack.
         """
+        # yappi.set_clock_type("wall")
+        # yappi.start()
 
         self.lcb.start()
 
@@ -395,6 +397,20 @@ class BaseResponseHandler(LCBMethods):
                 self.doh_conn.close()
                 self.unregister(self.doh_conn)
                 logging.debug("Closed DoH connection")
+
+        """
+        yappi.stop()
+
+        fstats = yappi.get_func_stats()
+        tstats = yappi.get_thread_stats()
+
+        fstats.print_all()
+        tstats.print_all()
+        
+        print(f"Total Function Time {sum(f.ttot for f in fstats)}")
+        print(f"Total Thread Time {sum(t.ttot for t in tstats)}")
+        """
+
 
 
 def preload_host(host: str, storage: RecordStorage, resolver: BaseResolver) -> None:
