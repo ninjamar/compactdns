@@ -189,7 +189,6 @@ kwargs_defaults_initial = {
             help_="Path to cache preload file", type_=str, default=None, path=True
         ),
     },
-    "__use_debug_settings": K(help_="", type_=bool, default=False),
 }
 
 kwargs_defaults: dict[str, K] = flatten_dict(kwargs_defaults_initial)

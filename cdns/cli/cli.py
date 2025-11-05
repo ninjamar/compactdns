@@ -32,13 +32,12 @@ import logging
 import os
 import sys
 
-from cdns import tools
 from cdns.server import _installer
 from cdns.server.manager import ServerManager
 from cdns.utils import CustomFormatter
 
 from .kwargs import get_kwargs, kwargs_defaults
-
+from . import shell_client
 
 def _configure_logging(kwargs: dict[str, str | int | bool]) -> None:
     """Configure the logger.
@@ -66,11 +65,6 @@ def _configure_logging(kwargs: dict[str, str | int | bool]) -> None:
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-    if kwargs["__use_debug_settings"] and kwargs["logging.loglevel"] != "DEBUG":
-        logging.error(
-            'When the setting "__use_debug_settings" is True, the logging level must be set to DEBUG'
-        )
-        sys.exit()
 
 
 def cli() -> None:
@@ -96,12 +90,6 @@ def cli() -> None:
         required=True,
         help="Path to configuration file (json or toml)",
     )
-
-    h2j_parser = tools_subparser.add_parser(
-        "h2j", help="Convert a host file to a json zone."
-    )
-    h2j_parser.add_argument("source", help="Source of host file (/etc/hosts)")
-    h2j_parser.add_argument("dest", help="Destination file (.all.json)")
 
     parser_shell = tools_subparser.add_parser(
         "shell", help="Open the interactive shell"
@@ -149,9 +137,7 @@ def cli() -> None:
 
     elif args.subcommand == "shell":
         host = args.host.split(":")
-        tools.shell_client.main(secret=args.secret, addr=(host[0], int(host[1])))
-    elif args.subcommand == "h2j":
-        tools.h2j.main(args.source, args.dest)
+        shell_client.main(secret=args.secret, addr=(host[0], int(host[1])))
 
     elif args.subcommand == "install":
         _installer.install(args.config)
