@@ -804,11 +804,6 @@ class ServerManager:
             return self.storage.write_cache_to_file(path=Path(kwargs["path"]).resolve())
         elif cmd == "purge-cache":
             return self.storage.cache.purge()
-        elif cmd == "reset-rule-5-mins":
-            # Allow site now
-            # Set timer to 5 mins in future
-            # In 5 minutes, unallow site
-            pass
 
     def _handle_debug_shell_session(self, conn: socket.socket) -> None:
         """Handle a debug shell session. This function blocks the DNS queries,
