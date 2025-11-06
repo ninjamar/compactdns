@@ -33,8 +33,6 @@ import socket
 import struct
 from typing import Callable
 
-# Because lcb.py has a type ignore at the top, mypy doesn't know the methods
-from cdns.lcb import LCBMethods  # type: ignore
 from cdns.protocol import *
 from cdns.resolvers.base import METHOD, BaseResolver
 from cdns.resolvers.recursive import RecursiveResolver
@@ -58,7 +56,7 @@ import yappi
 
 
 # TODO: Override login to use broadcast system
-class BaseResponseHandler(LCBMethods):
+class ResponseHandler:
     """A class to make a DNS response."""
 
     def __init__(
@@ -132,8 +130,6 @@ class BaseResponseHandler(LCBMethods):
         """
         # yappi.set_clock_type("wall")
         # yappi.start()
-
-        self.lcb.start()
 
         success = self._receive(buf)
         if success:
@@ -365,7 +361,6 @@ class BaseResponseHandler(LCBMethods):
             # Lock is unnecessary here since .sendto is thread safe (UDP is also connectionless)
             # TODO: Release timer
             self.udp_sock.sendto(self.bsend, self.udp_addr)
-            self.lcb.end()
         elif self.tcp_conn:
             buf_len = struct.pack("!H", len(self.bsend))
 
@@ -377,7 +372,6 @@ class BaseResponseHandler(LCBMethods):
 
             try:
                 self.tcp_conn.sendall(buf_len + self.bsend)
-                self.lcb.end()
             finally:
                 self.tcp_conn.close()
                 sel.unregister(self.tcp_conn)
@@ -394,7 +388,6 @@ class BaseResponseHandler(LCBMethods):
                 # self.doh_conn.sendall(
                 #    make_response(self.doh_req), self.bsend
                 # )  # Pack data properly
-                self.lcb.end()
             finally:
                 self.doh_conn.close()
                 self.unregister(self.doh_conn)

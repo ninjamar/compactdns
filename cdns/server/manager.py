@@ -55,7 +55,7 @@ import h11
 from cdns.resolvers import BaseResolver, RecursiveResolver
 from cdns.smartselector import close_all_selectors, get_current_thread_selector
 
-from .response import make_response_handler, mixins, preload_hosts
+from .response import ResponseHandler, preload_hosts
 from .storage import RecordStorage, RootHints
 
 MAX_WORKERS = 1000  # TODO: What should this be
@@ -200,17 +200,8 @@ class ServerManager:
         self.execution_timeout = 0
         self.max_workers = max_workers
 
-        self.tracker = mixins.ResourceTrackerMixin()  # also doubles as a dictionary
 
-        self.smart_mixin_input_queue = mp.Queue()
-
-        # smart_mixin =  mixins.SmartEnsureLoadedMixin(self.smart_mixin_input_queue)
-
-        self.ResponseHandler = make_response_handler(
-            "ResponseHandler",
-            # mixins=[smart_mixin, self.tracker],
-            mixins=[self.tracker],
-        )
+        self.ResponseHandler = ResponseHandler
 
         self.storage = storage
 
@@ -946,10 +937,6 @@ class ServerManager:
         # TODO: If socket limit exceeded, close all open sockets and warn user
         # FIXME: What should the timeout be? Does this fix the issue?
         # After 1 secs if no socket, the loop condition will be checked again
-
-        # if self.ResponseHandler.lcb.mixins.has(mixins.ResourceTrackerMixin):
-        #    if len(self.tracker.keys()) > 0:
-        #        logging.error("TRACKER: %s", self.tracker.get_elapsed())
 
         events = sel.safe_select(timeout=1)
         for key, mask in events:
